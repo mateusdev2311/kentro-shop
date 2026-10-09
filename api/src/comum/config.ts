@@ -28,7 +28,8 @@ export function lerConfig(env: NodeJS.ProcessEnv): ConfigApp {
   // No build, este arquivo fica em dist/comum; extensao/ e public/ ficam em dist/.
   const dist = path.join(__dirname, '..');
   return {
-    porta: env.PORTA ? Number(env.PORTA) : 3000,
+    // PORT é a "porta interna" que a VPS injeta; PORTA fica para uso local.
+    porta: Number(env.PORTA || env.PORT || 3000),
     databaseUrl: env.DATABASE_URL!.trim(),
     chaveMestra,
     tokenSuperadmin: env.TOKEN_SUPERADMIN!.trim(),

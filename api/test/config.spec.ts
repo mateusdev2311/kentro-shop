@@ -32,6 +32,10 @@ describe('lerConfig', () => {
     expect(lerConfig(envValido({ PORTA: '8080' })).porta).toBe(8080);
   });
 
+  it('usa PORT, que a VPS preenche com a "porta interna"', () => {
+    expect(lerConfig(envValido({ PORT: '4000' })).porta).toBe(4000);
+  });
+
   it('decodifica a chave mestra para 32 bytes', () => {
     expect(lerConfig(envValido()).chaveMestra.length).toBe(32);
   });

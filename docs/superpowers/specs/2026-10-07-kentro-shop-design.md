@@ -72,13 +72,13 @@ Kentro · captura de webhook ◀── evento "finalizado" ───────
                                                Nuvemshop · Tray · Loja Integrada
 ```
 
-### 4.1 Repositório (monorepo, npm workspaces)
+### 4.1 Repositório (pacote npm único)
 
-npm workspaces em vez de pnpm (o pnpm não está instalado e a VPS usa `npm run build`). Situação após a Fase 0: existem `api/` (comum, saude, lojas, admin, arquivos-extensao, catalogo/página), `storefront/` (placeholder) e `extension/{atendimento,admin}`. As demais pastas abaixo entram nas fases que as usam; `packages/contratos` entra na Fase 1, com o modelo de produto.
+**Um único `package.json` na raiz, sem workspaces nem pnpm.** O Dockerfile da VPS roda `npm install` só com `package.json`/`package-lock.json` e copia o resto depois; com workspaces, as dependências de `api/` e `storefront/` não eram instaladas (`tsc: not found`, 09/10/2026). Pelo mesmo motivo o `prisma generate` roda dentro do `npm run build`, e não no `postinstall`. Depois do build, a VPS roda `npm prune --omit=dev`, então tudo o que a API usa em produção (inclusive `prisma`) fica em `dependencies`. Situação após a Fase 0: existem `api/` (comum, saude, lojas, admin, arquivos-extensao, catalogo/página), `storefront/` (placeholder) e `extension/{atendimento,admin}`. As demais pastas abaixo entram nas fases que as usam; `packages/contratos` entra na Fase 1, com o modelo de produto.
 
 ```
 kentro-shop/
-  package.json    workspaces ["api", "storefront"]; build único
+  package.json    pacote único: dependências, build e testes
   scripts/copiar-build.mjs
   api/            NestJS (compila para ../dist)
     src/
@@ -105,7 +105,7 @@ kentro-shop/
   docs/
 ```
 
-**Build único:** `npm run build` na raiz gera um só `dist/` na raiz, como na demo: `dist/main.js` (API), `dist/public/` (storefront), `dist/extensao/{atendimento,admin}/` e `dist/prisma/` (schema e migrações). A VPS só leva a pasta `dist/` para o contêiner (lição da demo: arquivos fora de `dist/` dão 404 em produção). As dependências ficam no `node_modules` da raiz (workspaces). O `postinstall` da API roda `prisma generate`, e as migrações rodam no boot (`prisma migrate deploy`). Se faltar variável obrigatória, o boot para com a lista do que falta.
+**Build único:** `npm run build` na raiz gera um só `dist/` na raiz, como na demo: `dist/main.js` (API), `dist/public/` (storefront), `dist/extensao/{atendimento,admin}/` e `dist/prisma/` (schema e migrações). A VPS só leva a pasta `dist/` para o contêiner (lição da demo: arquivos fora de `dist/` dão 404 em produção). As dependências ficam no `node_modules` da raiz. O build roda `prisma generate`, e as migrações rodam no boot (`prisma migrate deploy`). A porta vem de `PORT` (preenchida pela VPS com a "porta interna") ou de `PORTA`, com padrão 3000. Se faltar variável obrigatória, o boot para com a lista do que falta.
 
 **Desenvolvimento local, sem Docker:** `npm run db:local` sobe um Postgres embutido (porta 54329) e `npm test` sobe outro, temporário, na porta 54330.
 

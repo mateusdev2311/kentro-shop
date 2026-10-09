@@ -3,6 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { iniciarBanco } from './banco.mjs';
 
 export default async function () {
@@ -14,7 +15,8 @@ export default async function () {
 
   const require = createRequire(import.meta.url);
   try {
-    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy', '--schema', 'prisma/schema.prisma'], {
+    const schema = fileURLToPath(new URL('../prisma/schema.prisma', import.meta.url));
+    execFileSync(process.execPath, [require.resolve('prisma/build/index.js'), 'migrate', 'deploy', '--schema', schema], {
       env: { ...process.env, DATABASE_URL: banco.url },
       stdio: 'pipe',
     });
