@@ -1,0 +1,29 @@
+{
+  "manifestVersion": 1,
+  "id": "kentro.shop",
+  "version": "0.1.0",
+  "name": "Kentro Shop — Atendimento",
+  "description": "Catálogo de e-commerce no atendimento: link para o cliente, carrinho ao vivo e pedido para o atendente.",
+  "author": { "name": "Kentro Shop" },
+  "requires": [],
+  "config": [
+    {
+      "key": "api_url",
+      "type": "url",
+      "label": "Endereço da API do Kentro Shop",
+      "help": "Já vem preenchido. Só altere se o suporte pedir.",
+      "required": true,
+      "default": "__URL_PUBLICA__"
+    },
+    {
+      "key": "chave_atendimento",
+      "type": "secret",
+      "label": "Chave de atendimento",
+      "help": "Gerada na tela de Configurações do Kentro Shop — Admin, ao criar a loja.",
+      "required": true
+    }
+  ],
+  "contributions": [
+    { "id": "painel", "type": "chatPanel", "title": "Kentro Shop", "url": "painel.html" }
+  ]
+}

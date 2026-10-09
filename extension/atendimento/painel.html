@@ -1,0 +1,123 @@
+<style>
+  /* Reserva: a Kentro publica os tokens --ext-* antes deste estilo; :where() não os sobrescreve. */
+  :where(:root) {
+    --ext-color-primary: #7C3AED;
+    --ext-color-bg: #fff;
+    --ext-color-border: #d2d2d2;
+    --ext-color-text: #1e1e1e;
+    --ext-color-text-muted: #565656;
+    --ext-color-error: #ff3b3b;
+    --ext-color-success: #06c270;
+    --ext-radius: 4px;
+    --ext-font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
+    --ext-font-size: 14px;
+    --ext-spacing: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: var(--ext-spacing) calc(var(--ext-spacing) * 1.5);
+    font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.4;
+    color: var(--ext-color-text); background: var(--ext-color-bg);
+  }
+  [hidden] { display: none !important; }
+  .aviso { padding: 8px 10px; border-radius: var(--ext-radius); margin: 8px 0; font-size: .9em;
+    background: #fff0f0; color: #b00020; border: 1px solid var(--ext-color-error); }
+  .status { color: var(--ext-color-text-muted); }
+  .status::before { content: "● "; color: var(--ext-color-success); }
+  .carregando { color: var(--ext-color-text-muted); font-style: italic; }
+</style>
+
+<p id="carregando" class="carregando">Conectando ao Kentro Shop…</p>
+<div id="aviso" class="aviso" hidden></div>
+<p id="status" class="status" hidden></p>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  if (typeof omni === 'undefined') {
+    $('carregando').hidden = true;
+    mostrarAviso('Esta tela só funciona dentro da Kentro.');
+    return;
+  }
+
+  var cfg = { apiUrl: '', chave: '' };
+  var usuario = {};
+
+  function mostrarAviso(texto) {
+    $('aviso').textContent = texto;
+    $('aviso').hidden = false;
+  }
+
+  // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
+  function api(caminho, opcoes) {
+    opcoes = opcoes || {};
+    var req = {
+      url: cfg.apiUrl + caminho,
+      method: opcoes.method || 'GET',
+      headers: {
+        'X-Loja-Chave': cfg.chave,
+        'X-Kentro-Usuario-Id': String(usuario.id || ''),
+        // Cabeçalho HTTP não aceita emoji nem boa parte do Unicode: o nome vai codificado.
+        'X-Kentro-Usuario-Nome': encodeURIComponent(String(usuario.name || ''))
+      }
+    };
+    if (opcoes.body) {
+      req.headers['Content-Type'] = 'application/json';
+      req.body = JSON.stringify(opcoes.body);
+    }
+    return omni.http.request(req).then(function (r) {
+      return r.body ? JSON.parse(r.body) : {};
+    }, function (e) {
+      var erro = { status: (e && e.status) || 0, codigo: e && e.code };
+      if (e && e.code === 'http_error') {
+        try { erro.codigo = JSON.parse(e.body).erro.codigo; } catch (x) { /* corpo sem o formato padrão */ }
+      }
+      throw erro;
+    });
+  }
+
+  function mensagemDeErro(erro) {
+    if (erro.status === 401) return 'A chave de atendimento do Kentro Shop é inválida. Peça ao administrador para conferir a configuração.';
+    if (erro.codigo === 'LOJA_BLOQUEADA') return 'Esta loja está bloqueada no Kentro Shop. Fale com o administrador.';
+    if (erro.codigo === 'rate_limited') return 'Muitas consultas seguidas. Aguarde um minuto.';
+    return 'Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.';
+  }
+
+  omni.ready(function (ctx) {
+    var c = (ctx && ctx.config) || {};
+    usuario = (ctx && ctx.user) || {};
+    cfg.apiUrl = String(c.api_url || '').trim().replace(/\/+$/, '');
+    cfg.chave = String(c.chave_atendimento || '').trim();
+
+    if (!cfg.chave || !cfg.apiUrl) {
+      $('carregando').hidden = true;
+      mostrarAviso('Peça ao administrador para configurar o Kentro Shop.');
+      return;
+    }
+
+    api('/v1/loja').then(function (loja) {
+      // A chave de admin não pode ficar no painel: ela chegaria ao navegador de todos os atendentes.
+      if (loja.papel !== 'atendimento') {
+        mostrarAviso('Esta é a chave de admin. Peça ao administrador para colar a chave de atendimento na configuração do Kentro Shop — Atendimento.');
+        return;
+      }
+      $('status').textContent = 'Conectado à loja ' + (loja.nome || 'sem nome') + '.';
+      $('status').hidden = false;
+    }, function (erro) {
+      mostrarAviso(mensagemDeErro(erro));
+    }).then(function () {
+      $('carregando').hidden = true;
+    });
+  });
+
+  // O painel lateral tem largura fixa; a altura acompanha o conteúdo.
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      Promise.resolve(omni.ui.resize(document.body.scrollHeight + 16)).catch(function () {});
+    }).observe(document.body);
+  }
+})();
+</script>

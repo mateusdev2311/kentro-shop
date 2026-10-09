@@ -1,0 +1,19 @@
+{
+  "name": "kentro-shop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kentro Shop: catálogo de e-commerce no atendimento da Kentro (API, catálogo e extensões).",
+  "workspaces": [
+    "api",
+    "storefront"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build -w storefront && npm run build -w api && node scripts/copiar-build.mjs",
+    "start": "node dist/main.js",
+    "test": "npm test -w api",
+    "db:local": "npm run db:local -w api"
+  }
+}

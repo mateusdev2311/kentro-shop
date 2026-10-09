@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "id": "kentro.shop-admin",
+  "version": "0.1.0",
+  "name": "Kentro Shop — Admin",
+  "description": "Configuração do Kentro Shop: integração com o e-commerce, catálogo, entrega, pedidos e IA. Instale só para administradores.",
+  "author": { "name": "Kentro Shop" },
+  "requires": [],
+  "config": [
+    {
+      "key": "api_url",
+      "type": "url",
+      "label": "Endereço da API do Kentro Shop",
+      "help": "Já vem preenchido. Só altere se o suporte pedir.",
+      "required": true,
+      "default": "__URL_PUBLICA__"
+    },
+    {
+      "key": "chave_admin",
+      "type": "secret",
+      "label": "Chave de admin",
+      "help": "Deixe vazio na primeira instalação: a tela de Configurações cria a loja e mostra a chave para colar aqui.",
+      "required": false
+    }
+  ],
+  "contributions": [
+    {
+      "id": "configuracoes",
+      "type": "topMenu",
+      "title": "Kentro Shop",
+      "url": "config.html",
+      "presentation": { "mode": "dialog", "size": "xl" },
+      "visibility": { "userTypes": [0] }
+    }
+  ]
+}

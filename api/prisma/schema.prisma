@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StatusLoja {
+  pendente_integracao
+  ativa
+  bloqueada
+}
+
+model Loja {
+  id                   String     @id @default(uuid()) @db.Uuid
+  nome                 String?
+  chaveAdminHash       String     @unique @map("chave_admin_hash")
+  chaveAtendimentoHash String     @unique @map("chave_atendimento_hash")
+  tokenMcpHash         String     @unique @map("token_mcp_hash")
+  status               StatusLoja @default(pendente_integracao)
+  plano                String     @default("gratis")
+  limites              Json       @default("{}")
+  criadoEm             DateTime   @default(now()) @map("criado_em")
+  atualizadoEm         DateTime   @updatedAt @map("atualizado_em")
+
+  @@map("lojas")
+}

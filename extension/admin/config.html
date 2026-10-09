@@ -1,0 +1,253 @@
+<style>
+  /* Reserva: a Kentro publica os tokens --ext-* antes deste estilo; :where() não os sobrescreve. */
+  :where(:root) {
+    --ext-color-primary: #7C3AED;
+    --ext-color-on-primary: #fff;
+    --ext-color-bg: #fff;
+    --ext-color-border: #d2d2d2;
+    --ext-color-text: #1e1e1e;
+    --ext-color-text-muted: #565656;
+    --ext-color-error: #ff3b3b;
+    --ext-color-success: #06c270;
+    --ext-radius: 4px;
+    --ext-font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
+    --ext-font-size: 14px;
+    --ext-spacing: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: calc(var(--ext-spacing) * 2) calc(var(--ext-spacing) * 3);
+    font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.5;
+    color: var(--ext-color-text); background: var(--ext-color-bg);
+  }
+  [hidden] { display: none !important; }
+  h1 { font-size: 1.3em; margin: 0 0 12px; }
+  h2 { font-size: 1.05em; margin: 16px 0 8px; }
+  .muted { color: var(--ext-color-text-muted); }
+  label { display: block; font-weight: 600; font-size: .9em; margin: 8px 0 4px; }
+  input { width: 100%; max-width: 420px; font: inherit; padding: 6px 8px; color: var(--ext-color-text);
+    background: var(--ext-color-bg); border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius); }
+  button { font: inherit; cursor: pointer; padding: 6px 14px; border-radius: var(--ext-radius);
+    border: 1px solid var(--ext-color-primary); background: var(--ext-color-bg); color: var(--ext-color-primary); }
+  button.principal { background: var(--ext-color-primary); color: var(--ext-color-on-primary); }
+  button:disabled { opacity: .5; cursor: default; }
+  .acoes { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .aviso { padding: 8px 10px; border-radius: var(--ext-radius); margin: 8px 0; }
+  .aviso.erro { background: #fff0f0; color: #b00020; border: 1px solid var(--ext-color-error); }
+  .aviso.destaque { background: #fff8e1; color: #6d4c00; border: 1px solid #f0c040; font-weight: 600; }
+  .chave { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
+  .chave .rotulo { width: 160px; font-weight: 600; }
+  .chave code { flex: 1; min-width: 200px; padding: 6px 8px; background: #f5f5f5; border-radius: var(--ext-radius);
+    word-break: break-all; font-size: .85em; }
+  ol { padding-left: 20px; }
+  ol li { margin: 4px 0; }
+  .copiar { position: fixed; left: -9999px; }
+</style>
+
+<h1>Kentro Shop</h1>
+<p id="carregando" class="muted">Carregando…</p>
+<div id="aviso" class="aviso erro" hidden></div>
+<p id="status" hidden></p>
+
+<!-- Loja ainda não configurada nesta instalação -->
+<section id="inicio" hidden>
+  <p>Para começar, crie a sua loja no Kentro Shop. Você vai receber as chaves para colar na configuração das extensões.</p>
+  <label for="nome-loja">Nome da loja (opcional)</label>
+  <input id="nome-loja" maxlength="120" autocomplete="off" placeholder="Ex.: Shopping dos Pisos">
+  <div class="acoes">
+    <button type="button" class="principal" id="btn-criar">Criar minha loja no Kentro Shop</button>
+    <button type="button" id="btn-ja-tenho">Já tenho uma chave</button>
+  </div>
+  <div id="ajuda-chave" hidden>
+    <h2>Onde colar a chave de admin</h2>
+    <p>Abra Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar, cole a chave no campo <strong>Chave de admin</strong> e salve. Depois feche e abra esta tela de novo.</p>
+  </div>
+</section>
+
+<!-- Chaves recém-geradas: aparecem uma vez e ficam guardadas até serem coladas -->
+<section id="chaves" hidden>
+  <div class="aviso destaque">Estas chaves aparecem só agora. Copie antes de fechar.</div>
+  <div class="chave"><span class="rotulo">Chave de admin</span><code id="valor-chave-admin"></code>
+    <button type="button" data-copiar="valor-chave-admin">Copiar</button></div>
+  <div class="chave"><span class="rotulo">Chave de atendimento</span><code id="valor-chave-atendimento"></code>
+    <button type="button" data-copiar="valor-chave-atendimento">Copiar</button></div>
+  <div class="chave"><span class="rotulo">Token MCP</span><code id="valor-token-mcp"></code>
+    <button type="button" data-copiar="valor-token-mcp">Copiar</button></div>
+  <h2>Próximos passos</h2>
+  <ol>
+    <li>Copie a Chave de admin e cole em Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar &gt; Chave de admin &gt; Salvar.</li>
+    <li>Instale o Kentro Shop — Atendimento e cole a Chave de atendimento no campo Chave de atendimento.</li>
+    <li>Guarde o Token MCP: ele será usado na configuração da IA.</li>
+    <li>Depois de salvar, feche e abra esta tela de novo.</li>
+  </ol>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  var PENDENTES = 'chaves_pendentes';
+  var $ = function (id) { return document.getElementById(id); };
+
+  function mostrarAviso(texto) {
+    $('aviso').textContent = texto;
+    $('aviso').hidden = !texto;
+  }
+
+  if (typeof omni === 'undefined') {
+    $('carregando').hidden = true;
+    mostrarAviso('Esta tela só funciona dentro da Kentro.');
+    return;
+  }
+
+  var cfg = { apiUrl: '', chave: '' };
+  var usuario = {};
+  var instancia = '';
+
+  // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
+  function api(caminho, opcoes) {
+    opcoes = opcoes || {};
+    var req = {
+      url: cfg.apiUrl + caminho,
+      method: opcoes.method || 'GET',
+      headers: {
+        'X-Kentro-Usuario-Id': String(usuario.id || ''),
+        // Cabeçalho HTTP não aceita emoji nem boa parte do Unicode: o nome vai codificado.
+        'X-Kentro-Usuario-Nome': encodeURIComponent(String(usuario.name || '')),
+        // O limite de registros é por instância: todas as chamadas saem do mesmo IP da Kentro.
+        'X-Kentro-Instancia': instancia
+      }
+    };
+    if (cfg.chave) req.headers['X-Loja-Chave'] = cfg.chave;
+    if (opcoes.body) {
+      req.headers['Content-Type'] = 'application/json';
+      req.body = JSON.stringify(opcoes.body);
+    }
+    return omni.http.request(req).then(function (r) {
+      return r.body ? JSON.parse(r.body) : {};
+    }, function (e) {
+      var erro = { status: (e && e.status) || 0, codigo: e && e.code };
+      if (e && e.code === 'http_error') {
+        try { erro.codigo = JSON.parse(e.body).erro.codigo; } catch (x) { /* corpo sem o formato padrão */ }
+      }
+      throw erro;
+    });
+  }
+
+  function mensagemDeErro(erro) {
+    if (erro.codigo === 'LIMITE_DE_REQUISICOES') return 'Muitas lojas criadas nesta instância da Kentro na última hora. Tente de novo mais tarde.';
+    if (erro.codigo === 'LOJA_BLOQUEADA') return 'Esta loja está bloqueada no Kentro Shop. Fale com o suporte.';
+    if (erro.codigo === 'rate_limited') return 'Muitas consultas seguidas. Aguarde um minuto.';
+    return 'Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.';
+  }
+
+  function copiar(texto, sucesso) {
+    function viaSelecao() {
+      var area = document.createElement('textarea');
+      area.className = 'copiar';
+      area.setAttribute('readonly', 'readonly');
+      area.value = texto;
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      return ok;
+    }
+    var tentativa = navigator.clipboard && navigator.clipboard.writeText
+      ? navigator.clipboard.writeText(texto).then(function () { return true; }, viaSelecao)
+      : Promise.resolve(viaSelecao());
+    tentativa.then(function (ok) {
+      if (ok) Promise.resolve(omni.ui.toast(sucesso, 'success')).catch(function () {});
+      else mostrarAviso('Não foi possível copiar automaticamente. Selecione o texto e copie com Ctrl+C.');
+    });
+  }
+
+  function mostrarChaves(chaves) {
+    $('valor-chave-admin').textContent = chaves.chaveAdmin;
+    $('valor-chave-atendimento').textContent = chaves.chaveAtendimento;
+    $('valor-token-mcp').textContent = chaves.tokenMcp;
+    $('inicio').hidden = true;
+    $('chaves').hidden = false;
+  }
+
+  function mostrarInicio() {
+    $('chaves').hidden = true;
+    $('inicio').hidden = false;
+  }
+
+  $('btn-ja-tenho').addEventListener('click', function () {
+    $('ajuda-chave').hidden = false;
+  });
+
+  $('btn-criar').addEventListener('click', function () {
+    var botao = this;
+    var nome = $('nome-loja').value.trim();
+    botao.disabled = true;
+    mostrarAviso('');
+    api('/v1/lojas/registrar', { method: 'POST', body: nome ? { nome: nome } : {} }).then(function (r) {
+      var chaves = { chaveAdmin: r.chaveAdmin, chaveAtendimento: r.chaveAtendimento, tokenMcp: r.tokenMcp, em: new Date().toISOString() };
+      // Guarda no navegador do admin até ele colar a chave, para não se perder se a tela fechar.
+      return Promise.resolve(omni.storage.set(PENDENTES, chaves)).catch(function () {}).then(function () {
+        mostrarChaves(chaves);
+      });
+    }, function (erro) {
+      mostrarAviso(mensagemDeErro(erro));
+    }).then(function () {
+      botao.disabled = false;
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-copiar]'), function (botao) {
+    botao.addEventListener('click', function () {
+      copiar($(botao.getAttribute('data-copiar')).textContent, 'Copiado.');
+    });
+  });
+
+  function lerPendentes() {
+    return Promise.resolve(omni.storage.get(PENDENTES)).catch(function () { return null; }).then(function (p) {
+      return p && p.chaveAdmin ? p : null;
+    });
+  }
+
+  // Sem uma chave de admin válida: as chaves guardadas têm prioridade sobre criar outra loja,
+  // senão a loja recém-criada ficaria órfã.
+  function semChaveValida() {
+    return lerPendentes().then(function (pendentes) {
+      if (pendentes) mostrarChaves(pendentes);
+      else mostrarInicio();
+    });
+  }
+
+  omni.ready(function (ctx) {
+    var c = (ctx && ctx.config) || {};
+    usuario = (ctx && ctx.user) || {};
+    instancia = String((ctx && ctx.instance && ctx.instance.domain) || '');
+    cfg.apiUrl = String(c.api_url || '').trim().replace(/\/+$/, '');
+    cfg.chave = String(c.chave_admin || '').trim();
+
+    if (!cfg.chave) {
+      semChaveValida().then(function () { $('carregando').hidden = true; });
+      return;
+    }
+
+    api('/v1/loja').then(function (loja) {
+      if (loja.papel !== 'admin') {
+        mostrarAviso('Você colou a chave de atendimento no campo Chave de admin. Cole a Chave de admin na configuração do Kentro Shop — Admin.');
+        return semChaveValida();
+      }
+      $('status').textContent = 'Loja ' + (loja.nome || 'sem nome') + ' configurada. Status: ' + loja.status + '.';
+      $('status').hidden = false;
+      return Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
+    }, function (erro) {
+      if (erro.status === 401) {
+        mostrarAviso('A chave de admin é inválida. Cole a chave correta na configuração da extensão ou crie uma loja nova.');
+        return semChaveValida();
+      }
+      mostrarAviso(mensagemDeErro(erro));
+    }).then(function () {
+      $('carregando').hidden = true;
+    });
+  });
+})();
+</script>
