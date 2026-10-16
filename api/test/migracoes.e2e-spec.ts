@@ -24,6 +24,23 @@ describe('migrações e tabela lojas', () => {
     expect(loja.limites).toEqual({});
   });
 
+  it('regra de produto é única por loja e SKU', async () => {
+    const loja = await prisma.loja.create({ data: { chaveAdminHash: 'a', chaveAtendimentoHash: 'b', tokenMcpHash: 'c' } });
+    await prisma.regraProduto.create({ data: { lojaId: loja.id, sku: 'X1', selo: 'Novo' } });
+    await expect(prisma.regraProduto.create({ data: { lojaId: loja.id, sku: 'X1' } })).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('apagar a loja apaga a integração e as regras dela', async () => {
+    const loja = await prisma.loja.create({ data: { chaveAdminHash: 'a', chaveAtendimentoHash: 'b', tokenMcpHash: 'c' } });
+    await prisma.integracao.create({
+      data: { lojaId: loja.id, plataforma: 'falso', credenciaisCifradas: Buffer.from('x'), iv: Buffer.from('y') },
+    });
+    await prisma.regraProduto.create({ data: { lojaId: loja.id, sku: 'X1' } });
+    await prisma.loja.delete({ where: { id: loja.id } });
+    expect(await prisma.integracao.count()).toBe(0);
+    expect(await prisma.regraProduto.count()).toBe(0);
+  });
+
   it('não aceita duas lojas com o mesmo hash de chave admin', async () => {
     await prisma.loja.create({ data: { chaveAdminHash: 'a', chaveAtendimentoHash: 'b', tokenMcpHash: 'c' } });
     await expect(

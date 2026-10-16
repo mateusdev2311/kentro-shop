@@ -24,14 +24,15 @@
   h1 { font-size: 1.3em; margin: 0 0 12px; }
   h2 { font-size: 1.05em; margin: 16px 0 8px; }
   .muted { color: var(--ext-color-text-muted); }
-  label { display: block; font-weight: 600; font-size: .9em; margin: 8px 0 4px; }
-  input { width: 100%; max-width: 420px; font: inherit; padding: 6px 8px; color: var(--ext-color-text);
+  label { display: block; font-weight: 600; font-size: .9em; margin: 10px 0 4px; }
+  input, select { width: 100%; max-width: 460px; font: inherit; padding: 6px 8px; color: var(--ext-color-text);
     background: var(--ext-color-bg); border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius); }
+  .ajuda { display: block; font-size: .8em; color: var(--ext-color-text-muted); margin-top: 2px; }
   button { font: inherit; cursor: pointer; padding: 6px 14px; border-radius: var(--ext-radius);
     border: 1px solid var(--ext-color-primary); background: var(--ext-color-bg); color: var(--ext-color-primary); }
   button.principal { background: var(--ext-color-primary); color: var(--ext-color-on-primary); }
   button:disabled { opacity: .5; cursor: default; }
-  .acoes { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .acoes { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   .aviso { padding: 8px 10px; border-radius: var(--ext-radius); margin: 8px 0; }
   .aviso.erro { background: #fff0f0; color: #b00020; border: 1px solid var(--ext-color-error); }
   .aviso.destaque { background: #fff8e1; color: #6d4c00; border: 1px solid #f0c040; font-weight: 600; }
@@ -42,6 +43,13 @@
   ol { padding-left: 20px; }
   ol li { margin: 4px 0; }
   .copiar { position: fixed; left: -9999px; }
+  .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--ext-color-border); margin: 12px 0 4px; }
+  .abas button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--ext-color-text-muted); background: none; }
+  .abas button.ativa { border-bottom-color: var(--ext-color-primary); color: var(--ext-color-primary); font-weight: 600; }
+  .resultado { margin-top: 12px; font-weight: 600; }
+  .etiquetas { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .etiquetas li { padding: 2px 10px; border-radius: 999px; background: #eef7f1; color: #046c3e; font-size: .85em; }
+  .previa { padding-left: 18px; margin: 4px 0; }
 </style>
 
 <h1>Kentro Shop</h1>
@@ -82,11 +90,41 @@
   </ol>
 </section>
 
+<!-- Loja configurada: abas de configuração -->
+<section id="loja" hidden>
+  <nav class="abas">
+    <button type="button" class="ativa" id="botao-aba-integracao">Integração</button>
+  </nav>
+
+  <section id="aba-integracao">
+    <p class="muted">Conecte a plataforma de e-commerce da loja. Os produtos são lidos ao vivo, nada é copiado.</p>
+    <label for="plataforma">Plataforma</label>
+    <select id="plataforma"></select>
+    <div id="campos"></div>
+    <div class="acoes">
+      <button type="button" class="principal" id="btn-salvar-integracao">Salvar</button>
+      <button type="button" id="btn-testar">Testar conexão</button>
+    </div>
+    <p id="resultado-teste" class="resultado"></p>
+    <div id="bloco-capacidades" hidden>
+      <h2>O que esta plataforma oferece</h2>
+      <ul id="capacidades" class="etiquetas"></ul>
+      <h2>Prévia do catálogo</h2>
+      <ul id="previa" class="previa"></ul>
+    </div>
+  </section>
+</section>
+
 <script>
 (function () {
   'use strict';
 
   var PENDENTES = 'chaves_pendentes';
+  var ESTADOS = { nao: 'não configurada', pendente: 'pendente', ok: 'funcionando', erro: 'com erro', falha: 'não foi possível consultar' };
+  var CAPACIDADES = [
+    ['buscaTextual', 'Busca'], ['categorias', 'Categorias'], ['variacoes', 'Variações'], ['estoque', 'Estoque'],
+    ['relacionados', 'Produtos relacionados'], ['cotarFrete', 'Cotação de frete'], ['criarPedido', 'Criação de pedido']
+  ];
   var $ = function (id) { return document.getElementById(id); };
 
   function mostrarAviso(texto) {
@@ -103,8 +141,20 @@
   var cfg = { apiUrl: '', chave: '' };
   var usuario = {};
   var instancia = '';
+  var estado = { loja: null, conectores: [], integracao: null, situacao: 'nao', alterado: false };
+
+  function erroDe(status, texto) {
+    var erro = { status: status || 0, codigo: '', mensagem: '' };
+    try {
+      var corpo = JSON.parse(texto);
+      if (corpo && corpo.erro) { erro.codigo = corpo.erro.codigo || ''; erro.mensagem = corpo.erro.mensagem || ''; }
+    } catch (x) { /* corpo sem o formato padrão */ }
+    return erro;
+  }
 
   // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
+  // O proxy da Kentro pode devolver um erro da API de quatro jeitos: resolvido com status de erro,
+  // rejeitado com http_error (status e corpo), ou convertido em forbidden (401/403) ou not_found (404).
   function api(caminho, opcoes) {
     opcoes = opcoes || {};
     var req = {
@@ -124,21 +174,38 @@
       req.body = JSON.stringify(opcoes.body);
     }
     return omni.http.request(req).then(function (r) {
-      return r.body ? JSON.parse(r.body) : {};
+      if (r && r.status >= 200 && r.status < 300) return r.body ? JSON.parse(r.body) : {};
+      throw erroDe(r && r.status, r && r.body);
     }, function (e) {
-      var erro = { status: (e && e.status) || 0, codigo: e && e.code };
-      if (e && e.code === 'http_error') {
-        try { erro.codigo = JSON.parse(e.body).erro.codigo; } catch (x) { /* corpo sem o formato padrão */ }
-      }
-      throw erro;
+      var codigo = e && e.code;
+      if (codigo === 'http_error') throw erroDe(e.status, e.body);
+      if (codigo === 'forbidden') throw { status: 403, codigo: 'forbidden_kentro', mensagem: '' };
+      if (codigo === 'not_found') throw { status: 404, codigo: 'NAO_ENCONTRADO', mensagem: '' };
+      throw { status: 0, codigo: codigo || '', mensagem: '' };
     });
   }
 
   function mensagemDeErro(erro) {
+    if (erro.codigo === 'forbidden_kentro') return 'A Kentro recusou a chamada ao Kentro Shop. Confira a chave de admin e a permissão de chamadas externas do seu usuário.';
     if (erro.codigo === 'LIMITE_DE_REQUISICOES') return 'Muitas lojas criadas nesta instância da Kentro na última hora. Tente de novo mais tarde.';
     if (erro.codigo === 'LOJA_BLOQUEADA') return 'Esta loja está bloqueada no Kentro Shop. Fale com o suporte.';
     if (erro.codigo === 'rate_limited') return 'Muitas consultas seguidas. Aguarde um minuto.';
+    if (erro.mensagem) return erro.mensagem;
+    // Atrás do proxy da Kentro o corpo do erro pode não chegar: a mensagem sai pelo status.
+    if (erro.status === 400) return 'Confira os campos da integração.';
+    if (erro.status === 409) return 'Salve a integração antes de testar.';
+    if (erro.status === 422) return 'A plataforma recusou as credenciais. Confira os dados da integração.';
+    if (erro.status === 502 || erro.status === 503) return 'A plataforma de e-commerce não respondeu. Tente de novo em instantes.';
     return 'Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.';
+  }
+
+  function limpar(no) { while (no.firstChild) no.removeChild(no.firstChild); }
+
+  function el(tag, texto, classe) {
+    var e = document.createElement(tag);
+    if (texto) e.textContent = texto;
+    if (classe) e.className = classe;
+    return e;
   }
 
   function copiar(texto, sucesso) {
@@ -163,6 +230,7 @@
     });
   }
 
+  // ── Criação da loja e chaves (Fase 0) ───────────────────────────────────
   function mostrarChaves(chaves) {
     $('valor-chave-admin').textContent = chaves.chaveAdmin;
     $('valor-chave-atendimento').textContent = chaves.chaveAtendimento;
@@ -187,10 +255,9 @@
     mostrarAviso('');
     api('/v1/lojas/registrar', { method: 'POST', body: nome ? { nome: nome } : {} }).then(function (r) {
       var chaves = { chaveAdmin: r.chaveAdmin, chaveAtendimento: r.chaveAtendimento, tokenMcp: r.tokenMcp, em: new Date().toISOString() };
+      mostrarChaves(chaves);
       // Guarda no navegador do admin até ele colar a chave, para não se perder se a tela fechar.
-      return Promise.resolve(omni.storage.set(PENDENTES, chaves)).catch(function () {}).then(function () {
-        mostrarChaves(chaves);
-      });
+      return Promise.resolve(omni.storage.set(PENDENTES, chaves)).catch(function () {});
     }, function (erro) {
       mostrarAviso(mensagemDeErro(erro));
     }).then(function () {
@@ -219,6 +286,191 @@
     });
   }
 
+  // ── Aba Integração ───────────────────────────────────────────────────────
+  function atualizarStatus() {
+    $('status').textContent = 'Loja ' + (estado.loja.nome || 'sem nome') + ' · Integração: ' + ESTADOS[estado.situacao];
+    $('status').hidden = false;
+  }
+
+  function conectorAtual() {
+    var id = $('plataforma').value;
+    for (var i = 0; i < estado.conectores.length; i++) if (estado.conectores[i].id === id) return estado.conectores[i];
+    return null;
+  }
+
+  function desenharCampos(valores) {
+    var conector = conectorAtual();
+    var alvo = $('campos');
+    limpar(alvo);
+    estado.alterado = false;
+    if (!conector) return;
+    conector.camposDeCredencial.forEach(function (campo) {
+      var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
+      rotulo.setAttribute('for', 'campo-' + campo.chave);
+      var entrada = document.createElement('input');
+      entrada.id = 'campo-' + campo.chave;
+      entrada.type = campo.tipo === 'segredo' ? 'password' : campo.tipo === 'url' ? 'url' : 'text';
+      entrada.autocomplete = 'off';
+      entrada.value = (valores && valores[campo.chave]) || '';
+      entrada.addEventListener('input', function () { estado.alterado = true; });
+      alvo.appendChild(rotulo);
+      alvo.appendChild(entrada);
+      if (campo.ajuda) alvo.appendChild(el('span', campo.ajuda, 'ajuda'));
+    });
+  }
+
+  function mostrarCapacidades() {
+    var conector = conectorAtual();
+    var alvo = $('capacidades');
+    limpar(alvo);
+    CAPACIDADES.forEach(function (par) {
+      if (conector && conector.capacidades[par[0]]) alvo.appendChild(el('li', par[1]));
+    });
+    $('bloco-capacidades').hidden = false;
+  }
+
+  function formatarPreco(valor) {
+    try { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor); }
+    catch (e) { return 'R$ ' + Number(valor).toFixed(2).replace('.', ','); }
+  }
+
+  function carregarPrevia() {
+    var alvo = $('previa');
+    limpar(alvo);
+    alvo.appendChild(el('li', 'Carregando produtos…', 'muted'));
+    return api('/v1/loja/catalogo/produtos').then(function (pagina) {
+      limpar(alvo);
+      var itens = (pagina.itens || []).slice(0, 5);
+      if (!itens.length) alvo.appendChild(el('li', 'Nenhum produto encontrado na plataforma.', 'muted'));
+      itens.forEach(function (p) { alvo.appendChild(el('li', p.nome + ' — ' + formatarPreco(p.preco))); });
+    }, function (erro) {
+      limpar(alvo);
+      alvo.appendChild(el('li', erro.codigo === 'SEM_INTEGRACAO' || erro.status === 409
+        ? 'Salve e teste a integração para ver a prévia.'
+        : 'Não foi possível carregar a prévia agora.', 'muted'));
+    });
+  }
+
+  function lerCampos() {
+    var conector = conectorAtual();
+    var credenciais = {};
+    conector.camposDeCredencial.forEach(function (campo) {
+      credenciais[campo.chave] = $('campo-' + campo.chave).value.trim();
+    });
+    return credenciais;
+  }
+
+  function mostrarResultado(texto) {
+    $('resultado-teste').textContent = texto;
+  }
+
+  $('plataforma').addEventListener('change', function () {
+    var mesma = estado.integracao && estado.integracao.plataforma === this.value;
+    desenharCampos(mesma ? estado.integracao.credenciais : null);
+    $('bloco-capacidades').hidden = true;
+  });
+
+  /** Salva o formulário. Resolve true se salvou. */
+  function salvar() {
+    var conector = conectorAtual();
+    if (!conector) return Promise.resolve(false);
+    var credenciais = lerCampos();
+    for (var i = 0; i < conector.camposDeCredencial.length; i++) {
+      var campo = conector.camposDeCredencial[i];
+      if (campo.obrigatorio && !credenciais[campo.chave]) {
+        mostrarResultado('Preencha o campo ' + campo.rotulo + '.');
+        return Promise.resolve(false);
+      }
+    }
+    return api('/v1/loja/integracao', { method: 'PUT', body: { plataforma: conector.id, credenciais: credenciais } }).then(function (lida) {
+      estado.integracao = lida;
+      estado.situacao = 'pendente';
+      if (lida && lida.credenciais) desenharCampos(lida.credenciais);
+      estado.alterado = false;
+      $('bloco-capacidades').hidden = true;
+      atualizarStatus();
+      return true;
+    }, function (erro) {
+      mostrarResultado(mensagemDeErro(erro));
+      return false;
+    });
+  }
+
+  $('btn-salvar-integracao').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    mostrarResultado('');
+    salvar().then(function (ok) {
+      if (ok) mostrarResultado('Integração salva. Agora clique em Testar conexão.');
+      botao.disabled = false;
+    });
+  });
+
+  $('btn-testar').addEventListener('click', function () {
+    var botao = this;
+    var conector = conectorAtual();
+    botao.disabled = true;
+    mostrarResultado('Testando…');
+    // Testa o que está na tela: se o formulário foi editado, salva antes.
+    var salvou = estado.alterado ? salvar() : Promise.resolve(true);
+    salvou.then(function (ok) {
+      if (!ok) return null;
+      mostrarResultado('Testando…');
+      return api('/v1/loja/integracao/testar', { method: 'POST' }).then(testou, falhouTeste);
+    }).then(function () {
+      botao.disabled = false;
+    });
+
+    function testou(r) {
+      if (r.ok) {
+        estado.situacao = 'ok';
+        mostrarResultado('Conexão funcionando: ' + (r.nomeLoja || (conector && conector.nome) || 'plataforma') + '.');
+        mostrarCapacidades();
+        atualizarStatus();
+        return carregarPrevia();
+      }
+      estado.situacao = 'erro';
+      mostrarResultado('A conexão falhou: ' + r.mensagem);
+      $('bloco-capacidades').hidden = true;
+      atualizarStatus();
+    }
+
+    function falhouTeste(erro) {
+      mostrarResultado(erro.codigo === 'SEM_INTEGRACAO' || erro.status === 409 ? 'Salve a integração antes de testar.' : mensagemDeErro(erro));
+    }
+  });
+
+  function carregarIntegracao() {
+    var integracao = api('/v1/loja/integracao').then(null, function (erro) {
+      if (erro.status === 404) return null;
+      throw erro;
+    });
+    return Promise.all([api('/v1/conectores'), integracao]).then(function (r) {
+      estado.conectores = r[0] || [];
+      estado.integracao = r[1];
+      estado.situacao = r[1] ? r[1].status : 'nao';
+      var select = $('plataforma');
+      limpar(select);
+      estado.conectores.forEach(function (c) {
+        var opcao = el('option', c.nome);
+        opcao.value = c.id;
+        select.appendChild(opcao);
+      });
+      if (r[1]) select.value = r[1].plataforma;
+      desenharCampos(r[1] ? r[1].credenciais : null);
+      if (estado.situacao === 'ok') {
+        mostrarCapacidades();
+        return carregarPrevia();
+      }
+    }, function (erro) {
+      estado.situacao = 'falha';
+      mostrarResultado(mensagemDeErro(erro));
+    }).then(function () {
+      atualizarStatus();
+    });
+  }
+
+  // ── Início ───────────────────────────────────────────────────────────────
   omni.ready(function (ctx) {
     var c = (ctx && ctx.config) || {};
     usuario = (ctx && ctx.user) || {};
@@ -236,15 +488,17 @@
         mostrarAviso('Você colou a chave de atendimento no campo Chave de admin. Cole a Chave de admin na configuração do Kentro Shop — Admin.');
         return semChaveValida();
       }
-      $('status').textContent = 'Loja ' + (loja.nome || 'sem nome') + ' configurada. Status: ' + loja.status + '.';
-      $('status').hidden = false;
-      return Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
+      estado.loja = loja;
+      $('loja').hidden = false;
+      Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
+      return carregarIntegracao();
     }, function (erro) {
       if (erro.status === 401) {
         mostrarAviso('A chave de admin é inválida. Cole a chave correta na configuração da extensão ou crie uma loja nova.');
         return semChaveValida();
       }
       mostrarAviso(mensagemDeErro(erro));
+      if (erro.codigo === 'forbidden_kentro') return semChaveValida();
     }).then(function () {
       $('carregando').hidden = true;
     });

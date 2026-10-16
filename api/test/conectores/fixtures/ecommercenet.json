@@ -1,0 +1,211 @@
+{
+  "_sintetico": true,
+  "_origem": "Montado a partir dos exemplos do OpenAPI da eCommerce-net e de shopping_dos_pisos/src/catalogo/dados/catalogo.json. Substituir pelas respostas reais gravadas com scripts/gravar-fixtures-ecommercenet.mjs.",
+  "_formato": { "authorization": "puro" },
+  "categorias": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": {},
+      "data": [
+        { "id": "1", "name": "Porcelanatos", "sort": "1", "url": "porcelanatos", "status": "1" },
+        { "id": "2", "name": "Vinílicos", "sort": "2", "url": "vinilicos", "status": "1" },
+        { "id": "3", "name": "Argamassas e rejuntes", "sort": "3", "url": "argamassas", "status": "1" }
+      ]
+    }
+  },
+  "produtos-p1": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "code": 200,
+      "errors": [],
+      "data": {
+        "total": "3",
+        "page": 1,
+        "limit": 2,
+        "pages": 2,
+        "products": [
+          {
+            "id": "101",
+            "sku": "PRC-6060-CAL",
+            "category_id": "1",
+            "type": "1",
+            "name": "Porcelanato Calacata Polido 60x60",
+            "short_description": "Mármore branco com veios cinza.",
+            "description": "<p>Porcelanato esmaltado <b>polido</b>.</p><p>Caixa com 4 pe&ccedil;as (1,44 m&sup2;).</p>",
+            "price": "129.90",
+            "promotional_price": "119.90",
+            "stock": "340",
+            "unit_measurement": "CX",
+            "status": "1",
+            "product_images": "lojateste.ecommercenet.com.br/uploads/lojateste/produtos_imagens/calacata.jpg"
+          },
+          {
+            "id": "205",
+            "sku": "VNL-CARV",
+            "category_id": "2",
+            "type": "4",
+            "name": "Piso Vinílico Click Carvalho",
+            "short_description": "Vinílico de encaixe com textura de madeira.",
+            "description": "<p>Vin&iacute;lico click 5 mm.</p>",
+            "price": "189.90",
+            "promotional_price": "0.00",
+            "stock": "",
+            "unit_measurement": "",
+            "status": "1",
+            "variety_title": "Tom",
+            "product_images": "http://lojateste.ecommercenet.com.br/uploads/lojateste/produtos_imagens/carvalho.jpg"
+          }
+        ]
+      }
+    }
+  },
+  "produtos-p2": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "code": 200,
+      "errors": [],
+      "data": {
+        "total": "3",
+        "page": 2,
+        "limit": 2,
+        "pages": 2,
+        "products": [
+          {
+            "id": "301",
+            "sku": "ARG-AC3-20",
+            "category_id": "3",
+            "type": "1",
+            "name": "Argamassa AC-III 20 kg",
+            "short_description": "Para porcelanatos e áreas externas.",
+            "description": "Argamassa colante AC-III.",
+            "price": "54,90",
+            "promotional_price": null,
+            "stock": "0",
+            "unit_measurement": "SC",
+            "status": "1",
+            "product_images": ""
+          }
+        ]
+      }
+    }
+  },
+  "busca": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": [],
+      "data": {
+        "total": "1",
+        "page": 1,
+        "limit": 24,
+        "pages": 1,
+        "products": [
+          {
+            "id": "101",
+            "sku": "PRC-6060-CAL",
+            "category_id": "1",
+            "type": "1",
+            "name": "Porcelanato Calacata Polido 60x60",
+            "description": "Porcelanato.",
+            "price": "129.90",
+            "promotional_price": "119.90",
+            "stock": "340",
+            "unit_measurement": "CX",
+            "status": "1",
+            "product_images": "lojateste.ecommercenet.com.br/uploads/lojateste/produtos_imagens/calacata.jpg"
+          }
+        ]
+      }
+    }
+  },
+  "busca-vazia": {
+    "status": 200,
+    "corpo": { "success": true, "errors": [], "data": { "total": "0", "page": 1, "limit": 24, "pages": 0, "products": [] } }
+  },
+  "produto-simples": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": {},
+      "data": {
+        "id": "101",
+        "name": "Porcelanato Calacata Polido 60x60",
+        "sku": "PRC-6060-CAL",
+        "category_id": "1",
+        "type": "1",
+        "short_description": "Mármore branco com veios cinza.",
+        "description": "<p>Porcelanato esmaltado <b>polido</b>.</p><script>rastreio()</script>",
+        "barcode": "7890000000101",
+        "price": "129.90",
+        "promotional_price": "119.90",
+        "stock": 340,
+        "unit_measurement": "CX",
+        "status": 1,
+        "product_images": "lojateste.ecommercenet.com.br/uploads/lojateste/produtos_imagens/calacata.jpg",
+        "parent": {},
+        "children": {}
+      }
+    }
+  },
+  "produto-variacao": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": {},
+      "data": {
+        "id": "205",
+        "name": "Piso Vinílico Click Carvalho",
+        "sku": "VNL-CARV",
+        "category_id": "2",
+        "type": "4",
+        "description": "<p>Vin&iacute;lico click 5 mm.</p>",
+        "price": "189.90",
+        "promotional_price": "0.00",
+        "stock": null,
+        "unit_measurement": "CX",
+        "status": 1,
+        "variety_title": "Tom",
+        "product_images": "lojateste.ecommercenet.com.br/uploads/lojateste/produtos_imagens/carvalho.jpg",
+        "parent": {},
+        "children": {}
+      }
+    }
+  },
+  "variacoes": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": [],
+      "data": [
+        { "id_variety": "2051", "sku": "VNL-CARV-NAT", "variety_name": "Natural", "price": "189.90", "promotional_price": "169.90", "stock": "12", "status": "1" },
+        { "id_variety": "2052", "sku": "VNL-CARV-ESC", "variety_name": "Escuro", "price": "189.90", "promotional_price": "", "stock": "0", "status": "1" }
+      ]
+    }
+  },
+  "compre-junto": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": [],
+      "data": [{ "id": "301", "sku": "ARG-AC3-20", "name": "Argamassa AC-III 20 kg", "price": "54.90", "promotional_price": "0.00", "stock": "80", "status": "1" }]
+    }
+  },
+  "relacionados": {
+    "status": 200,
+    "corpo": {
+      "success": true,
+      "errors": {},
+      "data": [
+        { "id": "301", "name": "Argamassa AC-III 20 kg", "sku": "ARG-AC3-20", "price": "54.90", "promotional_price": "0.00", "stock": "80", "type": "1" },
+        { "id": "302", "name": "Rejunte Epóxi Cinza 1 kg", "sku": "REJ-EPX-CZ", "price": "79.90", "promotional_price": "0.00", "stock": "15", "type": "1" }
+      ]
+    }
+  },
+  "credencial-invalida": {
+    "status": 401,
+    "corpo": { "success": false, "errors": ["Token de acesso inválido."] }
+  }
+}

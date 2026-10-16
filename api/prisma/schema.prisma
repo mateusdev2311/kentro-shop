@@ -25,5 +25,163 @@ model Loja {
   criadoEm             DateTime   @default(now()) @map("criado_em")
   atualizadoEm         DateTime   @updatedAt @map("atualizado_em")
 
+  integracao Integracao?
+  chamadas   ChamadaConector[]
+  regras     RegraProduto[]
+  config     ConfigLoja?
+  sessoes    Sessao[]
+
   @@map("lojas")
+}
+
+enum StatusIntegracao {
+  pendente
+  ok
+  erro
+}
+
+/// Conexão da loja com a plataforma de e-commerce. Credenciais só cifradas (AES-256-GCM).
+model Integracao {
+  lojaId              String           @id @map("loja_id") @db.Uuid
+  plataforma          String
+  credenciaisCifradas Bytes            @map("credenciais_cifradas")
+  iv                  Bytes
+  status              StatusIntegracao @default(pendente)
+  ultimoTesteEm       DateTime?        @map("ultimo_teste_em")
+  ultimoErro          String?          @map("ultimo_erro")
+  criadoEm            DateTime         @default(now()) @map("criado_em")
+  atualizadoEm        DateTime         @updatedAt @map("atualizado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@map("integracoes")
+}
+
+/// Registro de cada chamada feita a uma plataforma (aba Saúde). Sem URL, query nem credencial.
+model ChamadaConector {
+  id         BigInt   @id @default(autoincrement())
+  lojaId     String   @map("loja_id") @db.Uuid
+  plataforma String
+  operacao   String
+  statusHttp Int?     @map("status_http")
+  ms         Int
+  erroCodigo String?  @map("erro_codigo")
+  em         DateTime @default(now())
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@index([lojaId, em])
+  @@map("chamadas_conector")
+}
+
+/// Dados que a loja cadastra por SKU e que a plataforma não tem (spec 7.4).
+model RegraProduto {
+  lojaId       String   @map("loja_id") @db.Uuid
+  sku          String
+  oculto       Boolean  @default(false)
+  selo         String?
+  m2PorUnidade Float?   @map("m2_por_unidade")
+  rendimentoM2 Float?   @map("rendimento_m2")
+  compreJunto  String[] @default([]) @map("compre_junto")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@id([lojaId, sku])
+  @@map("regras_produto")
+}
+
+/// Configuração da loja (tema, entrega, frete, retirada). Campos ausentes usam os padrões do ConfigLojaService.
+model ConfigLoja {
+  lojaId            String   @id @map("loja_id") @db.Uuid
+  tema              Json     @default("{}")
+  entrega           Json     @default("{}")
+  retirada          Json     @default("{}")
+  frete             Json     @default("{}")
+  lojasRetirada     Json     @default("[]") @map("lojas_retirada")
+  modoPedido        String   @default("handoff") @map("modo_pedido")
+  expiracaoLinkDias Int      @default(7) @map("expiracao_link_dias")
+  categoriasOcultas String[] @default([]) @map("categorias_ocultas")
+  urlCapturaKentro  String?  @map("url_captura_kentro")
+  atualizadoEm      DateTime @updatedAt @map("atualizado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_loja")
+}
+
+enum StatusSessao {
+  link_enviado
+  navegando
+  finalizado
+  pedido_criado
+  expirado
+}
+
+/// Carrinho de um atendimento, acessado pelo cliente via link com token.
+model Sessao {
+  id           String       @id @default(uuid()) @db.Uuid
+  lojaId       String       @map("loja_id") @db.Uuid
+  token        String       @unique
+  chatId       String       @map("chat_id")
+  cliente      Json
+  status       StatusSessao @default(link_enviado)
+  checkout     Json?
+  totais       Json
+  desconto     Json?
+  abertaEm     DateTime?    @map("aberta_em")
+  finalizadaEm DateTime?    @map("finalizada_em")
+  expiraEm     DateTime     @map("expira_em")
+  criadaEm     DateTime     @default(now()) @map("criada_em")
+  atualizadaEm DateTime     @updatedAt @map("atualizada_em")
+
+  loja    Loja           @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  itens   ItemCarrinho[]
+  eventos EventoSessao[]
+
+  @@index([lojaId, chatId])
+  @@map("sessoes")
+}
+
+/// Item do carrinho: o item vendável (produto simples ou variação) com o preço revalidado no servidor.
+model ItemCarrinho {
+  id            String   @id @default(uuid()) @db.Uuid
+  sessaoId      String   @map("sessao_id") @db.Uuid
+  produtoId     String   @map("produto_id")
+  variacaoId    String   @default("") @map("variacao_id")
+  sku           String
+  nome          String
+  variacaoNome  String?  @map("variacao_nome")
+  imagem        String?
+  unidade       String
+  precoUnitario Decimal  @map("preco_unitario") @db.Decimal(12, 2)
+  quantidade    Int
+  m2            Float?
+  revalidadoEm  DateTime @default(now()) @map("revalidado_em")
+
+  sessao Sessao @relation(fields: [sessaoId], references: [id], onDelete: Cascade)
+
+  @@unique([sessaoId, produtoId, variacaoId])
+  @@map("itens_carrinho")
+}
+
+enum AutorEvento {
+  cliente
+  atendente
+  sistema
+  ia
+}
+
+model EventoSessao {
+  id       String      @id @default(uuid()) @db.Uuid
+  sessaoId String      @map("sessao_id") @db.Uuid
+  tipo     String
+  texto    String
+  autor    AutorEvento
+  em       DateTime    @default(now())
+
+  sessao Sessao @relation(fields: [sessaoId], references: [id], onDelete: Cascade)
+
+  @@index([sessaoId, em])
+  @@map("eventos_sessao")
 }

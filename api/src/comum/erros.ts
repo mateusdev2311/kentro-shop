@@ -10,8 +10,9 @@ import {
 import { Response } from 'express';
 
 export class ErroApi extends HttpException {
-  constructor(status: number, readonly codigo: string, readonly mensagem: string) {
-    super({ erro: { codigo, mensagem } }, status);
+  /** `extras` vai junto no corpo, ao lado de `erro` (ex.: as diferenças de preço). */
+  constructor(status: number, readonly codigo: string, readonly mensagem: string, extras: Record<string, unknown> = {}) {
+    super({ erro: { codigo, mensagem }, ...extras }, status);
   }
 }
 

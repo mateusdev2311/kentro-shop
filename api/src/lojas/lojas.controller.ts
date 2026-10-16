@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from './chave-loja.guard';
 import { RegistrarLojaDto } from './dto';
 import { LojasService } from './lojas.service';
@@ -12,6 +12,7 @@ export class LojasController {
   @Post('lojas/registrar')
   @UseGuards(RegistroThrottlerGuard)
   @Throttle({ registro: { limit: 5, ttl: 3_600_000 } })
+  @SkipThrottle({ publico: true })
   registrar(@Body() dto: RegistrarLojaDto) {
     return this.lojas.registrar(dto.nome);
   }

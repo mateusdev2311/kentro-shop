@@ -65,7 +65,8 @@ describe('Configurações do admin (Fase 0)', () => {
       storage: { chaves_pendentes: { ...registro } },
       respostas: { 'GET /v1/loja': { status: 200, body: { id: 'l1', nome: 'Loja X', status: 'pendente_integracao', plano: 'gratis', papel: 'admin' } } },
     });
-    expect(tela.texto('status')).toBe('Loja Loja X configurada. Status: pendente_integracao.');
+    // Os detalhes da integração estão em config-admin-integracao.spec.ts.
+    expect(tela.texto('status')).toMatch(/^Loja Loja X · Integração: /);
     expect(tela.chamadas[0].headers['X-Loja-Chave']).toBe('ksa_1');
     expect(tela.storage.chaves_pendentes).toBeUndefined();
   });

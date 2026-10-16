@@ -51,7 +51,18 @@
     $('aviso').hidden = false;
   }
 
+  function erroDe(status, texto) {
+    var erro = { status: status || 0, codigo: '', mensagem: '' };
+    try {
+      var corpo = JSON.parse(texto);
+      if (corpo && corpo.erro) { erro.codigo = corpo.erro.codigo || ''; erro.mensagem = corpo.erro.mensagem || ''; }
+    } catch (x) { /* corpo sem o formato padrão */ }
+    return erro;
+  }
+
   // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
+  // O proxy da Kentro pode devolver um erro da API de quatro jeitos: resolvido com status de erro,
+  // rejeitado com http_error (status e corpo), ou convertido em forbidden (401/403) ou not_found (404).
   function api(caminho, opcoes) {
     opcoes = opcoes || {};
     var req = {
@@ -69,18 +80,20 @@
       req.body = JSON.stringify(opcoes.body);
     }
     return omni.http.request(req).then(function (r) {
-      return r.body ? JSON.parse(r.body) : {};
+      if (r && r.status >= 200 && r.status < 300) return r.body ? JSON.parse(r.body) : {};
+      throw erroDe(r && r.status, r && r.body);
     }, function (e) {
-      var erro = { status: (e && e.status) || 0, codigo: e && e.code };
-      if (e && e.code === 'http_error') {
-        try { erro.codigo = JSON.parse(e.body).erro.codigo; } catch (x) { /* corpo sem o formato padrão */ }
-      }
-      throw erro;
+      var codigo = e && e.code;
+      if (codigo === 'http_error') throw erroDe(e.status, e.body);
+      if (codigo === 'forbidden') throw { status: 403, codigo: 'forbidden_kentro', mensagem: '' };
+      if (codigo === 'not_found') throw { status: 404, codigo: 'NAO_ENCONTRADO', mensagem: '' };
+      throw { status: 0, codigo: codigo || '', mensagem: '' };
     });
   }
 
   function mensagemDeErro(erro) {
     if (erro.status === 401) return 'A chave de atendimento do Kentro Shop é inválida. Peça ao administrador para conferir a configuração.';
+    if (erro.codigo === 'forbidden_kentro') return 'A Kentro recusou a chamada ao Kentro Shop. Peça ao administrador para conferir a chave de atendimento e a permissão de chamadas externas.';
     if (erro.codigo === 'LOJA_BLOQUEADA') return 'Esta loja está bloqueada no Kentro Shop. Fale com o administrador.';
     if (erro.codigo === 'rate_limited') return 'Muitas consultas seguidas. Aguarde um minuto.';
     return 'Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.';

@@ -125,6 +125,12 @@ URLs das extensões para instalar na Kentro: `https://<domínio>/extensao/admin/
 **Domínio com HTTPS é obrigatório em produção** (seção 13).
 
 ### 4.3 Extensão hospedada na VPS (decidido em 07/10/2026)
+
+> **Situação em 09/10/2026, provisória.** A API está no Doca (`http://169.58.192.233:10002`), sem HTTPS. A tela de instalação da Kentro busca o manifest **pelo navegador**, e uma página HTTPS não carrega arquivos de um endereço HTTP (conteúdo misto). Por isso as extensões foram publicadas pela **CDN da Kentro**, com ids de teste:
+> - `mateus.kentroshop-admin` (editor id 20): `https://cdn.a-tend.online/mateus.kentroshop-admin/manifest.json`
+> - `mateus.kentroshop` (editor id 24): `https://cdn.a-tend.online/mateus.kentroshop/manifest.json`
+>
+> O `api_url` padrão aponta para o Doca por HTTP, o que funciona porque `omni.http.request` roda no servidor da Kentro. Os arquivos publicados são cópias de `extension/`; qualquer mudança nas telas exige publicar uma versão nova no editor. Quando o Doca tiver HTTPS (subdomínio, ou caminho com o prefixo removido no proxy), voltar a servir pela VPS com os ids definitivos `kentro.shop` e `kentro.shop-admin`. O catálogo `/c/...` precisa de ajuste de `base` se o HTTPS vier por caminho.
 A extensão é servida pela VPS, não pela CDN da Kentro. **Implementado na Fase 0 pela própria API** (o antigo plano B virou o caminho principal, porque é testável e dispensa um segundo projeto): `GET /extensao/<atendimento|admin>/<arquivo>`. Requisitos atendidos, com teste automatizado:
 - **`Access-Control-Allow-Origin: *` em todas as respostas**: no `manifest.json` e também nos HTML, JS e CSS. Sem o cabeçalho a instalação é recusada. Se ele faltar só nos arquivos, a falha é parcial: imagem e CSS carregam, mas `<script type="module">`, `import()`, `fetch` e `@font-face` quebram sem mensagem clara.
 - `OPTIONS` (preflight) responde 204 com o mesmo cabeçalho, e cada arquivo sai com o `Content-Type` correto.

@@ -1,0 +1,646 @@
+{
+  "_origem": "Catálogo de exemplo da demo Shopping dos Pisos (produtos fictícios).",
+  "categorias": [
+    {
+      "id": "1",
+      "nome": "Porcelanatos",
+      "ordem": 1
+    },
+    {
+      "id": "2",
+      "nome": "Pisos Cerâmicos",
+      "ordem": 2
+    },
+    {
+      "id": "3",
+      "nome": "Revestimentos de Parede",
+      "ordem": 3
+    },
+    {
+      "id": "4",
+      "nome": "Vinílicos e Laminados",
+      "ordem": 4
+    },
+    {
+      "id": "5",
+      "nome": "Argamassas e Rejuntes",
+      "ordem": 5
+    },
+    {
+      "id": "6",
+      "nome": "Acessórios",
+      "ordem": 6
+    }
+  ],
+  "produtos": [
+    {
+      "id": "PRC-6060-CAL",
+      "sku": "PRC-6060-CAL",
+      "nome": "Porcelanato Calacata Polido 60x60",
+      "descricao": "Porcelanato esmaltado polido com estética de mármore Calacata. Borda retificada para juntas de 2 mm. Indicado para salas, cozinhas e áreas internas. Caixa com 4 peças (1,44 m²).",
+      "descricaoCurta": "Mármore branco com veios cinza, acabamento polido e borda retificada.",
+      "imagens": [],
+      "preco": 119.9,
+      "precoDe": 129.9,
+      "unidade": "CX",
+      "estoque": 340,
+      "disponivel": true,
+      "categoriaIds": [
+        "1"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-EPX-1KG",
+          "ACS-NIV-KIT"
+        ],
+        "selo": "Mais vendido",
+        "m2PorUnidade": 1.44
+      }
+    },
+    {
+      "id": "PRC-12060-CIM",
+      "sku": "PRC-12060-CIM",
+      "nome": "Porcelanato Cimento Queimado Acetinado 120x60",
+      "descricao": "Porcelanato técnico acetinado em formato 120x60, com textura de cimento queimado. Poucas juntas, ideal para ambientes integrados. Caixa com 2 peças (1,44 m²).",
+      "descricaoCurta": "Visual de cimento queimado em peça grande, acabamento acetinado.",
+      "imagens": [],
+      "preco": 189.9,
+      "unidade": "CX",
+      "estoque": 120,
+      "disponivel": true,
+      "categoriaIds": [
+        "1"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-EPX-1KG",
+          "ACS-NIV-KIT"
+        ],
+        "selo": "Peça grande",
+        "m2PorUnidade": 1.44
+      }
+    },
+    {
+      "id": "PRC-2090-MAD",
+      "sku": "PRC-2090-MAD",
+      "nome": "Porcelanato Amadeirado 20x90",
+      "descricao": "Porcelanato acetinado em réguas de 20x90 com textura de madeira. Pode ser usado em áreas molhadas. Caixa com 7 peças (1,26 m²).",
+      "descricaoCurta": "Réguas com aparência de madeira natural, sem a manutenção da madeira.",
+      "imagens": [],
+      "preco": 149.9,
+      "unidade": "CX",
+      "estoque": 260,
+      "disponivel": true,
+      "categoriaIds": [
+        "1"
+      ],
+      "variacoes": [
+        {
+          "id": "1",
+          "sku": "PRC-2090-MAD-CAR",
+          "nome": "Carvalho Natural",
+          "atributos": {
+            "Tom": "Carvalho Natural"
+          },
+          "preco": 149.9,
+          "estoque": 120,
+          "disponivel": true,
+          "cores": [
+            "#c9a27a",
+            "#a67c52"
+          ]
+        },
+        {
+          "id": "2",
+          "sku": "PRC-2090-MAD-NOG",
+          "nome": "Nogueira",
+          "atributos": {
+            "Tom": "Nogueira"
+          },
+          "preco": 149.9,
+          "estoque": 90,
+          "disponivel": true,
+          "cores": [
+            "#8a5a3b",
+            "#6b4228"
+          ]
+        },
+        {
+          "id": "3",
+          "sku": "PRC-2090-MAD-FRE",
+          "nome": "Freijó",
+          "atributos": {
+            "Tom": "Freijó"
+          },
+          "preco": 159.9,
+          "estoque": 50,
+          "disponivel": true,
+          "cores": [
+            "#b58b5e",
+            "#94693f"
+          ]
+        }
+      ],
+      "atributosVariacao": [
+        "Tom"
+      ],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-EPX-1KG",
+          "ACS-NIV-KIT"
+        ],
+        "selo": "3 tons",
+        "m2PorUnidade": 1.26
+      }
+    },
+    {
+      "id": "PRC-8080-TRA",
+      "sku": "PRC-8080-TRA",
+      "nome": "Porcelanato Travertino Acetinado 80x80",
+      "descricao": "Porcelanato com estética de travertino romano em tom areia. Acabamento acetinado e borda retificada. Caixa com 2 peças (1,28 m²).",
+      "descricaoCurta": "Pedra travertino em tom areia, toque acetinado.",
+      "imagens": [],
+      "preco": 149.9,
+      "precoDe": 169.9,
+      "unidade": "CX",
+      "estoque": 85,
+      "disponivel": true,
+      "categoriaIds": [
+        "1"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-EPX-1KG",
+          "ACS-NIV-KIT"
+        ],
+        "selo": "Oferta",
+        "m2PorUnidade": 1.28
+      }
+    },
+    {
+      "id": "CER-4545-BGE",
+      "sku": "CER-4545-BGE",
+      "nome": "Piso Cerâmico Bege Acetinado 45x45",
+      "descricao": "Piso cerâmico PEI 4 em tom bege, acabamento acetinado. Ótimo custo-benefício para quartos e salas. Caixa com 12 peças (2,43 m²).",
+      "descricaoCurta": "Clássico e econômico para áreas internas.",
+      "imagens": [],
+      "preco": 54.9,
+      "unidade": "CX",
+      "estoque": 800,
+      "disponivel": true,
+      "categoriaIds": [
+        "2"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC2-20",
+          "REJ-CIM-5KG",
+          "ACS-ROD-7CM"
+        ],
+        "selo": "Econômico",
+        "m2PorUnidade": 2.43
+      }
+    },
+    {
+      "id": "CER-6060-EXT",
+      "sku": "CER-6060-EXT",
+      "nome": "Piso Cerâmico Antiderrapante Externo 60x60",
+      "descricao": "Piso cerâmico com relevo antiderrapante (coeficiente de atrito > 0,4) em tom cinza-pedra. Indicado para áreas externas e garagens. Caixa com 6 peças (2,16 m²).",
+      "descricaoCurta": "Superfície antiderrapante para garagens, varandas e quintais.",
+      "imagens": [],
+      "preco": 69.9,
+      "unidade": "CX",
+      "estoque": 15,
+      "disponivel": true,
+      "categoriaIds": [
+        "2"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-CIM-5KG"
+        ],
+        "selo": "Últimas unidades",
+        "m2PorUnidade": 2.16
+      }
+    },
+    {
+      "id": "REV-1020-SUB",
+      "sku": "REV-1020-SUB",
+      "nome": "Revestimento Subway Branco Brilhante 10x20",
+      "descricao": "Revestimento cerâmico bisotado branco brilhante no formato 10x20. Assentamento em amarração ou espinha de peixe. Caixa com 50 peças (1,00 m²).",
+      "descricaoCurta": "O azulejo metrô clássico para cozinhas e banheiros.",
+      "imagens": [],
+      "preco": 79.9,
+      "unidade": "CX",
+      "estoque": 410,
+      "disponivel": true,
+      "categoriaIds": [
+        "3"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC2-20",
+          "REJ-CIM-5KG"
+        ],
+        "m2PorUnidade": 1
+      }
+    },
+    {
+      "id": "REV-3260-3D",
+      "sku": "REV-3260-3D",
+      "nome": "Revestimento 3D Ondas Branco 32x60",
+      "descricao": "Revestimento com relevo tridimensional em ondas, acabamento acetinado branco. Ideal para paredes de TV, cabeceiras e halls. Caixa com 8 peças (1,52 m²).",
+      "descricaoCurta": "Relevo em ondas para paredes de destaque.",
+      "imagens": [],
+      "preco": 99.9,
+      "unidade": "CX",
+      "estoque": 95,
+      "disponivel": true,
+      "categoriaIds": [
+        "3"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC2-20",
+          "REJ-CIM-5KG"
+        ],
+        "selo": "Lançamento",
+        "m2PorUnidade": 1.52
+      }
+    },
+    {
+      "id": "REV-HEX-SAL",
+      "sku": "REV-HEX-SAL",
+      "nome": "Revestimento Hexagonal 17,5x20",
+      "descricao": "Revestimento porcelânico hexagonal fosco. Fica lindo em cozinhas, lavabos e áreas gourmet. Caixa com 25 peças (0,87 m²).",
+      "descricaoCurta": "Hexágonos coloridos para cozinhas e lavabos.",
+      "imagens": [],
+      "preco": 119.9,
+      "unidade": "CX",
+      "estoque": 140,
+      "disponivel": true,
+      "categoriaIds": [
+        "3"
+      ],
+      "variacoes": [
+        {
+          "id": "4",
+          "sku": "REV-HEX-SAL-VER",
+          "nome": "Verde Sálvia",
+          "atributos": {
+            "Cor": "Verde Sálvia"
+          },
+          "preco": 119.9,
+          "estoque": 60,
+          "disponivel": true,
+          "cores": [
+            "#9caf88",
+            "#7f9470"
+          ]
+        },
+        {
+          "id": "5",
+          "sku": "REV-HEX-SAL-TER",
+          "nome": "Terracota",
+          "atributos": {
+            "Cor": "Terracota"
+          },
+          "preco": 119.9,
+          "estoque": 45,
+          "disponivel": true,
+          "cores": [
+            "#c0704d",
+            "#9e5737"
+          ]
+        },
+        {
+          "id": "6",
+          "sku": "REV-HEX-SAL-AZU",
+          "nome": "Azul Petróleo",
+          "atributos": {
+            "Cor": "Azul Petróleo"
+          },
+          "preco": 129.9,
+          "estoque": 35,
+          "disponivel": true,
+          "cores": [
+            "#2f5d6b",
+            "#224651"
+          ]
+        }
+      ],
+      "atributosVariacao": [
+        "Cor"
+      ],
+      "regras": {
+        "compreJunto": [
+          "ARG-AC3-20",
+          "REJ-EPX-1KG"
+        ],
+        "selo": "3 cores",
+        "m2PorUnidade": 0.87
+      }
+    },
+    {
+      "id": "VIN-CLK-CAR",
+      "sku": "VIN-CLK-CAR",
+      "nome": "Piso Vinílico Click Carvalho Claro",
+      "descricao": "Piso vinílico de encaixe (click) com capa de uso de 0,3 mm, 100% à prova d'água. Pode ser instalado sobre piso existente. Caixa com 10 réguas (2,23 m²).",
+      "descricaoCurta": "Instalação rápida sem obra, confortável e silencioso.",
+      "imagens": [],
+      "preco": 249.9,
+      "unidade": "CX",
+      "estoque": 70,
+      "disponivel": true,
+      "categoriaIds": [
+        "4"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ACS-MAN-10M",
+          "ACS-ROD-7CM"
+        ],
+        "selo": "Sem obra",
+        "m2PorUnidade": 2.23
+      }
+    },
+    {
+      "id": "LAM-7MM-NOG",
+      "sku": "LAM-7MM-NOG",
+      "nome": "Piso Laminado Nogueira 7mm",
+      "descricao": "Piso laminado de 7 mm classe AC4, com encaixe click. Tom nogueira. Caixa com 9 réguas (2,51 m²).",
+      "descricaoCurta": "Laminado de alta resistência para quartos e salas.",
+      "imagens": [],
+      "preco": 159.9,
+      "unidade": "CX",
+      "estoque": 110,
+      "disponivel": true,
+      "categoriaIds": [
+        "4"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ACS-MAN-10M",
+          "ACS-ROD-7CM"
+        ],
+        "m2PorUnidade": 2.51
+      }
+    },
+    {
+      "id": "ARG-AC3-20",
+      "sku": "ARG-AC3-20",
+      "nome": "Argamassa AC-III Porcelanato 20kg",
+      "descricao": "Argamassa colante tipo AC-III, indicada para porcelanatos, peças grandes e áreas externas. Rende aproximadamente 4 m² por saco com dupla colagem.",
+      "descricaoCurta": "Alta aderência para porcelanatos e peças grandes.",
+      "imagens": [],
+      "preco": 39.9,
+      "unidade": "SC",
+      "estoque": 900,
+      "disponivel": true,
+      "categoriaIds": [
+        "5"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "ACS-NIV-KIT",
+          "REJ-EPX-1KG"
+        ],
+        "rendimentoM2": 4
+      }
+    },
+    {
+      "id": "ARG-AC2-20",
+      "sku": "ARG-AC2-20",
+      "nome": "Argamassa AC-II Interna e Externa 20kg",
+      "descricao": "Argamassa colante tipo AC-II para pisos cerâmicos e revestimentos. Rende aproximadamente 5 m² por saco.",
+      "descricaoCurta": "Para cerâmicas e revestimentos em áreas internas e externas.",
+      "imagens": [],
+      "preco": 27.9,
+      "unidade": "SC",
+      "estoque": 1200,
+      "disponivel": true,
+      "categoriaIds": [
+        "5"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [
+          "REJ-CIM-5KG"
+        ],
+        "rendimentoM2": 5
+      }
+    },
+    {
+      "id": "REJ-EPX-1KG",
+      "sku": "REJ-EPX-1KG",
+      "nome": "Rejunte Epóxi 1kg",
+      "descricao": "Rejunte epóxi bicomponente, não mancha e não absorve água. Rende aproximadamente 6 m² com junta de 2 mm.",
+      "descricaoCurta": "Impermeável e resistente a manchas, ideal para porcelanato.",
+      "imagens": [],
+      "preco": 69.9,
+      "unidade": "UN",
+      "estoque": 300,
+      "disponivel": true,
+      "categoriaIds": [
+        "5"
+      ],
+      "variacoes": [
+        {
+          "id": "7",
+          "sku": "REJ-EPX-1KG-BRA",
+          "nome": "Branco",
+          "atributos": {
+            "Cor": "Branco"
+          },
+          "preco": 69.9,
+          "estoque": 120,
+          "disponivel": true,
+          "cores": [
+            "#f7f7f5",
+            "#d8d8d4"
+          ]
+        },
+        {
+          "id": "8",
+          "sku": "REJ-EPX-1KG-CIN",
+          "nome": "Cinza Platina",
+          "atributos": {
+            "Cor": "Cinza Platina"
+          },
+          "preco": 69.9,
+          "estoque": 110,
+          "disponivel": true,
+          "cores": [
+            "#a9abad",
+            "#87898b"
+          ]
+        },
+        {
+          "id": "9",
+          "sku": "REJ-EPX-1KG-BEG",
+          "nome": "Bege",
+          "atributos": {
+            "Cor": "Bege"
+          },
+          "preco": 69.9,
+          "estoque": 70,
+          "disponivel": true,
+          "cores": [
+            "#dccbb0",
+            "#bfa984"
+          ]
+        }
+      ],
+      "atributosVariacao": [
+        "Cor"
+      ],
+      "regras": {
+        "compreJunto": [],
+        "rendimentoM2": 6
+      }
+    },
+    {
+      "id": "REJ-CIM-5KG",
+      "sku": "REJ-CIM-5KG",
+      "nome": "Rejunte Cimentício Flexível 5kg",
+      "descricao": "Rejunte cimentício flexível com aditivo antimofo. Rende aproximadamente 20 m² com junta de 3 mm.",
+      "descricaoCurta": "Rejunte flexível para cerâmicas e revestimentos.",
+      "imagens": [],
+      "preco": 32.9,
+      "unidade": "UN",
+      "estoque": 500,
+      "disponivel": true,
+      "categoriaIds": [
+        "5"
+      ],
+      "variacoes": [
+        {
+          "id": "10",
+          "sku": "REJ-CIM-5KG-BRA",
+          "nome": "Branco",
+          "atributos": {
+            "Cor": "Branco"
+          },
+          "preco": 32.9,
+          "estoque": 200,
+          "disponivel": true,
+          "cores": [
+            "#f7f7f5",
+            "#d8d8d4"
+          ]
+        },
+        {
+          "id": "11",
+          "sku": "REJ-CIM-5KG-CIN",
+          "nome": "Cinza",
+          "atributos": {
+            "Cor": "Cinza"
+          },
+          "preco": 32.9,
+          "estoque": 180,
+          "disponivel": true,
+          "cores": [
+            "#9c9ea0",
+            "#7c7e80"
+          ]
+        },
+        {
+          "id": "12",
+          "sku": "REJ-CIM-5KG-MAR",
+          "nome": "Marfim",
+          "atributos": {
+            "Cor": "Marfim"
+          },
+          "preco": 32.9,
+          "estoque": 120,
+          "disponivel": true,
+          "cores": [
+            "#ece2cc",
+            "#d2c3a3"
+          ]
+        }
+      ],
+      "atributosVariacao": [
+        "Cor"
+      ],
+      "regras": {
+        "compreJunto": [],
+        "rendimentoM2": 20
+      }
+    },
+    {
+      "id": "ACS-NIV-KIT",
+      "sku": "ACS-NIV-KIT",
+      "nome": "Kit Nivelador de Piso (100 clipes + 50 cunhas)",
+      "descricao": "Sistema de nivelamento com clipes descartáveis e cunhas reutilizáveis. Essencial para porcelanatos e peças grandes. Atende cerca de 10 m².",
+      "descricaoCurta": "Evita desnível entre as peças no assentamento.",
+      "imagens": [],
+      "preco": 49.9,
+      "unidade": "KIT",
+      "estoque": 230,
+      "disponivel": true,
+      "categoriaIds": [
+        "6"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [],
+        "rendimentoM2": 10
+      }
+    },
+    {
+      "id": "ACS-ROD-7CM",
+      "sku": "ACS-ROD-7CM",
+      "nome": "Rodapé Poliestireno Branco 7cm (barra 2,40m)",
+      "descricao": "Rodapé em poliestireno branco de 7 cm de altura, barra de 2,40 m. Resistente à umidade e cupins.",
+      "descricaoCurta": "Acabamento resistente à umidade, não empena.",
+      "imagens": [],
+      "preco": 24.9,
+      "unidade": "UN",
+      "estoque": 600,
+      "disponivel": true,
+      "categoriaIds": [
+        "6"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": []
+      }
+    },
+    {
+      "id": "ACS-MAN-10M",
+      "sku": "ACS-MAN-10M",
+      "nome": "Manta Acústica para Vinílico e Laminado (rolo 10m²)",
+      "descricao": "Manta de polietileno expandido de 2 mm para instalação sob pisos vinílicos e laminados. Rolo com 10 m².",
+      "descricaoCurta": "Reduz o ruído de passos e corrige pequenas imperfeições.",
+      "imagens": [],
+      "preco": 89.9,
+      "unidade": "RL",
+      "estoque": 150,
+      "disponivel": true,
+      "categoriaIds": [
+        "6"
+      ],
+      "variacoes": [],
+      "regras": {
+        "compreJunto": [],
+        "rendimentoM2": 10
+      }
+    }
+  ]
+}

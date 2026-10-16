@@ -1,0 +1,73 @@
+import { LojaRetirada } from '../config-loja/config-loja.service';
+
+export interface DadosEntrega {
+  nome: string;
+  telefone: string;
+  cep: string;
+  estado: string;
+  cidade: string;
+  bairro: string;
+  rua: string;
+  numero: string;
+  complemento: string;
+  referencia: string;
+}
+
+export type Checkout =
+  | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
+  | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string };
+
+export interface Totais {
+  itens: number;
+  subtotal: number;
+  /** null = frete a combinar */
+  frete: number | null;
+  desconto: number;
+  total: number;
+}
+
+export interface Cliente {
+  nome: string;
+  telefone: string;
+}
+
+export interface ItemPublico {
+  produtoId: string;
+  variacaoId: string | null;
+  sku: string;
+  nome: string;
+  variacaoNome: string | null;
+  imagem: string | null;
+  unidade: string;
+  precoUnitario: number;
+  quantidade: number;
+  subtotal: number;
+  m2: number | null;
+}
+
+export interface EventoPublico {
+  em: string;
+  texto: string;
+  autor: 'cliente' | 'atendente' | 'sistema' | 'ia';
+}
+
+export type StatusSessao = 'link_enviado' | 'navegando' | 'finalizado' | 'pedido_criado' | 'expirado';
+
+/** O que o painel do atendente recebe. */
+export interface SessaoCompleta {
+  id: string;
+  status: StatusSessao;
+  url: string;
+  cliente: Cliente;
+  itens: ItemPublico[];
+  totais: Totais;
+  checkout: Checkout | null;
+  eventos: EventoPublico[];
+  resumo: string;
+  abertaEm: string | null;
+  finalizadaEm: string | null;
+  expiraEm: string;
+}
+
+/** O que o catálogo do cliente recebe (sem a atividade e sem o resumo do atendente). */
+export type SessaoPublica = Omit<SessaoCompleta, 'eventos' | 'resumo'>;
