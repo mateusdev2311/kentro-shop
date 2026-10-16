@@ -26,9 +26,23 @@ export interface Totais {
   total: number;
 }
 
+export interface EnderecoContato {
+  cep?: string;
+  estado?: string;
+  cidade?: string;
+  bairro?: string;
+  rua?: string;
+  numero?: string;
+  complemento?: string;
+}
+
+/** Dados do cliente. Além de nome e telefone, o pré-cadastro traz o que a Kentro já sabe do contato. */
 export interface Cliente {
   nome: string;
   telefone: string;
+  email?: string;
+  documento?: string;
+  endereco?: EnderecoContato;
 }
 
 export interface ItemPublico {

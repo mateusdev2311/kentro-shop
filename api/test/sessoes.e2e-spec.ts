@@ -105,6 +105,18 @@ describe('sessões do catálogo', () => {
       expect(torto.body.eventos[0].texto).toBe('Link do catálogo gerado');
     });
 
+    it('pré-cadastro: guarda e-mail, documento e endereço do contato da Kentro', async () => {
+      const endereco = { cep: '39400-000', estado: 'MG', cidade: 'Montes Claros', bairro: 'Centro', rua: 'Rua A', numero: '10', complemento: 'Ap 2' };
+      const res = await criar(loja.chaveAtendimento, { chatId: '50', nome: 'Ana', telefone: '5538988887777', email: 'ana@x.com', documento: '123.456.789-00', endereco });
+      expect(res.status).toBe(201);
+      expect(res.body.cliente).toEqual({ nome: 'Ana', telefone: '5538988887777', email: 'ana@x.com', documento: '123.456.789-00', endereco });
+      // Reaproveitar sem os campos mantém o que já estava; com campos, atualiza.
+      const de_novo = await criar(loja.chaveAtendimento, { chatId: '50', email: 'nova@x.com' });
+      expect(de_novo.body.cliente).toMatchObject({ email: 'nova@x.com', documento: '123.456.789-00', endereco });
+      expect((await criar(loja.chaveAtendimento, { chatId: '51', endereco: { cep: 'x'.repeat(20) } })).status).toBe(400);
+      expect((await criar(loja.chaveAtendimento, { chatId: '51', endereco: { cep: '1', senha: 'x' } })).status).toBe(400);
+    });
+
     it('chave inválida → 401; sem chatId → 400', async () => {
       expect((await criar('ksk_errada', { chatId: '1' })).status).toBe(401);
       expect((await doChat('ksk_errada', '1')).status).toBe(401);

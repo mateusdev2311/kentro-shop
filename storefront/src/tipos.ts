@@ -54,13 +54,22 @@ export interface ItemSessao {
   m2: number | null;
 }
 
+/** Pré-cadastro: o que a Kentro já sabe do contato (o cliente confere no checkout). */
+export interface Cliente {
+  nome: string;
+  telefone: string;
+  email?: string;
+  documento?: string;
+  endereco?: Partial<Pick<DadosEntrega, 'cep' | 'estado' | 'cidade' | 'bairro' | 'rua' | 'numero' | 'complemento'>>;
+}
+
 export type StatusSessao = 'link_enviado' | 'navegando' | 'finalizado' | 'pedido_criado' | 'expirado';
 
 export interface Sessao {
   id: string;
   status: StatusSessao;
   url: string;
-  cliente: { nome: string; telefone: string };
+  cliente: Cliente;
   itens: ItemSessao[];
   totais: Totais;
   checkout: Checkout | null;

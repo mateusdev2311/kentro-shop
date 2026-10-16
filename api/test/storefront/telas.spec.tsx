@@ -277,6 +277,37 @@ describe('catálogo do cliente', () => {
     expect(tem('Pedido enviado ao atendente')).toBe(true);
   });
 
+  it('checkout já vem preenchido com o pré-cadastro do contato', async () => {
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 1 }];
+    estado.abertura.sessao.cliente = {
+      nome: 'Ana Souza',
+      telefone: '5538988887777',
+      endereco: { cep: '39400000', estado: 'MG', cidade: 'Montes Claros', bairro: 'Centro', rua: 'Rua A', numero: '10', complemento: 'Ap 2' },
+    };
+    await montar();
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    clicar(elemento('button', 'Continuar'));
+    expect(elemento<HTMLInputElement>('#f-cep').value).toBe('39400-000');
+    expect(elemento<HTMLInputElement>('#f-rua').value).toBe('Rua A');
+    expect(elemento<HTMLInputElement>('#f-numero').value).toBe('10');
+    expect(elemento<HTMLInputElement>('#f-complemento').value).toBe('Ap 2');
+    expect(elemento<HTMLInputElement>('#f-estado').value).toBe('MG');
+    expect(buscarCep).not.toHaveBeenCalled(); // endereço já completo: não consulta o ViaCEP
+  });
+
+  it('com CEP do pré-cadastro e frete com valor, a cotação sai ao abrir o checkout', async () => {
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 1 }];
+    estado.abertura.frete = { regra: 'fixo', valor: 15 };
+    estado.abertura.sessao.cliente = { nome: 'Ana', telefone: '', endereco: { cep: '39400-000' } };
+    await montar();
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    clicar(elemento('button', 'Continuar'));
+    await ate(() => tem('R$ 115,00'));
+    expect(chamadas('/frete')[0].corpo).toEqual({ cep: '39400000' });
+  });
+
   it('409 mostra as diferenças e confirmar reenvia', async () => {
     estado.carrinho = [{ produtoId: 'PISO', quantidade: 2 }];
     estado.precoMudaUmaVez = true;

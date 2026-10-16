@@ -404,7 +404,7 @@
     if (!chat) return;
     var id = chat.id;
     botao.disabled = true;
-    api('/v1/sessoes', { method: 'POST', body: { chatId: String(id), nome: chat.nome || undefined, telefone: chat.telefone || undefined } }).then(function (s) {
+    api('/v1/sessoes', { method: 'POST', body: corpoDoLink(chat) }).then(function (s) {
       if (!chat || chat.id !== id) return;
       mostrarAviso(null);
       mostrarSessao(s);
@@ -421,6 +421,35 @@
   $('link').addEventListener('focus', function () { this.select(); });
   $('btn-copiar-resumo').addEventListener('click', function () { if (sessao) copiar(sessao.resumo, 'Resumo copiado.'); });
   $('btn-atualizar').addEventListener('click', function () { clearTimeout(timer); atualizar(); });
+
+  // ── Pré-cadastro: o que a Kentro já sabe do contato vai junto com o link ──
+  // Cada campo é cortado no limite da API: um cadastro fora do padrão não pode impedir o link.
+  function campo(valor, max) { return String(valor == null ? '' : valor).trim().slice(0, max); }
+  function preCadastro(alvo, contato) {
+    alvo.email = campo(contato.email, 120);
+    alvo.documento = campo(contato.document, 20);
+    var endereco = {
+      cep: campo(contato.postalCode, 9),
+      rua: campo(contato.address, 120),
+      numero: campo(contato.houseNumber, 20),
+      complemento: campo(contato.addressComplement, 80),
+      bairro: campo(contato.neighborhood, 80),
+      cidade: campo(contato.city, 80),
+      estado: campo(contato.state, 2).toUpperCase()
+    };
+    alvo.endereco = {};
+    Object.keys(endereco).forEach(function (k) { if (endereco[k]) alvo.endereco[k] = endereco[k]; });
+  }
+
+  function corpoDoLink(c) {
+    var corpo = { chatId: String(c.id) };
+    if (c.nome) corpo.nome = campo(c.nome, 120);
+    if (c.telefone) corpo.telefone = campo(c.telefone, 30);
+    if (c.email) corpo.email = c.email;
+    if (c.documento) corpo.documento = c.documento;
+    if (c.endereco && Object.keys(c.endereco).length) corpo.endereco = c.endereco;
+    return corpo;
+  }
 
   // ── Atendimento aberto na Kentro ────────────────────────────────────────
   function carregarChat(c) {
@@ -442,6 +471,7 @@
         if (!chat || chat.id !== id || !contato) return;
         chat.nome = contato.name || chat.nome;
         chat.telefone = String(contato.phone || chat.telefone).replace(/\D/g, '');
+        preCadastro(chat, contato);
       }, function () { /* fica com os dados do atendimento */ });
     }
     atualizar();

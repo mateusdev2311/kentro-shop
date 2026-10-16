@@ -91,6 +91,39 @@ describe('painel do atendimento — sessão do catálogo', () => {
     expect(tela.toasts).toEqual(['Link copiado. Cole na conversa para enviar ao cliente.']);
   });
 
+  it('pré-cadastro: envia e-mail, documento e endereço do contato da Kentro ao gerar o link', async () => {
+    await montar({
+      chat: { id: 56, contactId: 9 },
+      contatos: {
+        '9': {
+          name: 'Ana Souza',
+          phone: '5538988887777',
+          email: 'ana@x.com',
+          document: '123.456.789-00',
+          postalCode: '39400-000',
+          address: 'Rua A',
+          houseNumber: '10',
+          addressComplement: '',
+          neighborhood: 'Centro',
+          city: 'Montes Claros',
+          state: 'mg',
+        } as never,
+      },
+      respostas: { [rota(56)]: semSessao, 'POST /v1/sessoes': { status: 201, body: sessao({ status: 'link_enviado', itens: [] }) } },
+    });
+    tela.respostas[rota(56)] = tela.respostas['POST /v1/sessoes'];
+    await tela.clicar('btn-gerar');
+    const post = tela.chamadas.find((c) => c.method === 'POST')!;
+    expect(JSON.parse(post.body!)).toEqual({
+      chatId: '56',
+      nome: 'Ana Souza',
+      telefone: '5538988887777',
+      email: 'ana@x.com',
+      documento: '123.456.789-00',
+      endereco: { cep: '39400-000', rua: 'Rua A', numero: '10', bairro: 'Centro', cidade: 'Montes Claros', estado: 'MG' },
+    });
+  });
+
   it('erro ao gerar o link aparece no aviso', async () => {
     await montar({
       chat: { id: 55 },

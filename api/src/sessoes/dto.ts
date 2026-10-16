@@ -14,6 +14,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+/** Endereço vindo do contato da Kentro (pré-cadastro). Tudo opcional: o cliente confere no checkout. */
+export class EnderecoContatoDto {
+  @IsOptional() @IsString() @MaxLength(9) cep?: string;
+  @IsOptional() @IsString() @MaxLength(2) estado?: string;
+  @IsOptional() @IsString() @MaxLength(80) cidade?: string;
+  @IsOptional() @IsString() @MaxLength(80) bairro?: string;
+  @IsOptional() @IsString() @MaxLength(120) rua?: string;
+  @IsOptional() @IsString() @MaxLength(20) numero?: string;
+  @IsOptional() @IsString() @MaxLength(80) complemento?: string;
+}
+
 export class CriarSessaoDto {
   @IsString()
   @Length(1, 64)
@@ -28,6 +39,21 @@ export class CriarSessaoDto {
   @IsString()
   @MaxLength(30)
   telefone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  documento?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EnderecoContatoDto)
+  endereco?: EnderecoContatoDto;
 }
 
 export class ItemPedidoDto {

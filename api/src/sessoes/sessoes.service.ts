@@ -6,7 +6,7 @@ import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { calcularTotais, resumoDoPedido } from './calculo';
-import { Checkout, Cliente, EventoPublico, ItemPublico, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
+import { Checkout, Cliente, EnderecoContato, EventoPublico, ItemPublico, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
 
 const MAX_EVENTOS = 30;
 const ABERTOS: StatusSessao[] = ['link_enviado', 'navegando'];
@@ -15,6 +15,39 @@ const MENSAGEM_LINK_INVALIDO = 'Este link não está mais disponível. Peça um 
 export const linkInvalido = () => new ErroApi(404, 'LINK_INVALIDO', MENSAGEM_LINK_INVALIDO);
 
 export type Autor = EventoPublico['autor'];
+
+/** O que o painel (ou a IA) sabe do contato ao gerar o link. */
+export interface DadosDoContato {
+  chatId: string;
+  nome?: string;
+  telefone?: string;
+  email?: string;
+  documento?: string;
+  endereco?: EnderecoContato;
+}
+
+const CAMPOS_ENDERECO = ['cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento'] as const;
+
+/** Campo vazio não apaga o que já se sabe; um endereço novo (com algum campo) substitui o anterior inteiro. */
+export function mesclarCliente(atual: Cliente, dados: Omit<DadosDoContato, 'chatId'>): Cliente {
+  const texto = (v?: string) => v?.trim() || undefined;
+  const resultado: Cliente = {
+    nome: texto(dados.nome) ?? atual.nome ?? '',
+    telefone: texto(dados.telefone) ?? atual.telefone ?? '',
+  };
+  const email = texto(dados.email) ?? atual.email;
+  const documento = texto(dados.documento) ?? atual.documento;
+  if (email) resultado.email = email;
+  if (documento) resultado.documento = documento;
+  const novo: EnderecoContato = {};
+  for (const campo of CAMPOS_ENDERECO) {
+    const valor = texto(dados.endereco?.[campo]);
+    if (valor) novo[campo] = campo === 'estado' ? valor.toUpperCase() : valor;
+  }
+  const endereco = Object.keys(novo).length ? novo : atual.endereco;
+  if (endereco) resultado.endereco = endereco;
+  return resultado;
+}
 
 @Injectable()
 export class SessoesService {
@@ -25,20 +58,19 @@ export class SessoesService {
   ) {}
 
   /** Link do atendimento: reaproveita a sessão aberta do chat ou cria outra (a anterior foi finalizada ou expirou). */
-  async criarOuReaproveitar(lojaId: string, dados: { chatId: string; nome?: string; telefone?: string }, atendente = ''): Promise<SessaoCompleta> {
+  async criarOuReaproveitar(lojaId: string, dados: DadosDoContato, atendente = ''): Promise<SessaoCompleta> {
     const aberta = await this.prisma.sessao.findFirst({
       where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS }, expiraEm: { gt: new Date() } },
       orderBy: { criadaEm: 'desc' },
     });
     if (aberta) {
-      const cliente = aberta.cliente as unknown as Cliente;
-      const atualizado: Cliente = { nome: dados.nome?.trim() || cliente.nome, telefone: dados.telefone?.trim() || cliente.telefone };
+      const atualizado = mesclarCliente(aberta.cliente as unknown as Cliente, dados);
       await this.prisma.sessao.update({ where: { id: aberta.id }, data: { cliente: atualizado as unknown as Prisma.InputJsonValue } });
       return this.completa(aberta.id);
     }
 
     const { expiracaoLinkDias } = await this.configLoja.obter(lojaId);
-    const cliente: Cliente = { nome: dados.nome?.trim() ?? '', telefone: dados.telefone?.trim() ?? '' };
+    const cliente = mesclarCliente({ nome: '', telefone: '' }, dados);
     const criada = await this.prisma.sessao.create({
       data: {
         lojaId,

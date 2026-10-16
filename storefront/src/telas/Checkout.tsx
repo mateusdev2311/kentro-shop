@@ -24,16 +24,18 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   if (abertura.retirada.habilitada && abertura.retirada.lojas.length) opcoes.push('retirada');
 
   const [tipo, setTipo] = useState<Tipo | ''>(opcoes.length === 1 ? opcoes[0] : '');
+  // Pré-cadastro: o endereço que a Kentro já tem do contato entra preenchido.
+  const pre = sessao.cliente.endereco ?? {};
   const [dados, setDados] = useState<DadosEntrega>({
     nome: sessao.cliente.nome,
     telefone: telefone(sessao.cliente.telefone),
-    cep: '',
-    estado: '',
-    cidade: '',
-    bairro: '',
-    rua: '',
-    numero: '',
-    complemento: '',
+    cep: formatarCep(pre.cep ?? ''),
+    estado: (pre.estado ?? '').toUpperCase(),
+    cidade: pre.cidade ?? '',
+    bairro: pre.bairro ?? '',
+    rua: pre.rua ?? '',
+    numero: pre.numero ?? '',
+    complemento: pre.complemento ?? '',
     referencia: '',
   });
   const [lojaId, setLojaId] = useState('');
@@ -51,6 +53,20 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   );
 
   const mudar = (campo: Campo, valor: string) => setDados((d) => ({ ...d, [campo]: valor }));
+
+  function cotar(digitos: string) {
+    if (aCombinar) return;
+    void api
+      .frete(digitos)
+      .then((f) => montado.current && setFrete(f))
+      .catch(() => undefined);
+  }
+
+  // CEP vindo do pré-cadastro: cota o frete logo ao abrir.
+  useEffect(() => {
+    const digitos = dados.cep.replace(/\D/g, '');
+    if (digitos.length === 8) cotar(digitos);
+  }, []);
 
   function mudarCep(valor: string) {
     const formatado = formatarCep(valor);
@@ -70,12 +86,7 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
         }));
       })
       .catch(() => undefined);
-    if (!aCombinar) {
-      void api
-        .frete(digitos)
-        .then((f) => montado.current && setFrete(f))
-        .catch(() => undefined);
-    }
+    cotar(digitos);
   }
 
   async function enviar() {
