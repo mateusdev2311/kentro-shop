@@ -25,7 +25,7 @@ export class SessoesService {
   ) {}
 
   /** Link do atendimento: reaproveita a sessão aberta do chat ou cria outra (a anterior foi finalizada ou expirou). */
-  async criarOuReaproveitar(lojaId: string, dados: { chatId: string; nome?: string; telefone?: string }): Promise<SessaoCompleta> {
+  async criarOuReaproveitar(lojaId: string, dados: { chatId: string; nome?: string; telefone?: string }, atendente = ''): Promise<SessaoCompleta> {
     const aberta = await this.prisma.sessao.findFirst({
       where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS }, expiraEm: { gt: new Date() } },
       orderBy: { criadaEm: 'desc' },
@@ -47,7 +47,7 @@ export class SessoesService {
         cliente: cliente as unknown as Prisma.InputJsonValue,
         totais: calcularTotais([], null) as unknown as Prisma.InputJsonValue,
         expiraEm: new Date(Date.now() + expiracaoLinkDias * 86_400_000),
-        eventos: { create: { tipo: 'link', texto: 'Link do catálogo gerado', autor: 'atendente' } },
+        eventos: { create: { tipo: 'link', texto: atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado', autor: 'atendente' } },
       },
     });
     return this.completa(criada.id);

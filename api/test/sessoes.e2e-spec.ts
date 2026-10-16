@@ -78,4 +78,46 @@ describe('sessões do catálogo', () => {
       expect(eventos[0].autor).toBe('cliente');
     });
   });
+
+  describe('rotas do atendimento', () => {
+    const criar = (chave: string, corpo: object, nome?: string) => {
+      const req = http().post('/v1/sessoes').set('X-Loja-Chave', chave);
+      if (nome !== undefined) req.set('X-Kentro-Usuario-Nome', nome);
+      return req.send(corpo);
+    };
+    const doChat = (chave: string, chatId: string) => http().get(`/v1/sessoes/chat/${chatId}`).set('X-Loja-Chave', chave);
+
+    it('cria (201) com a URL pública e reaproveita (200)', async () => {
+      const a = await criar(loja.chaveAtendimento, { chatId: ' 123 ', nome: 'Ana', telefone: '5538988887777' });
+      expect(a.status).toBe(201);
+      expect(a.body.url).toMatch(/^https:\/\/shop\.teste\/c\//);
+      expect(a.body.resumo).toContain('Cliente: Ana');
+      const b = await criar(loja.chaveAtendimento, { chatId: '123' });
+      expect(b.status).toBe(200);
+      expect(b.body.url).toBe(a.body.url);
+      expect((await doChat(loja.chaveAtendimento, '123')).body.url).toBe(a.body.url);
+    });
+
+    it('o nome do atendente (codificado) entra no evento do link', async () => {
+      const res = await criar(loja.chaveAtendimento, { chatId: '9' }, encodeURIComponent('Zoë 🛍️'));
+      expect(res.body.eventos[0]).toMatchObject({ texto: 'Link do catálogo gerado por Zoë 🛍️', autor: 'atendente' });
+      const torto = await criar(loja.chaveAtendimento, { chatId: '10' }, '%E0%A4%A');
+      expect(torto.body.eventos[0].texto).toBe('Link do catálogo gerado');
+    });
+
+    it('chave inválida → 401; sem chatId → 400', async () => {
+      expect((await criar('ksk_errada', { chatId: '1' })).status).toBe(401);
+      expect((await doChat('ksk_errada', '1')).status).toBe(401);
+      expect((await criar(loja.chaveAtendimento, {})).status).toBe(400);
+      expect((await criar(loja.chaveAtendimento, { chatId: 'x'.repeat(65) })).status).toBe(400);
+    });
+
+    it('chat de outra loja não aparece', async () => {
+      await criar(loja.chaveAtendimento, { chatId: '123' });
+      const outra = await registrar();
+      const res = await doChat(outra.chaveAtendimento, '123');
+      expect(res.status).toBe(404);
+      expect(res.body.erro.codigo).toBe('SEM_SESSAO');
+    });
+  });
 });

@@ -5,6 +5,17 @@ import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from '../lojas/chave-loja.gua
 import { CriarSessaoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 
+/** Nome do atendente para a atividade (só auditoria; vem do navegador, codificado). Inválido → vazio. */
+function nomeDoAtendente(req: RequisicaoDaLoja): string {
+  const bruto = req.headers['x-kentro-usuario-nome'];
+  if (typeof bruto !== 'string' || !bruto) return '';
+  try {
+    return decodeURIComponent(bruto).replace(/\p{Cc}/gu, ' ').trim().slice(0, 80);
+  } catch {
+    return '';
+  }
+}
+
 /** Rotas do atendimento (painel da extensão e, na 1.4, a IA). */
 @Controller('v1/sessoes')
 @UseGuards(ChaveLojaGuard)
@@ -15,7 +26,7 @@ export class SessoesController {
   @Post()
   async criar(@Req() req: RequisicaoDaLoja, @Body() dto: CriarSessaoDto, @Res({ passthrough: true }) res: Response) {
     const antes = await this.sessoes.porChat(req.loja.id, dto.chatId.trim());
-    const sessao = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...dto, chatId: dto.chatId.trim() });
+    const sessao = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...dto, chatId: dto.chatId.trim() }, nomeDoAtendente(req));
     res.status(antes && antes.id === sessao.id ? 200 : 201);
     return sessao;
   }

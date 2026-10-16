@@ -1,0 +1,11 @@
+{
+  "//": "Só para os testes (ts-jest compila para CommonJS); o build usa o tsconfig.json.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "types": ["jest", "node"]
+  }
+}
