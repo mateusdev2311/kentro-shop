@@ -73,6 +73,7 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
       expect(typeof conector.cotarFrete === 'function').toBe(capacidades.cotarFrete);
       expect(typeof conector.criarPedido === 'function').toBe(capacidades.criarPedido);
       expect(typeof conector.urlDeAutorizacao === 'function').toBe(capacidades.oauth);
+      expect(typeof conector.historicoDoCliente === 'function').toBe(capacidades.historicoCliente);
       expect(conector.camposDeCredencial.length).toBeGreaterThan(0);
     });
 

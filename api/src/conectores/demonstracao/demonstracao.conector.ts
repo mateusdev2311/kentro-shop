@@ -32,6 +32,7 @@ export const conectorDemonstracao: Conector = {
     cotarFrete: false,
     criarPedido: false,
     oauth: false,
+    historicoCliente: false,
   },
   camposDeCredencial: [
     { chave: 'codigo', rotulo: 'Código', tipo: 'texto', obrigatorio: true, ajuda: 'Digite demo para usar os produtos de exemplo.' },

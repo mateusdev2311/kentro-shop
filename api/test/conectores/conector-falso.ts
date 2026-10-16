@@ -68,6 +68,7 @@ export const conectorFalso: Conector = {
     cotarFrete: false,
     criarPedido: false,
     oauth: false,
+    historicoCliente: false,
   },
   camposDeCredencial: [
     { chave: 'url_api', rotulo: 'Endereço da API', tipo: 'url', obrigatorio: true },

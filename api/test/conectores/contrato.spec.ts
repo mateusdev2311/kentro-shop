@@ -1,6 +1,8 @@
 import { conectorDemonstracao } from '../../src/conectores/demonstracao/demonstracao.conector';
 import { conectorEcommercenet } from '../../src/conectores/ecommercenet/ecommercenet.conector';
+import { conectorShopify } from '../../src/conectores/shopify/shopify.conector';
 import { conectorFalso } from './conector-falso';
+import { criarFetchShopify, SHOPIFY_CREDENCIAIS } from './fixtures-shopify';
 import { rodarContrato } from './contrato';
 import { criarFetchEcn, ECN_CREDENCIAIS } from './fixtures-ecommercenet';
 
@@ -23,6 +25,18 @@ rodarContrato('eCommerce-net', () => ({
   idSimples: 'PRC-6060-CAL',
   idComVariacao: 'VNL-CARV',
   idInexistente: 'NAO-EXISTE',
+  buscaVazia: 'zzzzzz',
+  porPagina: 2,
+}));
+
+rodarContrato('Shopify (respostas sintéticas)', () => ({
+  conector: conectorShopify,
+  credenciaisValidas: SHOPIFY_CREDENCIAIS,
+  credenciaisInvalidas: { ...SHOPIFY_CREDENCIAIS, token_storefront: 'errado' },
+  fetchDeFixtures: criarFetchShopify(),
+  idSimples: 'porcelanato-calacata',
+  idComVariacao: 'tinta-acrilica',
+  idInexistente: 'nao-existe',
   buscaVazia: 'zzzzzz',
   porPagina: 2,
 }));

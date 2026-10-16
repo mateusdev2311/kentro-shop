@@ -306,6 +306,12 @@ Uma suíte genérica (`conectores/nucleo/contrato.spec.ts`) roda contra **cada**
 
 A regra é sempre aplicada **por cima** do produto ao vivo; o produto em si nunca é gravado.
 
+### 7.4.1 Shopify (implementado em 16/10/2026)
+- Credenciais: `dominio` (só `*.myshopify.com`), `token_storefront` (obrigatório, catálogo) e `token_admin` (opcional: busca por SKU e histórico do cliente pelo telefone). Tudo cifrado no banco como as demais integrações.
+- Catálogo pela Storefront API GraphQL (`/api/2026-10/graphql.json`); coleções viram categorias; paginação por cursor convertida em páginas numeradas.
+- Id do produto no Kentro Shop = `handle`. Sem o escopo de estoque no token, o estoque fica `null`.
+- Ainda sem teste contra loja real (o usuário dispensou nesta etapa): conferir o histórico do cliente na Admin API ao integrar a primeira loja.
+
 ### 7.5 Notas por plataforma (⚠ confirmar tudo na documentação oficial antes de implementar)
 1. **eCommerce-net (MVP):** token = `base64(client_id:client_secret)` no cabeçalho `Authorization`. Rotas úteis: `/product/all` (página, limite ≤ 200, busca, categoria), `/product/findbysearch`, `/category/findbyname` (sem nome = todas), `/product/findvarietybyproductskuv2`, `/product/findbuyitwithbysku` (compre junto), `/product/findRelatedBySku`, `/freight/getfreight` (hash do carrinho + CEP), `/cart/*`, `/order/insertorder`, `/customer/insert`. O OpenAPI completo está na demo. Atenção: tipos inconsistentes (números como string); normalize. Frete e pedido dependem de um carrinho/hash da própria plataforma: o conector precisa criar esse carrinho espelho na hora de cotar ou criar o pedido.
 2. **WooCommerce:** URL da loja + consumer key/secret (API REST v3). Exige HTTPS na loja. Variações em rota separada por produto.

@@ -71,6 +71,7 @@ export const conectorEcommercenet: Conector = {
     cotarFrete: false,
     criarPedido: false,
     oauth: false,
+    historicoCliente: false,
   },
   camposDeCredencial: [
     {

@@ -3,9 +3,10 @@ import { conectorDemonstracao } from './demonstracao/demonstracao.conector';
 import { conectorEcommercenet } from './ecommercenet/ecommercenet.conector';
 import { Conector } from './nucleo/conector';
 import { CONECTORES, RegistroConectores } from './nucleo/registro';
+import { conectorShopify } from './shopify/shopify.conector';
 
 /** Conectores disponíveis em produção. */
-export const CONECTORES_PADRAO: Conector[] = [conectorEcommercenet, conectorDemonstracao];
+export const CONECTORES_PADRAO: Conector[] = [conectorEcommercenet, conectorShopify, conectorDemonstracao];
 
 @Module({})
 export class ConectoresModule {

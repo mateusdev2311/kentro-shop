@@ -74,6 +74,19 @@ export interface Endereco {
   referencia?: string;
 }
 
+/** O que a plataforma sabe de um cliente pelo telefone (endereços e últimos pedidos). */
+export interface HistoricoCliente {
+  nome: string;
+  email?: string;
+  enderecos: Endereco[];
+  pedidos: {
+    numero: string;
+    data: string; // ISO 8601
+    total: number;
+    itens: { sku: string; nome: string; quantidade: number }[];
+  }[];
+}
+
 export interface PedidoParaCriar {
   cliente: { nome: string; telefone: string; email?: string; documento?: string };
   entrega: { tipo: 'entrega' | 'retirada'; endereco?: Endereco; lojaRetiradaId?: string };
