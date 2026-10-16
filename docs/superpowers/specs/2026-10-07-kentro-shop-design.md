@@ -442,7 +442,7 @@ O Kentro Shop é distribuído como **duas extensões separadas**, cada uma com o
   ],
   "contributions": [
     { "id": "configuracoes", "type": "topMenu", "title": "Kentro Shop", "url": "config.html",
-      "presentation": { "mode": "dialog", "size": "xl" }, "visibility": { "userTypes": [0] } }
+      "presentation": { "mode": "fullscreen" }, "visibility": { "userTypes": [0] } }
   ]
 }
 ```

@@ -29,7 +29,7 @@
       "type": "topMenu",
       "title": "Kentro Shop",
       "url": "config.html",
-      "presentation": { "mode": "dialog", "size": "xl" },
+      "presentation": { "mode": "fullscreen" },
       "visibility": { "userTypes": [0] }
     }
   ]

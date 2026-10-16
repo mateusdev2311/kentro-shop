@@ -152,10 +152,11 @@ describe('painel do atendimento — sessão do catálogo', () => {
   });
 
   it('com a aba oculta pausa a consulta; ao voltar, consulta na hora', async () => {
-    await montar({ chat: { id: 55 }, respostas: { [rota(55)]: { status: 200, body: sessao() } } });
+    // Intervalo maior que o tempo das asserções: a consulta "na hora" não se confunde com a agendada.
+    await montar({ intervaloMs: 250, chat: { id: 55 }, respostas: { [rota(55)]: { status: 200, body: sessao() } } });
     await tela.ocultar(true);
     const pausado = consultas(55);
-    await tela.esperar(120);
+    await tela.esperar(600);
     expect(consultas(55)).toBe(pausado);
     await tela.ocultar(false);
     expect(consultas(55)).toBe(pausado + 1);
