@@ -54,6 +54,202 @@ const finalizada = () =>
 const rota = (chatId: string | number) => `GET /v1/sessoes/chat/${chatId}`;
 const semSessao = { status: 404, body: { erro: { codigo: 'SEM_SESSAO', mensagem: 'Nenhum link.' } } };
 
+const PRODUTOS = {
+  status: 200,
+  body: {
+    itens: [
+      { id: 'A1', sku: 'A1', nome: 'Porcelanato Bege', preco: 129.9, unidade: 'CX', disponivel: true, variacoes: [], imagens: [], categoriaIds: ['1'] },
+      {
+        id: 'T1',
+        sku: 'T1',
+        nome: 'Tinta',
+        preco: 80,
+        unidade: 'UN',
+        disponivel: true,
+        variacoes: [
+          { id: 'v1', sku: 'T1-B', nome: 'Branco', preco: 80, disponivel: true },
+          { id: 'v2', sku: 'T1-P', nome: 'Preto', preco: 90, disponivel: false },
+        ],
+        imagens: [],
+        categoriaIds: ['2'],
+      },
+    ],
+    pagina: 1,
+    porPagina: 24,
+    temMais: false,
+  },
+};
+const CATEGORIAS = { status: 200, body: [{ id: '1', nome: 'Pisos' }, { id: '2', nome: 'Tintas' }] };
+const HISTORICO = {
+  status: 200,
+  body: {
+    enderecos: [],
+    pedidos: [
+      {
+        data: '2026-09-01T12:00:00.000Z',
+        total: 339.8,
+        itens: [
+          { produtoId: 'A1', variacaoId: null, sku: 'A1', nome: 'Porcelanato Bege', variacaoNome: null, quantidade: 2 },
+          { produtoId: 'T1', variacaoId: 'v1', sku: 'T1-B', nome: 'Tinta', variacaoNome: 'Branco', quantidade: 1 },
+        ],
+      },
+    ],
+  },
+};
+
+describe('painel do atendimento — montar link e pedidos anteriores', () => {
+  let tela: Tela;
+  afterEach(() => tela?.fechar());
+
+  async function montar(extra: Partial<OpcoesTela> = {}) {
+    tela = await montarTela('atendimento/painel.html', {
+      config,
+      intervaloMs: 5000,
+      chat: { id: 57, contactId: 9 },
+      contatos: { '9': { name: 'Ana Souza', phone: '5538988887777' } },
+      ...extra,
+      respostas: {
+        'GET /v1/loja': lojaOk,
+        [rota(57)]: semSessao,
+        'GET /v1/loja/catalogo/produtos': PRODUTOS,
+        'GET /v1/loja/catalogo/categorias': CATEGORIAS,
+        'GET /v1/sessoes/historico': HISTORICO,
+        'POST /v1/sessoes': { status: 201, body: { ...sessao({ status: 'link_enviado' }), avisos: ['Tinta (Preto) não está mais disponível.'] } },
+        ...extra.respostas,
+      },
+    });
+    await tela.esperar(5);
+    return tela;
+  }
+  const corpoDoPost = () => JSON.parse(tela.chamadas.find((c) => c.method === 'POST')!.body!);
+  const clicarEm = async (seletor: string) => {
+    (tela.document.querySelector(seletor) as HTMLElement).dispatchEvent(new tela.document.defaultView!.MouseEvent('click', { bubbles: true }));
+    await tela.esperar(5);
+  };
+
+  it('mostra os pedidos anteriores do contato e "Usar estes itens" monta o carrinho', async () => {
+    await montar();
+    const historico = tela.chamadas.find((c) => c.url.includes('/v1/sessoes/historico'))!;
+    expect(historico.url).toBe('https://api.teste/v1/sessoes/historico?telefone=5538988887777');
+    expect(tela.texto('historico-lista')).toContain('2× Porcelanato Bege');
+    await clicarEm('[data-usar-pedido="0"]');
+    expect(tela.texto('montar-itens')).toContain('2× Porcelanato Bege');
+    expect(tela.texto('montar-itens')).toContain('1× Tinta (Branco)');
+    await tela.clicar('btn-gerar-montado');
+    expect(corpoDoPost()).toMatchObject({
+      chatId: '57',
+      itens: [
+        { produtoId: 'A1', quantidade: 2 },
+        { produtoId: 'T1', variacaoId: 'v1', quantidade: 1 },
+      ],
+    });
+    expect(tela.texto('montar-aviso')).toBe('Tinta (Preto) não está mais disponível.');
+    expect(tela.visivel('com-sessao')).toBe(true);
+    expect(tela.copiados).toEqual(['https://shop.teste/c/tok123']);
+  });
+
+  it('busca produtos, escolhe variação e quantidade e gera um link só com a seleção (sem preço, catálogo liberado)', async () => {
+    await montar();
+    tela.preencher('montar-busca', 'tinta');
+    await tela.clicar('btn-buscar');
+    expect(tela.chamadas.some((c) => c.url === 'https://api.teste/v1/loja/catalogo/produtos?busca=tinta')).toBe(true);
+    expect(tela.texto('montar-resultados')).toContain('Porcelanato Bege');
+    // Variação esgotada não aparece para escolher.
+    const opcoes = [...tela.document.querySelectorAll('[data-variacao="T1"] option')].map((o) => o.textContent);
+    expect(opcoes).toEqual(['Branco']);
+    (tela.document.querySelector('[data-quantidade="A1"]') as HTMLInputElement).value = '3';
+    await clicarEm('[data-adicionar="A1"]');
+    await clicarEm('[data-adicionar="T1"]');
+    expect(tela.texto('montar-itens')).toContain('3× Porcelanato Bege');
+    (tela.document.getElementById('op-carrinho') as HTMLInputElement).checked = false;
+    (tela.document.getElementById('op-selecao') as HTMLInputElement).checked = true;
+    (tela.document.getElementById('op-catalogo-todo') as HTMLInputElement).checked = true;
+    (tela.document.getElementById('op-sem-preco') as HTMLInputElement).checked = true;
+    await tela.clicar('btn-gerar-montado');
+    const corpo = corpoDoPost();
+    expect(corpo).toMatchObject({ filtro: { produtoIds: ['A1', 'T1'] }, restrito: false, mostrarPrecos: false });
+    expect(corpo.itens).toBeUndefined();
+  });
+
+  it('link limitado a uma categoria', async () => {
+    await montar();
+    await tela.esperar(5);
+    (tela.document.getElementById('montar-categoria') as HTMLSelectElement).value = '2';
+    (tela.document.getElementById('op-categoria') as HTMLInputElement).checked = true;
+    await tela.clicar('btn-gerar-montado');
+    expect(corpoDoPost()).toMatchObject({ filtro: { categoriaId: '2' } });
+    expect(corpoDoPost().restrito).toBeUndefined();
+  });
+
+  it('sem nada escolhido, avisa em vez de gerar', async () => {
+    await montar();
+    await tela.clicar('btn-gerar-montado');
+    expect(tela.chamadas.some((c) => c.method === 'POST')).toBe(false);
+    expect(tela.texto('montar-aviso')).toBe('Adicione produtos ou escolha uma opção do link.');
+  });
+});
+
+describe('painel do atendimento — carrinho nativo da Kentro (loja com o catálogo da Kentro)', () => {
+  let tela: Tela;
+  afterEach(() => tela?.fechar());
+  const lojaKentro = { status: 200, body: { ...lojaOk.body, plataforma: 'kentro' } };
+  const finalizadaKentro = () => {
+    const s = finalizada();
+    return {
+      ...s,
+      itens: [
+        { ...s.itens[0], produtoId: '12', sku: 'PRC-1', nome: 'Porcelanato Bege', quantidade: 2 },
+        { ...s.itens[0], produtoId: '15', sku: 'ARG', nome: 'Argamassa', quantidade: 3 },
+      ],
+    };
+  };
+  async function montar(extra: Partial<OpcoesTela>) {
+    tela = await montarTela('atendimento/painel.html', { config, intervaloMs: 30, chat: { id: 55 }, ...extra, respostas: { 'GET /v1/loja': lojaKentro, ...extra.respostas } });
+    await tela.esperar(5);
+  }
+
+  it('quando o cliente finaliza, lança os itens no carrinho do atendimento (sem duplicar o que já está lá)', async () => {
+    await montar({ carrinho: { linhas: [{ productId: 12, qty: 1 }] }, respostas: { [rota(55)]: { status: 200, body: sessao() } } });
+    tela.respostas[rota(55)] = { status: 200, body: finalizadaKentro() };
+    await tela.esperar(80);
+    expect(tela.operacoesCarrinho).toEqual([
+      ['set', 12, 2],
+      ['add', 15, 3],
+    ]);
+    expect(tela.texto('carrinho-kentro')).toBe('Itens lançados no carrinho da Kentro.');
+  });
+
+  it('abrir um pedido já finalizado não lança sozinho; o botão lança e avisa o que foi recusado', async () => {
+    await montar({ carrinho: { recusar: { 15: 'product_not_in_queue' } }, respostas: { [rota(55)]: { status: 200, body: finalizadaKentro() } } });
+    expect(tela.operacoesCarrinho).toEqual([]);
+    expect(tela.visivel('btn-carrinho-kentro')).toBe(true);
+    await tela.clicar('btn-carrinho-kentro');
+    expect(tela.operacoesCarrinho).toEqual([
+      ['add', 12, 2],
+      ['add', 15, 3],
+    ]);
+    expect(tela.texto('carrinho-kentro')).toBe('Não entrou no carrinho da Kentro: Argamassa (fora dos grupos de produtos desta fila).');
+  });
+
+  it('fila sem carrinho sincronizado: explica em vez de lançar', async () => {
+    await montar({ carrinho: { disponivel: false }, respostas: { [rota(55)]: { status: 200, body: finalizadaKentro() } } });
+    await tela.clicar('btn-carrinho-kentro');
+    expect(tela.operacoesCarrinho).toEqual([]);
+    expect(tela.texto('carrinho-kentro')).toBe('A fila deste atendimento não tem o carrinho da Kentro ligado.');
+  });
+
+  it('loja com outra plataforma não mostra o botão', async () => {
+    tela = await montarTela('atendimento/painel.html', {
+      config,
+      chat: { id: 55 },
+      carrinho: {},
+      respostas: { 'GET /v1/loja': { status: 200, body: { ...lojaOk.body, plataforma: 'shopify' } }, [rota(55)]: { status: 200, body: finalizadaKentro() } },
+    });
+    await tela.esperar(5);
+    expect(tela.visivel('btn-carrinho-kentro')).toBe(false);
+  });
+});
+
 describe('painel do atendimento — sessão do catálogo', () => {
   let tela: Tela;
   const montar = async (opcoes: Partial<OpcoesTela>) => {

@@ -36,6 +36,8 @@ export interface RequisicaoConector {
 export interface RespostaConector {
   status: number;
   corpo: unknown;
+  /** Cabeçalhos da resposta, com o nome em minúsculas (ex.: mcp-session-id). */
+  cabecalhos?: Record<string, string>;
 }
 
 export interface ClienteHttpConector {

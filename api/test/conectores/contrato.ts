@@ -108,6 +108,8 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
       expect(simples).not.toBeNull();
       conferirProduto(simples!);
       expect(simples!.variacoes).toEqual([]);
+      // Plataforma sem variações (ex.: catálogo da Kentro) não precisa ter produto com variação.
+      if (!c.conector.capacidades.variacoes) return;
       const comVariacao = await c.conector.obterProduto(ctx(), c.idComVariacao);
       conferirProduto(comVariacao!);
       expect(comVariacao!.variacoes.length).toBeGreaterThan(0);

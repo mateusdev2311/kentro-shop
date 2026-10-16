@@ -30,6 +30,12 @@ export class LojasService {
     return { lojaId: loja.id, chaveAdmin, chaveAtendimento, tokenMcp };
   }
 
+  /** Plataforma integrada (ex.: "kentro", "shopify") ou null. */
+  async plataforma(lojaId: string): Promise<string | null> {
+    const integracao = await this.prisma.integracao.findUnique({ where: { lojaId }, select: { plataforma: true } });
+    return integracao?.plataforma ?? null;
+  }
+
   async buscarPorChave(chave: string): Promise<{ loja: Loja; papel: Papel } | null> {
     const hash = hashSegredo(chave);
     const loja = await this.prisma.loja.findFirst({

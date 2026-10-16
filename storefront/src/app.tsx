@@ -4,6 +4,7 @@ import { ehErroDaApi } from './api';
 import { criarCarrinho, type DocumentoVisivel } from './carrinho';
 import type { EnderecoCep } from './cep';
 import { brl, iniciais, primeiroNome } from './formato';
+import { precos } from './precos';
 import { pedidoAberto, type Abertura, type Categoria, type CorpoFinalizar, type Diferenca, type Produto } from './tipos';
 import { Carrinho, linhasDoCarrinho, subtotalDaTela } from './telas/Carrinho';
 import { Checkout } from './telas/Checkout';
@@ -48,11 +49,15 @@ export function App({ api, buscarCep, documento }: Dependencias) {
 
   // ── Abertura do link ─────────────────────────────────
   const [painel, setPainel] = useState<Painel>(null);
+  /** Link montado pelo atendente: a vitrine começa no filtro dele ("Separados para você"). */
+  const [selecao, setSelecao] = useState(false);
   const abrir = useCallback(async () => {
     setErroAbertura(null);
     try {
       const a = await api.abrir();
+      precos.definir(a.mostrarPrecos !== false);
       carrinho.aplicar(a.sessao);
+      setSelecao(!!a.filtro);
       setAbertura(a);
       if (!pedidoAberto(a.sessao)) setPainel('carrinho');
       api
@@ -69,6 +74,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   useEffect(() => {
     if (!abertura) return;
     if (COR_VALIDA.test(abertura.tema.corPrimaria)) document.documentElement.style.setProperty('--cor-primaria', abertura.tema.corPrimaria);
+    if (abertura.tema.corTopo && COR_VALIDA.test(abertura.tema.corTopo)) document.documentElement.style.setProperty('--cor-topo', abertura.tema.corTopo);
     document.title = abertura.tema.nome;
   }, [abertura]);
 
@@ -95,7 +101,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
       setCarregando(true);
       setErroLista('');
       try {
-        const r = await api.produtos({ busca, categoria, pagina: numero });
+        const r = await api.produtos({ busca, categoria: selecao ? undefined : categoria, pagina: numero, selecao });
         if (meu !== pedidoLista.current) return;
         setProdutos((atuais) => {
           if (numero === 1) return r.itens;
@@ -111,7 +117,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
         if (meu === pedidoLista.current) setCarregando(false);
       }
     },
-    [busca, categoria],
+    [busca, categoria, selecao],
   );
 
   useEffect(() => {
@@ -176,6 +182,31 @@ export function App({ api, buscarCep, documento }: Dependencias) {
 
   const sessao = carrinho.sessao;
   const nome = primeiroNome(sessao.cliente.nome);
+  const ultimoPedido = abertura.historico?.pedidos[0];
+  const filtroLink = abertura.filtro;
+  const emSelecao = selecao && !!filtroLink;
+  /** Link restrito: o cliente não sai do filtro (o servidor também garante isso). */
+  const travado = !!filtroLink && abertura.restrito;
+  const nomeCategoria = filtroLink?.categoriaId ? categorias.find((c) => c.id === filtroLink.categoriaId)?.nome : undefined;
+  const tituloDaSelecao = filtroLink?.produtoIds?.length
+    ? 'Separados para você'
+    : nomeCategoria
+      ? `Selecionados para você: ${nomeCategoria}`
+      : filtroLink?.busca
+        ? `Selecionados para você: "${filtroLink.busca}"`
+        : 'Selecionados para você';
+
+  function escolherCategoria(id: string) {
+    setSelecao(false);
+    setCategoria(id);
+  }
+
+  // Os itens entram como qualquer outro: o servidor revalida preço e estoque (e avisa o que não existe mais).
+  function pedirDeNovo() {
+    if (!ultimoPedido) return;
+    for (const i of ultimoPedido.itens) carrinho.alterar(i.produtoId, i.variacaoId, carrinho.quantidade(i.produtoId, i.variacaoId) + i.quantidade);
+    mostrarAviso('Itens do último pedido adicionados ao carrinho');
+  }
   const totalItens = carrinho.totalItens;
   const catAtual = categorias.find((c) => c.id === categoria);
   const quantos = total ?? produtos.length;
@@ -250,13 +281,13 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             {totalItens > 0 && <span class="contador">{totalItens}</span>}
           </button>
         </div>
-        {categorias.length > 0 && (
+        {categorias.length > 0 && !travado && (
           <nav class="categorias" aria-label="Categorias">
-            <button type="button" class={categoria === '' ? 'ativa' : ''} onClick={() => setCategoria('')}>
+            <button type="button" class={categoria === '' && !emSelecao ? 'ativa' : ''} onClick={() => escolherCategoria('')}>
               Todos
             </button>
             {categorias.map((c) => (
-              <button type="button" key={c.id} class={categoria === c.id ? 'ativa' : ''} onClick={() => setCategoria(c.id)}>
+              <button type="button" key={c.id} class={categoria === c.id && !emSelecao ? 'ativa' : ''} onClick={() => escolherCategoria(c.id)}>
                 {c.nome}
               </button>
             ))}
@@ -265,13 +296,43 @@ export function App({ api, buscarCep, documento }: Dependencias) {
       </div>
 
       <main>
-        {!busca && !categoria && (
+        {emSelecao && (
+          <section class="selecao">
+            <strong>{tituloDaSelecao}</strong>
+            {!abertura.restrito && (
+              <button type="button" class="botao-texto" onClick={() => setSelecao(false)}>
+                Ver todo o catálogo
+              </button>
+            )}
+          </section>
+        )}
+        {!busca && !categoria && !emSelecao && abertura.tema.destaque !== false && (
           <section class="destaque">
             <div>
               <p class="destaque-rotulo">Atendimento pelo WhatsApp</p>
               <h1>Monte seu pedido com calma.</h1>
               <p>{abertura.tema.boasVindas || 'Escolha os produtos, ajuste as quantidades e finalize. Um atendente confirma tudo com você na conversa.'}</p>
             </div>
+          </section>
+        )}
+        {!busca && !categoria && !finalizado && ultimoPedido && (
+          <section class="pedir-de-novo">
+            <div>
+              <strong>Seu último pedido</strong>
+              <small>{new Date(ultimoPedido.data).toLocaleDateString('pt-BR')}</small>
+            </div>
+            <ul>
+              {ultimoPedido.itens.slice(0, 4).map((i) => (
+                <li key={`${i.produtoId}|${i.variacaoId ?? ''}`}>
+                  {i.quantidade}× {i.nome}
+                  {i.variacaoNome ? ` (${i.variacaoNome})` : ''}
+                </li>
+              ))}
+              {ultimoPedido.itens.length > 4 && <li>e mais {ultimoPedido.itens.length - 4}</li>}
+            </ul>
+            <button type="button" class="botao" onClick={pedirDeNovo}>
+              Pedir de novo
+            </button>
           </section>
         )}
         {produtos.length > 0 && (
@@ -289,6 +350,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
           carregando={carregando}
           erro={erroLista}
           aoCarregarMais={carregarMais}
+          layout={abertura.tema.layout ?? 'grade'}
         />
       </main>
 
@@ -298,7 +360,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             <small>
               {totalItens} {totalItens === 1 ? 'item' : 'itens'} no carrinho
             </small>
-            <strong>{brl(subtotalDaTela(carrinho))}</strong>
+            {precos.visiveis() && <strong>{brl(subtotalDaTela(carrinho))}</strong>}
           </div>
           <button type="button" class="botao primario" onClick={abrirCarrinho}>
             Ver carrinho

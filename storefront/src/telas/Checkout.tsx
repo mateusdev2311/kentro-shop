@@ -3,6 +3,7 @@ import type { Api } from '../api';
 import { ehErroDaApi } from '../api';
 import type { EnderecoCep } from '../cep';
 import { brl, cep as formatarCep, telefone } from '../formato';
+import { precos } from '../precos';
 import type { Abertura, CorpoFinalizar, CotacaoFrete, DadosEntrega, Sessao } from '../tipos';
 
 interface Props {
@@ -68,6 +69,26 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
     if (digitos.length === 8) cotar(digitos);
   }, []);
 
+  const [escolhido, setEscolhido] = useState<number | null>(null);
+
+  function usarEndereco(i: number) {
+    const e = abertura.historico.enderecos[i];
+    setEscolhido(i);
+    setDados((d) => ({
+      ...d,
+      cep: formatarCep(e.cep),
+      estado: e.estado.toUpperCase(),
+      cidade: e.cidade,
+      bairro: e.bairro,
+      rua: e.rua,
+      numero: e.numero,
+      complemento: e.complemento,
+      referencia: e.referencia,
+    }));
+    const digitos = e.cep.replace(/\D/g, '');
+    if (digitos.length === 8) cotar(digitos);
+  }
+
   function mudarCep(valor: string) {
     const formatado = formatarCep(valor);
     mudar('cep', formatado);
@@ -105,6 +126,7 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   }
 
   const valorFrete = tipo === 'entrega' ? (frete?.valor ?? 0) : 0;
+  const comPreco = precos.visiveis();
   const campo = (id: Campo, rotulo: string, extra: Record<string, unknown> = {}) => (
     <>
       <label class="campo" for={`f-${id}`}>
@@ -134,6 +156,21 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
           </button>
         )}
       </div>
+
+      {tipo === 'entrega' && abertura.historico.enderecos.length > 0 && (
+        <div class="enderecos-salvos">
+          <label class="campo">Usar um endereço salvo</label>
+          {abertura.historico.enderecos.map((e, i) => (
+            <button type="button" key={i} class={`endereco-salvo${escolhido === i ? ' ativa' : ''}`} aria-pressed={escolhido === i} onClick={() => usarEndereco(i)}>
+              <strong>
+                {e.rua}
+                {e.numero ? `, ${e.numero}` : ''}
+              </strong>
+              <small>{[e.bairro, e.cidade && `${e.cidade}/${e.estado}`, e.cep].filter(Boolean).join(' · ')}</small>
+            </button>
+          ))}
+        </div>
+      )}
 
       {tipo === 'entrega' && (
         <form onSubmit={(e) => e.preventDefault()} noValidate>
@@ -190,6 +227,7 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
             value={observacoes}
             onInput={(e) => setObservacoes(e.currentTarget.value)}
           />
+          {comPreco && (
           <div class="totais">
             <div>
               <span>Produtos</span>
@@ -218,6 +256,7 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
               <span>{brl(subtotal + valorFrete)}</span>
             </div>
           </div>
+          )}
         </>
       )}
       {erro && (
@@ -228,10 +267,10 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
       {tipo && (
         <>
           <button type="button" class="botao primario largo" disabled={enviando} onClick={() => void enviar()}>
-            {enviando ? 'Enviando…' : 'Enviar pedido para o atendente'}
+            {enviando ? 'Enviando…' : comPreco ? 'Enviar pedido para o atendente' : 'Enviar pedido de orçamento'}
           </button>
           <p class="dica" style={{ textAlign: 'center' }}>
-            O pagamento é combinado com o atendente pelo WhatsApp.
+            {comPreco ? 'O pagamento é combinado com o atendente pelo WhatsApp.' : 'O atendente envia os valores e o frete pela conversa.'}
           </p>
         </>
       )}

@@ -83,6 +83,15 @@
   .eventos li { display: flex; gap: 8px; padding: 2px 0; }
   .eventos time { color: var(--ext-color-text-muted); flex: 0 0 38px; }
   textarea.copiar { position: fixed; left: -9999px; top: 0; }
+
+  details.secao > summary { cursor: pointer; }
+  select { font: inherit; padding: 4px 6px; border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius); background: var(--ext-color-bg); color: var(--ext-color-text); max-width: 100%; }
+  .resultados, .pedidos { list-style: none; margin: 6px 0 0; padding: 0; }
+  .resultados li, .pedidos li { padding: 6px 0; border-bottom: 1px dashed var(--ext-color-border); font-size: .92em; }
+  .resultados .linha input { width: 56px; flex: 0 0 56px; }
+  .opcoes-link { margin-top: 10px; display: grid; gap: 4px; font-size: .9em; }
+  .opcoes-link input[type=checkbox] { width: auto; margin-right: 4px; }
+  .aviso.info { background: var(--ext-color-primary-soft); color: var(--ext-color-text); border-color: var(--ext-color-border); }
 </style>
 
 <p id="carregando" class="carregando">Conectando ao Kentro Shop…</p>
@@ -117,6 +126,8 @@
     <h2>Pedido para finalizar</h2>
     <div class="handoff"><dl id="handoff"></dl></div>
     <button type="button" class="principal largo" id="btn-copiar-resumo">Copiar resumo do atendimento</button>
+    <button type="button" class="largo" id="btn-carrinho-kentro" hidden>Enviar ao carrinho da Kentro</button>
+    <p class="muted" id="carrinho-kentro"></p>
   </div>
 
   <div class="secao">
@@ -130,6 +141,38 @@
     <h2>Atividade <button type="button" class="link" id="btn-atualizar">Atualizar</button></h2>
     <ul class="eventos" id="eventos"></ul>
   </div>
+</div>
+
+<!-- Ferramentas do atendimento: pedidos anteriores e link montado (carrinho pronto ou filtro) -->
+<div id="ferramentas" hidden>
+  <div class="secao" id="secao-historico" hidden>
+    <h2>Pedidos anteriores</h2>
+    <ul class="pedidos" id="historico-lista"></ul>
+  </div>
+
+  <details class="secao" id="montar">
+    <summary><strong>Montar carrinho ou link com filtro</strong></summary>
+    <div class="linha" style="margin-top:8px">
+      <input class="cresce" id="montar-busca" placeholder="Buscar produto" aria-label="Buscar produto" autocomplete="off">
+      <button type="button" id="btn-buscar">Buscar</button>
+    </div>
+    <ul class="resultados" id="montar-resultados"></ul>
+
+    <h2 style="margin-top:10px">Itens escolhidos</h2>
+    <ul class="itens" id="montar-itens"></ul>
+    <p class="muted" id="montar-vazio">Nenhum item escolhido.</p>
+
+    <div class="opcoes-link">
+      <label><input type="checkbox" id="op-carrinho" checked> Colocar os itens no carrinho do cliente</label>
+      <label><input type="checkbox" id="op-selecao"> Mostrar ao cliente só os itens escolhidos</label>
+      <label><input type="checkbox" id="op-categoria"> Mostrar só a categoria
+        <select id="montar-categoria" aria-label="Categoria"><option value="">—</option></select></label>
+      <label><input type="checkbox" id="op-catalogo-todo"> Deixar o cliente ver o catálogo todo</label>
+      <label><input type="checkbox" id="op-sem-preco"> Esconder os preços</label>
+    </div>
+    <div id="montar-aviso" class="aviso" hidden></div>
+    <button type="button" class="principal largo" id="btn-gerar-montado">Gerar link montado</button>
+  </details>
 </div>
 
 <script>
@@ -150,6 +193,7 @@
 
   var cfg = { apiUrl: '', chave: '' };
   var usuario = {};
+  var plataforma = null;   // plataforma integrada da loja ("kentro" = catálogo interno da Kentro)
   var chat = null;      // { id, nome, telefone }
   var sessao = null;
   var timer = null;
@@ -300,9 +344,12 @@
     renderItens(s);
     renderHandoff(s);
     renderEventos(s);
+    if (!anterior || anterior.id !== s.id) $('carrinho-kentro').textContent = '';
     // Aviso só quando o painel viu o pedido em aberto e ele acabou de ser finalizado.
     if (anterior && anterior.id === s.id && aberta(anterior) && s.status === 'finalizado') {
       toast('O cliente finalizou o pedido: ' + brl(s.totais.total));
+      // Catálogo da Kentro: o pedido vai também para o carrinho nativo do atendimento.
+      if (usaCarrinhoKentro()) lancarNoCarrinhoKentro(s);
     }
   }
 
@@ -350,6 +397,7 @@
     var c = s.checkout;
     var mostrar = (s.status === 'finalizado' || s.status === 'pedido_criado') && !!c;
     $('secao-handoff').hidden = !mostrar;
+    $('btn-carrinho-kentro').hidden = !(mostrar && usaCarrinhoKentro());
     if (!mostrar) return;
     var dl = $('handoff');
     limpar(dl);
@@ -378,6 +426,53 @@
       ul.appendChild(el('li', null, [el('time', { text: hora(ev.em) }), el('span', { text: ev.texto })]));
     });
   }
+
+  // ── Carrinho nativo da Kentro (loja com o catálogo da Kentro) ───────────
+  // O SDK do carrinho só existe na extensão: por isso o lançamento é feito por este painel.
+  var MOTIVOS_CARRINHO = {
+    unknown_product: 'não existe no catálogo da Kentro',
+    invalid_product: 'não existe no catálogo da Kentro',
+    product_unavailable: 'indisponível na Kentro',
+    product_not_in_queue: 'fora dos grupos de produtos desta fila',
+    invalid_qty: 'quantidade inválida'
+  };
+  function usaCarrinhoKentro() { return plataforma === 'kentro' && !!(omni.cart && omni.cart.get); }
+
+  /** Põe os itens no carrinho do atendimento. Linha que já existe recebe a quantidade (não soma de novo). */
+  function lancarNoCarrinhoKentro(s) {
+    var alvo = $('carrinho-kentro');
+    alvo.textContent = 'Lançando no carrinho da Kentro…';
+    return Promise.resolve(omni.cart.get()).then(function (carrinho) {
+      if (!carrinho || !carrinho.available) {
+        alvo.textContent = 'A fila deste atendimento não tem o carrinho da Kentro ligado.';
+        return;
+      }
+      var atuais = {};
+      (carrinho.lines || []).forEach(function (l) { atuais[l.productId] = l.qty; });
+      var recusados = [];
+      return s.itens.reduce(function (anterior, item) {
+        return anterior.then(function () {
+          var id = Number(item.produtoId);
+          if (!id) { recusados.push(item.nome + ' (' + MOTIVOS_CARRINHO.unknown_product + ')'); return; }
+          var op = atuais[id] !== undefined ? omni.cart.setQuantity(id, item.quantidade) : omni.cart.add(id, { qty: item.quantidade });
+          return Promise.resolve(op).then(function (r) {
+            ((r && r.rejected) || []).forEach(function (rec) { recusados.push(item.nome + ' (' + (MOTIVOS_CARRINHO[rec.reason] || rec.reason) + ')'); });
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        alvo.textContent = recusados.length ? 'Não entrou no carrinho da Kentro: ' + recusados.join(', ') + '.' : 'Itens lançados no carrinho da Kentro.';
+      });
+    }).catch(function () {
+      alvo.textContent = 'Não foi possível lançar no carrinho da Kentro.';
+    });
+  }
+
+  $('btn-carrinho-kentro').addEventListener('click', function () {
+    var botao = this;
+    if (!sessao) return;
+    botao.disabled = true;
+    lancarNoCarrinhoKentro(sessao).then(function () { botao.disabled = false; });
+  });
 
   // ── Ações ───────────────────────────────────────────────────────────────
   function copiar(texto, sucesso) {
@@ -451,6 +546,204 @@
     return corpo;
   }
 
+  // ── Montar link: carrinho pronto e filtro (categoria ou produtos escolhidos) ──
+  var montagem = [];          // [{ produtoId, variacaoId, nome, variacaoNome, quantidade }]
+  var encontrados = {};       // produtos da última busca, por id
+  var categoriasCarregadas = false;
+  var historicoAtual = null;
+
+  function avisoMontar(texto, tipo) {
+    var a = $('montar-aviso');
+    a.textContent = texto || '';
+    a.className = 'aviso' + (tipo === 'info' ? ' info' : '');
+    a.hidden = !texto;
+  }
+  function nomeDoItem(i) { return i.nome + (i.variacaoNome ? ' (' + i.variacaoNome + ')' : ''); }
+  function dataCurta(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR'); }
+  /** Elemento por atributo, sem montar seletor com o id (o id vem da plataforma e pode ter qualquer caractere). */
+  function porDado(nome, valor) {
+    var lista = document.querySelectorAll('[' + nome + ']');
+    for (var i = 0; i < lista.length; i++) if (lista[i].getAttribute(nome) === valor) return lista[i];
+    return null;
+  }
+
+  function renderMontagem() {
+    var ul = $('montar-itens');
+    limpar(ul);
+    montagem.forEach(function (i, n) {
+      ul.appendChild(el('li', null, [
+        el('div', { className: 'cresce' }, [el('div', { className: 'nome', text: i.quantidade + '× ' + nomeDoItem(i) })]),
+        el('button', { type: 'button', className: 'link', 'data-remover-item': String(n), text: 'remover' })
+      ]));
+    });
+    $('montar-vazio').hidden = montagem.length > 0;
+  }
+
+  function adicionarItem(item) {
+    for (var k = 0; k < montagem.length; k++) {
+      if (montagem[k].produtoId === item.produtoId && (montagem[k].variacaoId || '') === (item.variacaoId || '')) {
+        montagem[k].quantidade = Math.min(999, montagem[k].quantidade + item.quantidade);
+        renderMontagem();
+        return;
+      }
+    }
+    montagem.push(item);
+    renderMontagem();
+  }
+
+  function carregarCategorias() {
+    if (categoriasCarregadas) return;
+    categoriasCarregadas = true;
+    api('/v1/loja/catalogo/categorias').then(function (lista) {
+      var sel = $('montar-categoria');
+      (lista || []).forEach(function (c) { sel.appendChild(el('option', { value: c.id, text: c.nome })); });
+    }, function () { categoriasCarregadas = false; });
+  }
+
+  function buscar() {
+    var termo = $('montar-busca').value.trim();
+    var ul = $('montar-resultados');
+    limpar(ul);
+    ul.appendChild(el('li', { className: 'muted', text: 'Buscando…' }));
+    api('/v1/loja/catalogo/produtos' + (termo ? '?busca=' + encodeURIComponent(termo) : '')).then(function (pagina) {
+      limpar(ul);
+      encontrados = {};
+      var itens = (pagina && pagina.itens) || [];
+      if (!itens.length) ul.appendChild(el('li', { className: 'muted', text: 'Nenhum produto encontrado.' }));
+      itens.slice(0, 20).forEach(function (p) {
+        encontrados[p.id] = p;
+        var variacoes = p.variacoes || [];
+        var vendaveis = variacoes.filter(function (v) { return v.disponivel; });
+        var linha = el('div', { className: 'linha' });
+        if (variacoes.length) {
+          var sel = el('select', { 'data-variacao': p.id, 'aria-label': 'Opção de ' + p.nome });
+          vendaveis.forEach(function (v) { sel.appendChild(el('option', { value: v.id, text: v.nome })); });
+          linha.appendChild(sel);
+        }
+        linha.appendChild(el('input', { type: 'number', min: '1', max: '999', value: '1', 'data-quantidade': p.id, 'aria-label': 'Quantidade de ' + p.nome }));
+        var botao = el('button', { type: 'button', 'data-adicionar': p.id, text: 'Adicionar' });
+        if (!p.disponivel || (variacoes.length && !vendaveis.length)) botao.disabled = true;
+        linha.appendChild(botao);
+        ul.appendChild(el('li', null, [
+          el('div', { className: 'nome', text: p.nome }),
+          el('div', { className: 'muted', text: brl(p.preco) + (p.disponivel ? '' : ' · indisponível') }),
+          linha
+        ]));
+      });
+    }, function (e) {
+      limpar(ul);
+      ul.appendChild(el('li', { className: 'muted', text: mensagemDeErro(e) }));
+    });
+  }
+
+  function carregarHistorico(id, telefone) {
+    historicoAtual = null;
+    $('secao-historico').hidden = true;
+    if (!telefone) return;
+    api('/v1/sessoes/historico?telefone=' + encodeURIComponent(telefone)).then(function (h) {
+      if (!chat || chat.id !== id || !h) return;
+      historicoAtual = h;
+      var ul = $('historico-lista');
+      limpar(ul);
+      (h.pedidos || []).forEach(function (p, n) {
+        ul.appendChild(el('li', null, [
+          el('div', { className: 'muted', text: dataCurta(p.data) + ' · ' + brl(p.total) }),
+          el('div', { text: p.itens.map(function (i) { return i.quantidade + '× ' + nomeDoItem(i); }).join(', ') }),
+          el('button', { type: 'button', className: 'link', 'data-usar-pedido': String(n), text: 'Usar estes itens' })
+        ]));
+      });
+      $('secao-historico').hidden = !(h.pedidos && h.pedidos.length);
+    }, function () { /* o histórico é opcional */ });
+  }
+
+  function limparMontagem() {
+    montagem = [];
+    encontrados = {};
+    renderMontagem();
+    limpar($('montar-resultados'));
+    avisoMontar('');
+  }
+
+  document.addEventListener('click', function (ev) {
+    var alvo = ev.target && ev.target.closest ? ev.target.closest('[data-adicionar],[data-remover-item],[data-usar-pedido]') : null;
+    if (!alvo) return;
+    if (alvo.hasAttribute('data-adicionar')) {
+      var id = alvo.getAttribute('data-adicionar');
+      var p = encontrados[id];
+      if (!p) return;
+      var campoQtd = porDado('data-quantidade', id);
+      var quantidade = Math.max(1, Math.min(999, Math.floor(Number(campoQtd && campoQtd.value)) || 1));
+      var sel = porDado('data-variacao', id);
+      var variacao = null;
+      if (sel) {
+        variacao = (p.variacoes || []).filter(function (v) { return v.id === sel.value; })[0];
+        if (!variacao) return;
+      }
+      adicionarItem({ produtoId: p.id, variacaoId: variacao ? variacao.id : null, nome: p.nome, variacaoNome: variacao ? variacao.nome : null, quantidade: quantidade });
+      avisoMontar('');
+    } else if (alvo.hasAttribute('data-remover-item')) {
+      montagem.splice(Number(alvo.getAttribute('data-remover-item')), 1);
+      renderMontagem();
+    } else if (historicoAtual) {
+      var pedido = (historicoAtual.pedidos || [])[Number(alvo.getAttribute('data-usar-pedido'))];
+      if (!pedido) return;
+      montagem = pedido.itens.map(function (i) {
+        return { produtoId: i.produtoId, variacaoId: i.variacaoId, nome: i.nome, variacaoNome: i.variacaoNome, quantidade: i.quantidade };
+      });
+      renderMontagem();
+      $('op-carrinho').checked = true;
+      $('montar').open = true;
+    }
+  });
+
+  $('btn-buscar').addEventListener('click', buscar);
+  $('montar-busca').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
+
+  $('btn-gerar-montado').addEventListener('click', function () {
+    if (!chat) return;
+    var corpo = corpoDoLink(chat);
+    if ($('op-carrinho').checked && montagem.length) {
+      corpo.itens = montagem.map(function (i) {
+        var item = { produtoId: i.produtoId, quantidade: i.quantidade };
+        if (i.variacaoId) item.variacaoId = i.variacaoId;
+        return item;
+      });
+    }
+    var filtro = null;
+    if ($('op-selecao').checked && montagem.length) {
+      var ids = [];
+      montagem.forEach(function (i) { if (ids.indexOf(i.produtoId) < 0) ids.push(i.produtoId); });
+      filtro = { produtoIds: ids };
+    } else if ($('op-categoria').checked && $('montar-categoria').value) {
+      filtro = { categoriaId: $('montar-categoria').value };
+    }
+    if (filtro) {
+      corpo.filtro = filtro;
+      if ($('op-catalogo-todo').checked) corpo.restrito = false;
+    }
+    if ($('op-sem-preco').checked) corpo.mostrarPrecos = false;
+    if (!corpo.itens && !corpo.filtro && corpo.mostrarPrecos === undefined) {
+      avisoMontar('Adicione produtos ou escolha uma opção do link.');
+      return;
+    }
+    var botao = this;
+    var id = chat.id;
+    botao.disabled = true;
+    avisoMontar('');
+    api('/v1/sessoes', { method: 'POST', body: corpo }).then(function (s) {
+      if (!chat || chat.id !== id) return;
+      mostrarAviso(null);
+      mostrarSessao(s);
+      agendar();
+      montagem = [];
+      renderMontagem();
+      if (s.avisos && s.avisos.length) avisoMontar(s.avisos.join(' '), 'info');
+      return copiar(s.url, 'Link montado copiado. Cole na conversa para enviar ao cliente.');
+    }, function (e) {
+      avisoMontar(mensagemDeErro(e));
+    }).then(function () { botao.disabled = false; });
+  });
+
   // ── Atendimento aberto na Kentro ────────────────────────────────────────
   function carregarChat(c) {
     var id = c && c.id != null ? String(c.id) : null;
@@ -462,17 +755,26 @@
     mostrarAviso(null);
     $('com-sessao').hidden = true;
     $('sem-sessao').hidden = true;
+    limparMontagem();
+    $('secao-historico').hidden = true;
+    $('ferramentas').hidden = !id;
     if (!id) { chat = null; $('sem-chat').hidden = false; return; }
     $('sem-chat').hidden = true;
     var base = c.contact || {};
     chat = { id: id, nome: base.name || '', telefone: String(base.phone || '').replace(/\D/g, '') };
+    carregarCategorias();
     if (c.contactId) {
       Promise.resolve(omni.contacts.get(c.contactId)).then(function (contato) {
-        if (!chat || chat.id !== id || !contato) return;
-        chat.nome = contato.name || chat.nome;
-        chat.telefone = String(contato.phone || chat.telefone).replace(/\D/g, '');
-        preCadastro(chat, contato);
-      }, function () { /* fica com os dados do atendimento */ });
+        if (!chat || chat.id !== id) return;
+        if (contato) {
+          chat.nome = contato.name || chat.nome;
+          chat.telefone = String(contato.phone || chat.telefone).replace(/\D/g, '');
+          preCadastro(chat, contato);
+        }
+        carregarHistorico(id, chat.telefone);
+      }, function () { if (chat && chat.id === id) carregarHistorico(id, chat.telefone); });
+    } else {
+      carregarHistorico(id, chat.telefone);
     }
     atualizar();
   }
@@ -495,6 +797,7 @@
         mostrarAviso('Esta é a chave de admin. Peça ao administrador para colar a chave de atendimento na configuração do Kentro Shop — Atendimento.');
         return;
       }
+      plataforma = loja.plataforma || null;
       $('status').textContent = 'Conectado à loja ' + (loja.nome || 'sem nome') + '.';
       $('status').hidden = false;
       omni.on('omniChatSelected', carregarChat);

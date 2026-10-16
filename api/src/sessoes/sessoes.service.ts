@@ -6,7 +6,7 @@ import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { calcularTotais, resumoDoPedido } from './calculo';
-import { Checkout, Cliente, EnderecoContato, EventoPublico, ItemPublico, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
+import { Checkout, Cliente, EnderecoContato, EventoPublico, FiltroLink, ItemPublico, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
 
 const MAX_EVENTOS = 30;
 const ABERTOS: StatusSessao[] = ['link_enviado', 'navegando'];
@@ -26,7 +26,23 @@ export interface DadosDoContato {
   endereco?: EnderecoContato;
 }
 
-const CAMPOS_ENDERECO = ['cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento'] as const;
+export interface OpcoesDoLink {
+  filtro?: FiltroLink;
+  restrito?: boolean;
+  mostrarPrecos?: boolean;
+}
+
+/** Filtro sem campos vazios; nada sobrando = sem filtro. */
+export function limparFiltro(f: FiltroLink): FiltroLink | null {
+  const limpo: FiltroLink = {};
+  if (f.categoriaId?.trim()) limpo.categoriaId = f.categoriaId.trim();
+  if (f.busca?.trim()) limpo.busca = f.busca.trim();
+  const ids = [...new Set((f.produtoIds ?? []).map((id) => id.trim()).filter(Boolean))];
+  if (ids.length) limpo.produtoIds = ids;
+  return Object.keys(limpo).length ? limpo : null;
+}
+
+const CAMPOS_ENDERECO =['cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento'] as const;
 
 /** Campo vazio não apaga o que já se sabe; um endereço novo (com algum campo) substitui o anterior inteiro. */
 export function mesclarCliente(atual: Cliente, dados: Omit<DadosDoContato, 'chatId'>): Cliente {
@@ -57,20 +73,28 @@ export class SessoesService {
     @Inject(CONFIG_APP) private readonly config: ConfigApp,
   ) {}
 
-  /** Link do atendimento: reaproveita a sessão aberta do chat ou cria outra (a anterior foi finalizada ou expirou). */
-  async criarOuReaproveitar(lojaId: string, dados: DadosDoContato, atendente = ''): Promise<SessaoCompleta> {
+  /**
+   * Link do atendimento: reaproveita a sessão aberta do chat ou cria outra (a anterior foi finalizada ou expirou).
+   * Link montado (filtro, preços ou carrinho pronto) é sempre novo, e o link aberto anterior deixa de valer:
+   * o cliente fica com um carrinho só.
+   */
+  async criarOuReaproveitar(lojaId: string, dados: DadosDoContato, atendente = '', montado: OpcoesDoLink | null = null): Promise<SessaoCompleta> {
     const aberta = await this.prisma.sessao.findFirst({
       where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS }, expiraEm: { gt: new Date() } },
       orderBy: { criadaEm: 'desc' },
     });
-    if (aberta) {
+    if (aberta && montado) {
+      await this.prisma.sessao.updateMany({ where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS } }, data: { status: 'expirado' } });
+    } else if (aberta) {
       const atualizado = mesclarCliente(aberta.cliente as unknown as Cliente, dados);
       await this.prisma.sessao.update({ where: { id: aberta.id }, data: { cliente: atualizado as unknown as Prisma.InputJsonValue } });
       return this.completa(aberta.id);
     }
 
     const { expiracaoLinkDias } = await this.configLoja.obter(lojaId);
-    const cliente = mesclarCliente({ nome: '', telefone: '' }, dados);
+    // O link novo herda o que já se sabia do contato no link anterior.
+    const cliente = mesclarCliente(aberta ? (aberta.cliente as unknown as Cliente) : { nome: '', telefone: '' }, dados);
+    const filtro = montado?.filtro && limparFiltro(montado.filtro);
     const criada = await this.prisma.sessao.create({
       data: {
         lojaId,
@@ -79,6 +103,9 @@ export class SessoesService {
         cliente: cliente as unknown as Prisma.InputJsonValue,
         totais: calcularTotais([], null) as unknown as Prisma.InputJsonValue,
         expiraEm: new Date(Date.now() + expiracaoLinkDias * 86_400_000),
+        ...(filtro ? { filtro: filtro as unknown as Prisma.InputJsonValue } : {}),
+        restrito: montado?.restrito ?? true,
+        mostrarPrecos: montado?.mostrarPrecos ?? null,
         eventos: { create: { tipo: 'link', texto: atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado', autor: 'atendente' } },
       },
     });
@@ -154,6 +181,9 @@ export class SessoesService {
       abertaEm: s.abertaEm?.toISOString() ?? null,
       finalizadaEm: s.finalizadaEm?.toISOString() ?? null,
       expiraEm: s.expiraEm.toISOString(),
+      filtro: (s.filtro as unknown as FiltroLink | null) ?? null,
+      restrito: s.restrito,
+      mostrarPrecos: s.mostrarPrecos,
     };
   }
 

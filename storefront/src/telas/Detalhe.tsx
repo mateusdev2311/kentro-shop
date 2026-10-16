@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { Api } from '../api';
 import type { Carrinho } from '../carrinho';
 import { adicionado, brl, caixasParaArea, num, quantidadeSugerida, unidade } from '../formato';
+import { precos } from '../precos';
 import type { Produto, Variacao } from '../tipos';
 import { Imagem, primeiraVariacao, produtoVendavel, vendavel } from './comum';
 
@@ -48,6 +49,7 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
   const deAntes = fonte.precoDe && fonte.precoDe > fonte.preco ? fonte.precoDe : 0;
   const jaNoCarrinho = carrinho.quantidade(produto.id, variacao?.id);
   const imagem = variacao?.imagem ?? produto.imagens[0];
+  const comPreco = precos.visiveis();
 
   function calcular(novaArea: string, comPerda: boolean) {
     setArea(novaArea);
@@ -78,16 +80,20 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
         <div>
           <span class="sku">Cód. {fonte.sku}</span>
           <h2 id="produto-nome">{produto.nome}</h2>
-          <div class="preco">
-            {deAntes > 0 && <div class="preco-de">{brl(deAntes)}</div>}
-            <div class="preco-por">
-              {brl(fonte.preco)}{' '}
-              <small>
-                /{unidade(produto.unidade, 1)}
-                {m2PorUnidade ? ` · ${brl(fonte.preco / m2PorUnidade)}/m²` : ''}
-              </small>
+          {comPreco ? (
+            <div class="preco">
+              {deAntes > 0 && <div class="preco-de">{brl(deAntes)}</div>}
+              <div class="preco-por">
+                {brl(fonte.preco)}{' '}
+                <small>
+                  /{unidade(produto.unidade, 1)}
+                  {m2PorUnidade ? ` · ${brl(fonte.preco / m2PorUnidade)}/m²` : ''}
+                </small>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div class="sob-consulta">Preço sob consulta · vendido por {unidade(produto.unidade, 1)}</div>
+          )}
           <Estoque disponivel={podeComprar} estoque={fonte.estoque} unidadeSigla={produto.unidade} />
           {produto.descricao && <p class="descricao">{produto.descricao}</p>}
 
@@ -159,9 +165,11 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
               {podeComprar ? 'Adicionar' : 'Indisponível'}
             </button>
           </div>
-          <div class="total-linha">
-            {quantidade} {unidade(produto.unidade, quantidade)} = <strong>{brl(fonte.preco * quantidade)}</strong>
-          </div>
+          {comPreco && (
+            <div class="total-linha">
+              {quantidade} {unidade(produto.unidade, quantidade)} = <strong>{brl(fonte.preco * quantidade)}</strong>
+            </div>
+          )}
           {jaNoCarrinho > 0 && (
             <div class="total-linha">
               Você já tem{' '}
@@ -212,7 +220,7 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
                   )}
                 </div>
                 <button type="button" class="botao" aria-label={`Adicionar ${s.produto.nome}`} onClick={() => adicionarSugestao(s)}>
-                  + {brl(preco)}
+                  {comPreco ? `+ ${brl(preco)}` : '+ Adicionar'}
                 </button>
               </div>
             );

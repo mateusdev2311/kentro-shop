@@ -6,6 +6,8 @@ import { FiltroDeErros } from './erros';
 export function configurarApp(app: NestExpressApplication, config: ConfigApp): void {
   // A VPS fica atrás de um proxy: o IP real do cliente vem no X-Forwarded-For.
   app.set('trust proxy', 1);
+  // O logo da loja chega em base64 (até 300 KB → ~400 KB de JSON); o padrão do Express é 100 KB.
+  app.useBodyParser('json', { limit: '600kb' });
   // Arquivos do build do catálogo (assets com hash). Sem index: GET / é a verificação de saúde.
   // O nome dos arquivos de assets/ muda a cada build (hash do Vite): podem ficar em cache para sempre.
   app.useStaticAssets(config.dirPublic, {

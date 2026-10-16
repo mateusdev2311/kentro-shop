@@ -82,6 +82,7 @@ export function criarClienteHttp(opcoes: OpcoesClienteHttp): ClienteHttpConector
         let status: number;
         let corpo: unknown;
         let retryAfter: string | null = null;
+        let cabecalhos: Record<string, string> = {};
         try {
           const resposta = await fazerFetch(req.url, {
             method: req.metodo,
@@ -91,6 +92,7 @@ export function criarClienteHttp(opcoes: OpcoesClienteHttp): ClienteHttpConector
           });
           status = resposta.status;
           retryAfter = resposta.headers.get('retry-after');
+          resposta.headers.forEach((valor, nome) => (cabecalhos[nome.toLowerCase()] = valor));
           corpo = lerCorpo(await resposta.text());
         } catch {
           const erroCodigo = controle.signal.aborted ? 'TIMEOUT' : 'REDE';
@@ -106,7 +108,7 @@ export function criarClienteHttp(opcoes: OpcoesClienteHttp): ClienteHttpConector
 
         if (status >= 200 && status < 300) {
           await registrar(req.operacao, status, inicio, null);
-          return { status, corpo };
+          return { status, corpo, cabecalhos };
         }
 
         const repetir = status === 429 || status >= 500;

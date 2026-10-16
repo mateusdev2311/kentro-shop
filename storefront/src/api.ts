@@ -53,11 +53,12 @@ export function criarApi(token: string, fetchFn: typeof fetch = (...a) => fetch(
   return {
     abrir: () => pedir<Abertura>('/abrir'),
     categorias: () => pedir<Categoria[]>('/categorias'),
-    produtos: (filtro: { busca?: string; categoria?: string; pagina?: number } = {}) => {
+    produtos: (filtro: { busca?: string; categoria?: string; pagina?: number; selecao?: boolean } = {}) => {
       const q = new URLSearchParams();
       if (filtro.busca) q.set('busca', filtro.busca);
       if (filtro.categoria) q.set('categoria', filtro.categoria);
       if (filtro.pagina && filtro.pagina > 1) q.set('pagina', String(filtro.pagina));
+      if (filtro.selecao) q.set('selecao', '1');
       const s = q.toString();
       return pedir<Pagina<Produto>>(`/produtos${s ? `?${s}` : ''}`);
     },

@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { ErroApi } from '../comum/erros';
+import { FiltroErrosConector } from '../conectores/nucleo/filtro';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from '../lojas/chave-loja.guard';
-import { CriarSessaoDto } from './dto';
+import { CarrinhoService } from './carrinho.service';
+import { ClientesService } from './clientes.service';
+import { CriarSessaoDto, SalvarCarrinhoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 
 /** Nome do atendente para a atividade (só auditoria; vem do navegador, codificado). Inválido → vazio. */
@@ -19,16 +22,36 @@ function nomeDoAtendente(req: RequisicaoDaLoja): string {
 /** Rotas do atendimento (painel da extensão e, na 1.4, a IA). */
 @Controller('v1/sessoes')
 @UseGuards(ChaveLojaGuard)
+@UseFilters(FiltroErrosConector)
 @Papel('atendimento')
 export class SessoesController {
-  constructor(private readonly sessoes: SessoesService) {}
+  constructor(
+    private readonly sessoes: SessoesService,
+    private readonly carrinho: CarrinhoService,
+    private readonly clientes: ClientesService,
+  ) {}
 
+  /**
+   * Gera (ou reaproveita) o link do atendimento. Com filtro, preços ou carrinho pronto, o link é sempre novo.
+   * A resposta traz `avisos` quando algum item do carrinho pronto não pôde entrar.
+   */
   @Post()
   async criar(@Req() req: RequisicaoDaLoja, @Body() dto: CriarSessaoDto, @Res({ passthrough: true }) res: Response) {
-    const antes = await this.sessoes.porChat(req.loja.id, dto.chatId.trim());
-    const sessao = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...dto, chatId: dto.chatId.trim() }, nomeDoAtendente(req));
+    const { filtro, restrito, mostrarPrecos, itens, ...contato } = dto;
+    const chatId = dto.chatId.trim();
+    const montado = filtro || itens?.length || restrito !== undefined || mostrarPrecos !== undefined ? { filtro, restrito, mostrarPrecos } : null;
+    const antes = await this.sessoes.porChat(req.loja.id, chatId);
+    let sessao = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...contato, chatId }, nomeDoAtendente(req), montado);
+    let avisos: string[] = [];
+    if (itens?.length) ({ sessao, avisos } = await this.carrinho.definirPeloAtendente(req.loja.id, sessao.id, itens));
     res.status(antes && antes.id === sessao.id ? 200 : 201);
-    return sessao;
+    return { ...sessao, avisos };
+  }
+
+  /** Endereços e pedidos anteriores do contato nesta loja (painel: "pedidos anteriores"). */
+  @Get('historico')
+  historico(@Req() req: RequisicaoDaLoja, @Query('telefone') telefone?: string) {
+    return this.clientes.historico(req.loja.id, { nome: '', telefone: String(telefone ?? '').slice(0, 30) });
   }
 
   @Get('chat/:chatId')
@@ -36,5 +59,11 @@ export class SessoesController {
     const sessao = await this.sessoes.porChat(req.loja.id, chatId.trim().slice(0, 64));
     if (!sessao) throw new ErroApi(404, 'SEM_SESSAO', 'Nenhum link de catálogo foi gerado neste atendimento.');
     return sessao;
+  }
+
+  /** O atendente troca o carrinho de um link ainda aberto. */
+  @Put(':id/carrinho')
+  carrinhoDoAtendente(@Req() req: RequisicaoDaLoja, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SalvarCarrinhoDto) {
+    return this.carrinho.definirPeloAtendente(req.loja.id, id, dto.itens);
   }
 }

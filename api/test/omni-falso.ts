@@ -30,6 +30,8 @@ export interface OpcoesTela {
   contatos?: Record<string, { name?: string; phone?: string }>;
   /** Intervalo da consulta periódica do painel, para o teste não esperar 5 s. */
   intervaloMs?: number;
+  /** Carrinho nativo do atendimento (omni.cart). Ausente = SDK sem carrinho. */
+  carrinho?: { disponivel?: boolean; linhas?: { productId: number; qty: number }[]; recusar?: Record<number, string> };
 }
 
 export interface Tela {
@@ -40,6 +42,8 @@ export interface Tela {
   respostas: Record<string, { status: number; body: unknown }>;
   toasts: string[];
   copiados: string[];
+  /** Operações no carrinho nativo: ["add", produto, qtd] ou ["set", produto, qtd]. */
+  operacoesCarrinho: [string, number, number][];
   clicar(id: string): Promise<void>;
   texto(id: string): string;
   visivel(id: string): boolean;
@@ -66,6 +70,18 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
   const ouvintes: Record<string, ((dado: unknown) => void)[]> = {};
   const toasts: string[] = [];
   const copiados: string[] = [];
+  const operacoesCarrinho: [string, number, number][] = [];
+  const linhas = (opcoes.carrinho?.linhas ?? []).map((l) => ({ ...l }));
+  const recusar = opcoes.carrinho?.recusar ?? {};
+  const estadoCarrinho = () => ({ available: opcoes.carrinho?.disponivel !== false, lines: linhas.map((l) => ({ ...l })), totals: {} });
+  const operar = (tipo: string, id: number, qtd: number) => {
+    operacoesCarrinho.push([tipo, id, qtd]);
+    if (recusar[id]) return Promise.resolve({ ok: true, rejected: [{ reason: recusar[id], op: { productId: id, qty: qtd } }], cart: estadoCarrinho() });
+    const linha = linhas.find((l) => l.productId === id);
+    if (linha) linha.qty = tipo === 'add' ? linha.qty + qtd : qtd;
+    else linhas.push({ productId: id, qty: qtd });
+    return Promise.resolve({ ok: true, rejected: [], cart: estadoCarrinho() });
+  };
 
   const omni = {
     ready(cb: (ctx: unknown) => void) {
@@ -84,6 +100,15 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     },
     chats: { getSelected: () => Promise.resolve(opcoes.chat ?? null) },
     contacts: { get: (id: number) => Promise.resolve(opcoes.contatos?.[String(id)] ?? null) },
+    ...(opcoes.carrinho
+      ? {
+          cart: {
+            get: () => Promise.resolve(estadoCarrinho()),
+            add: (id: number, o: { qty?: number } = {}) => operar('add', id, o.qty ?? 1),
+            setQuantity: (id: number, qtd: number) => operar('set', id, qtd),
+          },
+        }
+      : {}),
     http: {
       request(req: ChamadaHttp) {
         chamadas.push(req);
@@ -157,6 +182,7 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     respostas,
     toasts,
     copiados,
+    operacoesCarrinho,
     async emitir(evento, dado) {
       for (const cb of ouvintes[evento] ?? []) cb(dado);
       await esperar();

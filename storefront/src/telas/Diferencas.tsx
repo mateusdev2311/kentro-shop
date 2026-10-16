@@ -37,7 +37,7 @@ export function Diferencas({ diferencas, aoConfirmar, aoVoltar }: Props) {
               <span>Saiu do carrinho: não está mais disponível.</span>
             ) : (
               <>
-                {d.antes.preco !== d.depois.preco && (
+                {d.antes.preco !== undefined && d.depois.preco !== undefined && d.antes.preco !== d.depois.preco && (
                   <span>
                     <span class="antes">{brl(d.antes.preco)}</span> → {brl(d.depois.preco)}{' '}
                   </span>

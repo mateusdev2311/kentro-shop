@@ -81,12 +81,42 @@ export interface Sessao {
 export interface Tema {
   nome: string;
   corPrimaria: string;
+  /** Cor da faixa do topo (padrão: grafite). */
+  corTopo?: string;
+  layout?: 'grade' | 'lista';
+  /** Faixa de boas-vindas no alto da vitrine (padrão: ligada). */
+  destaque?: boolean;
   logoUrl?: string;
   boasVindas?: string;
 }
 
+export interface EnderecoSalvo {
+  cep: string;
+  estado: string;
+  cidade: string;
+  bairro: string;
+  rua: string;
+  numero: string;
+  complemento: string;
+  referencia: string;
+}
+
+export interface PedidoAnterior {
+  data: string;
+  total: number;
+  itens: { produtoId: string; variacaoId: string | null; sku: string; nome: string; variacaoNome: string | null; quantidade: number }[];
+}
+
 export interface Abertura {
   sessao: Sessao;
+  /** Endereços e pedidos anteriores do mesmo telefone nesta loja. */
+  historico: { enderecos: EnderecoSalvo[]; pedidos: PedidoAnterior[] };
+  /** Link montado pelo atendente (categoria, busca ou produtos escolhidos). */
+  filtro: { categoriaId?: string; busca?: string; produtoIds?: string[] } | null;
+  /** Com filtro: true = o cliente vê só o filtro. */
+  restrito: boolean;
+  /** false = catálogo sem preço (a API já manda os valores zerados). */
+  mostrarPrecos: boolean;
   tema: Tema;
   entrega: { habilitada: boolean };
   retirada: { habilitada: boolean; lojas: LojaRetirada[] };
@@ -102,9 +132,10 @@ export interface CotacaoFrete {
 export interface Diferenca {
   sku: string;
   nome: string;
-  antes: { preco: number; quantidade: number };
+  /** Sem preço na tela, a diferença vem só com a quantidade. */
+  antes: { preco?: number; quantidade: number };
   /** null = saiu do carrinho */
-  depois: { preco: number; quantidade: number } | null;
+  depois: { preco?: number; quantidade: number } | null;
 }
 
 export interface PedidoDeItem {

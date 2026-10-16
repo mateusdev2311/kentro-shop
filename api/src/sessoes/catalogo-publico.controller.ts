@@ -3,10 +3,20 @@ import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { CatalogoService } from '../catalogo/catalogo.service';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { FiltroErrosConector } from '../conectores/nucleo/filtro';
-import { CarrinhoService } from './carrinho.service';
+import { NaoEncontrado } from '../conectores/nucleo/erros';
+import { Produto } from '../contratos/modelo';
+import { CarrinhoService, permitidoPeloFiltro } from './carrinho.service';
+import { ClientesService } from './clientes.service';
+import { paginaSemPreco, precosVisiveis, produtoSemPreco, sessaoSemPreco } from './sem-preco';
+import { FiltroLink } from './tipos';
 import { FinalizarDto, FreteDto, SalvarCarrinhoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 import { RequisicaoDoCliente, TokenSessaoGuard } from './token-sessao.guard';
+
+const filtroDoLink = (req: RequisicaoDoCliente) => (req.sessao.filtro as unknown as FiltroLink | null) ?? null;
+/** Filtro que o servidor impõe (link restrito); o cliente não consegue sair dele. */
+const filtroRestrito = (req: RequisicaoDoCliente) => (req.sessao.restrito ? filtroDoLink(req) : null);
+const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Rotas do catálogo do cliente. Autenticação = token do link. */
 @Controller('v1/catalogo/:token')
@@ -20,63 +30,104 @@ export class CatalogoPublicoController {
     private readonly carrinho: CarrinhoService,
     private readonly catalogo: CatalogoService,
     private readonly configLoja: ConfigLojaService,
+    private readonly clientes: ClientesService,
   ) {}
 
   @Get('abrir')
   async abrir(@Param('token') token: string, @Req() req: RequisicaoDoCliente) {
     const [sessao, config] = await Promise.all([this.sessoes.abrir(token), this.configLoja.obter(req.sessao.lojaId)]);
+    const historico = await this.clientes.historico(req.sessao.lojaId, sessao.cliente);
+    const mostrarPrecos = precosVisiveis(sessao, config.mostrarPrecos);
     return {
-      sessao,
+      sessao: mostrarPrecos ? sessao : sessaoSemPreco(sessao),
+      historico: mostrarPrecos ? historico : { ...historico, pedidos: historico.pedidos.map((p) => ({ ...p, total: 0 })) },
+      filtro: sessao.filtro,
+      restrito: sessao.restrito,
+      mostrarPrecos,
       tema: config.tema,
       entrega: config.entrega,
       retirada: { habilitada: config.retirada.habilitada, lojas: config.retirada.habilitada ? config.lojasRetirada : [] },
-      frete: config.frete,
+      frete: mostrarPrecos ? config.frete : { regra: 'a_combinar' },
     };
+  }
+
+  private async mostrar(req: RequisicaoDoCliente): Promise<boolean> {
+    return precosVisiveis(req.sessao, (await this.configLoja.obter(req.sessao.lojaId)).mostrarPrecos);
   }
 
   @Get('categorias')
   async categorias(@Req() req: RequisicaoDoCliente) {
     const [categorias, config] = await Promise.all([this.catalogo.listarCategorias(req.sessao.lojaId), this.configLoja.obter(req.sessao.lojaId)]);
     const ocultas = new Set(config.categoriasOcultas);
-    return categorias.filter((c) => !ocultas.has(c.id));
+    const visiveis = categorias.filter((c) => !ocultas.has(c.id));
+    // Link restrito: só a categoria do link (seleção de produtos ou busca: sem categorias).
+    const filtro = filtroRestrito(req);
+    if (!filtro) return visiveis;
+    return filtro.categoriaId ? visiveis.filter((c) => c.id === filtro.categoriaId) : [];
   }
 
+  /** `selecao=1` aplica o filtro do link mesmo quando ele não é restrito (vitrine inicial "Separados para você"). */
   @Get('produtos')
-  async produtos(@Req() req: RequisicaoDoCliente, @Query('busca') busca?: string, @Query('categoria') categoria?: string, @Query('pagina') pagina?: string) {
+  async produtos(
+    @Req() req: RequisicaoDoCliente,
+    @Query('busca') busca?: string,
+    @Query('categoria') categoria?: string,
+    @Query('pagina') pagina?: string,
+    @Query('selecao') selecao?: string,
+  ) {
     const lojaId = req.sessao.lojaId;
-    const [lista, config] = await Promise.all([
-      this.catalogo.listarProdutos(lojaId, {
-        busca: busca?.trim().slice(0, 100) || undefined,
-        categoriaId: categoria?.trim().slice(0, 50) || undefined,
-        pagina: Math.max(1, Math.min(Number.parseInt(pagina ?? '1', 10) || 1, 500)),
-      }),
-      this.configLoja.obter(lojaId),
-    ]);
+    const filtro = filtroRestrito(req) ?? (selecao === '1' ? filtroDoLink(req) : null);
+    const termo = busca?.trim().slice(0, 100) || undefined;
+    const numero = Math.max(1, Math.min(Number.parseInt(pagina ?? '1', 10) || 1, 500));
+    const config = await this.configLoja.obter(lojaId);
     const ocultas = new Set(config.categoriasOcultas);
-    if (!ocultas.size) return lista;
+    const mostrar = precosVisiveis(req.sessao, config.mostrarPrecos);
     // Produto que só está em categorias ocultas também fica de fora.
-    return { ...lista, itens: lista.itens.filter((p) => !p.categoriaIds.length || p.categoriaIds.some((c) => !ocultas.has(c))) };
+    const visivel = (p: Produto) => !p.categoriaIds.length || p.categoriaIds.some((c) => !ocultas.has(c));
+
+    if (filtro?.produtoIds?.length) {
+      // Seleção do atendente: os produtos na ordem em que ele escolheu, numa página só.
+      const achados = numero > 1 ? [] : await Promise.all(filtro.produtoIds.map((id) => this.catalogo.obterProduto(lojaId, id).catch(() => null)));
+      const palavras = termo ? semAcento(termo).split(/\s+/) : [];
+      const itens = achados.filter((p): p is Produto => !!p && visivel(p) && palavras.every((w) => semAcento(`${p.nome} ${p.sku}`).includes(w)));
+      const pagina = { itens, pagina: numero, porPagina: Math.max(itens.length, 1), total: itens.length, temMais: false };
+      return mostrar ? pagina : paginaSemPreco(pagina);
+    }
+
+    const lista = await this.catalogo.listarProdutos(lojaId, {
+      busca: [filtro?.busca, termo].filter(Boolean).join(' ') || undefined,
+      categoriaId: filtro?.categoriaId ?? (categoria?.trim().slice(0, 50) || undefined),
+      pagina: numero,
+    });
+    const visiveis = ocultas.size ? { ...lista, itens: lista.itens.filter(visivel) } : lista;
+    return mostrar ? visiveis : paginaSemPreco(visiveis);
   }
 
   @Get('produtos/:id')
-  produto(@Req() req: RequisicaoDoCliente, @Param('id') id: string) {
-    return this.catalogo.obterProduto(req.sessao.lojaId, id.trim().slice(0, 100));
+  async produto(@Req() req: RequisicaoDoCliente, @Param('id') id: string) {
+    const produto = await this.catalogo.obterProduto(req.sessao.lojaId, id.trim().slice(0, 100));
+    const filtro = filtroRestrito(req);
+    if (filtro && !permitidoPeloFiltro(filtro, produto)) throw new NaoEncontrado('Produto não encontrado.');
+    return (await this.mostrar(req)) ? produto : produtoSemPreco(produto);
   }
 
   @Put('carrinho')
-  salvarCarrinho(@Param('token') token: string, @Body() dto: SalvarCarrinhoDto) {
-    return this.carrinho.definir(token, dto.itens);
+  async salvarCarrinho(@Param('token') token: string, @Req() req: RequisicaoDoCliente, @Body() dto: SalvarCarrinhoDto) {
+    const r = await this.carrinho.definir(token, dto.itens);
+    return (await this.mostrar(req)) ? r : { ...r, sessao: sessaoSemPreco(r.sessao) };
   }
 
   @Post('frete')
   @HttpCode(200)
-  frete(@Param('token') token: string, @Body() dto: FreteDto) {
-    return this.carrinho.cotarFrete(token, dto.cep);
+  async frete(@Param('token') token: string, @Req() req: RequisicaoDoCliente, @Body() dto: FreteDto) {
+    const cotacao = await this.carrinho.cotarFrete(token, dto.cep);
+    return (await this.mostrar(req)) ? cotacao : { titulo: 'Frete a combinar', valor: null };
   }
 
   @Post('finalizar')
   @HttpCode(200)
-  finalizar(@Param('token') token: string, @Body() dto: FinalizarDto) {
-    return this.carrinho.finalizar(token, dto);
+  async finalizar(@Param('token') token: string, @Req() req: RequisicaoDoCliente, @Body() dto: FinalizarDto) {
+    const sessao = await this.carrinho.finalizar(token, dto);
+    return (await this.mostrar(req)) ? sessao : sessaoSemPreco(sessao);
   }
 }

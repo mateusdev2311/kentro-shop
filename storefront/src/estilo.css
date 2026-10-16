@@ -4,6 +4,7 @@
   --primaria-escura: color-mix(in srgb, var(--cor-primaria) 82%, #000);
   --primaria-suave: color-mix(in srgb, var(--cor-primaria) 12%, #fff);
   --grafite: #2b2d2f;
+  --cor-topo: var(--grafite);
   --grafite-2: #3a3d40;
   --fundo: #f7f5f2;
   --cartao: #ffffff;
@@ -33,10 +34,10 @@ img { display: block; max-width: 100%; }
 h1, h2, h3 { line-height: 1.2; margin: 0; }
 
 /* ── Topo ─────────────────────────────────────────────── */
-.marca-faixa { background: var(--grafite); color: #fff; padding: 14px 16px 4px; }
+.marca-faixa { background: var(--cor-topo); color: #fff; padding: 14px 16px 4px; }
 .topo {
   position: sticky; top: 0; z-index: 20;
-  background: var(--grafite); color: #fff;
+  background: var(--cor-topo); color: #fff;
   padding: 8px 16px 0; box-shadow: 0 2px 12px rgba(0, 0, 0, .15);
 }
 .marca, .topo-conteudo, .categorias { max-width: 1120px; margin: 0 auto; }
@@ -293,3 +294,28 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 .tela-cheia p { color: var(--texto-suave); }
 
 .carregando { color: var(--texto-suave); padding: 24px 0; text-align: center; }
+
+/* Histórico do cliente: endereços salvos e "pedir de novo" */
+.enderecos-salvos { margin-top: 8px; }
+.endereco-salvo { display: block; width: 100%; padding: 10px 12px; margin-top: 8px; border-radius: 12px; border: 1px solid var(--borda); background: #fff; text-align: left; }
+.endereco-salvo strong { display: block; font-size: 14px; }
+.endereco-salvo small { color: var(--texto-suave); font-size: 12.5px; }
+.endereco-salvo.ativa { border-color: var(--cor-primaria); box-shadow: inset 0 0 0 1px var(--cor-primaria); background: var(--primaria-suave); }
+.pedir-de-novo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 14px; padding: 12px 14px; border-radius: var(--raio); background: #fff; box-shadow: var(--sombra); }
+.pedir-de-novo > div { flex: 1 1 100%; display: flex; justify-content: space-between; }
+.pedir-de-novo small { color: var(--texto-suave); }
+.pedir-de-novo ul { flex: 1; margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--texto-suave); }
+.pedir-de-novo .botao { height: 40px; }
+
+/* Link montado pelo atendente */
+.selecao { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding: 12px 14px; border-radius: var(--raio); background: var(--primaria-suave); color: var(--primaria-escura); }
+.selecao strong { font-size: 15px; }
+
+.sob-consulta { font-size: 13px; font-weight: 700; color: var(--primaria-escura); }
+
+/* Vitrine em lista (aparência escolhida pela loja) */
+.grade.lista { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.grade.lista .produto { flex-direction: row; }
+.grade.lista .produto-imagem { flex: 0 0 112px; width: 112px; }
+.grade.lista .produto-info { padding: 10px 12px; }
+.contador { border-color: var(--cor-topo); }

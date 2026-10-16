@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ItemCarrinho, Prisma } from '@prisma/client';
+import { ItemCarrinho, Prisma, Sessao as SessaoBanco } from '@prisma/client';
 import { CatalogoService } from '../catalogo/catalogo.service';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
@@ -9,7 +9,9 @@ import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { arredondar, calcularTotais, freteDaRegra, moeda, unidade } from './calculo';
 import { FinalizarDto, ItemPedidoDto } from './dto';
 import { SessoesService } from './sessoes.service';
-import { Checkout, DadosEntrega, SessaoCompleta, SessaoPublica } from './tipos';
+import { ClientesService } from './clientes.service';
+import { precosVisiveis, sessaoSemPreco } from './sem-preco';
+import { Checkout, Cliente, DadosEntrega, FiltroLink, SessaoCompleta, SessaoPublica } from './tipos';
 
 export const MAX_QUANTIDADE = 999;
 const MAX_ITENS = 100;
@@ -74,6 +76,13 @@ export function validarEntrega(e: Record<string, unknown> | undefined): DadosEnt
   return dados;
 }
 
+/** O produto pertence ao filtro do link? Busca por texto não dá para conferir: vale tudo. */
+export function permitidoPeloFiltro(filtro: FiltroLink, produto: Produto): boolean {
+  if (filtro.produtoIds?.length) return filtro.produtoIds.includes(produto.id) || filtro.produtoIds.includes(produto.sku);
+  if (filtro.categoriaId) return produto.categoriaIds.includes(filtro.categoriaId);
+  return true;
+}
+
 export const pedidoJaEnviado = () => new ErroApi(409, 'PEDIDO_JA_ENVIADO', 'Seu pedido já foi enviado ao atendente.');
 
 @Injectable()
@@ -83,6 +92,7 @@ export class CarrinhoService {
     private readonly sessoes: SessoesService,
     private readonly catalogo: CatalogoService,
     private readonly configLoja: ConfigLojaService,
+    private readonly clientes: ClientesService,
   ) {}
 
   /** Ações depois da finalização (na 1.4: aviso para a Kentro). Falha numa delas não desfaz o pedido. */
@@ -98,7 +108,22 @@ export class CarrinhoService {
    */
   async definir(token: string, pedidos: ItemPedidoDto[]): Promise<{ sessao: SessaoPublica; avisos: string[] }> {
     const sessao = await this.sessoes.porToken(token);
+    const avisos = await this.definirNaSessao(sessao, pedidos, 'cliente');
+    return { sessao: await this.sessoes.publica(sessao.id), avisos };
+  }
+
+  /** Carrinho pronto ou ajuste feito pelo atendente: não marca o link como aberto e não aplica o filtro do link. */
+  async definirPeloAtendente(lojaId: string, sessaoId: string, pedidos: ItemPedidoDto[]): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
+    const sessao = await this.prisma.sessao.findFirst({ where: { id: sessaoId, lojaId } });
+    if (!sessao) throw new ErroApi(404, 'SEM_SESSAO', 'Link não encontrado neste atendimento.');
+    const avisos = await this.definirNaSessao(sessao, pedidos, 'atendente');
+    return { sessao: await this.sessoes.completa(sessao.id), avisos };
+  }
+
+  private async definirNaSessao(sessao: SessaoBanco, pedidos: ItemPedidoDto[], autor: 'cliente' | 'atendente'): Promise<string[]> {
     if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
+    // Link restrito: o cliente só põe no carrinho o que está no filtro (o que o atendente já pôs continua).
+    const filtro = sessao.restrito ? (sessao.filtro as unknown as FiltroLink | null) : null;
 
     const desejados = new Map<string, { produtoId: string; variacaoId: string; quantidade: number }>();
     for (const p of pedidos) {
@@ -121,12 +146,32 @@ export class CarrinhoService {
         finais.push(daLinha(existente));
         continue;
       }
+      if (autor === 'cliente' && filtro && !existente) {
+        const produto = await this.carregar(sessao.lojaId, desejado.produtoId, cache);
+        if (produto && !permitidoPeloFiltro(filtro, produto)) {
+          avisos.push(`${produto.nome} não faz parte desta seleção.`);
+          continue;
+        }
+      }
       const item = await this.revalidarItem(sessao.lojaId, desejado, cache, avisos, existente);
       if (item) finais.push(item);
     }
 
-    await this.gravar(sessao, existentes, finais, 'cliente');
-    return { sessao: await this.sessoes.publica(sessao.id), avisos };
+    await this.gravar(sessao, existentes, finais, autor);
+    return avisos;
+  }
+
+  /** Produto da plataforma, uma consulta por produto na mesma operação. Inexistente = null. */
+  private carregar(lojaId: string, produtoId: string, cache: Map<string, Promise<Produto | null>>): Promise<Produto | null> {
+    let promessa = cache.get(produtoId);
+    if (!promessa) {
+      promessa = this.catalogo.obterProduto(lojaId, produtoId).catch((e: unknown) => {
+        if (e instanceof NaoEncontrado) return null;
+        throw e;
+      });
+      cache.set(produtoId, promessa);
+    }
+    return promessa;
   }
 
   /** Grava o carrinho revalidado (apaga o que saiu, atualiza o que mudou, totais e atividade) numa transação. */
@@ -134,7 +179,7 @@ export class CarrinhoService {
     sessao: { id: string; status: string; abertaEm: Date | null },
     existentes: ItemCarrinho[],
     finais: ItemRevalidado[],
-    autor: 'cliente' | 'sistema',
+    autor: 'cliente' | 'atendente' | 'sistema',
   ): Promise<void> {
     const porChave = new Map(existentes.map((i) => [chave(i.produtoId, i.variacaoId), i]));
     await this.prisma.$transaction(async (tx) => {
@@ -155,11 +200,12 @@ export class CarrinhoService {
         where: { id: sessao.id },
         data: {
           totais: calcularTotais(finais, null) as unknown as Prisma.InputJsonValue,
-          ...(sessao.status === 'link_enviado' ? { status: 'navegando', abertaEm: sessao.abertaEm ?? new Date() } : {}),
+          // Só o cliente mexendo no carrinho conta como "abriu o link".
+          ...(autor === 'cliente' && sessao.status === 'link_enviado' ? { status: 'navegando', abertaEm: sessao.abertaEm ?? new Date() } : {}),
         },
       });
       for (const texto of mudancas(existentes, finais)) {
-        await this.sessoes.registrar(sessao.id, 'carrinho', texto, autor, tx);
+        await this.sessoes.registrar(sessao.id, 'carrinho', autor === 'atendente' ? `Atendente — ${texto}` : texto, autor, tx);
       }
     });
   }
@@ -216,16 +262,34 @@ export class CarrinhoService {
 
     if (diferencas.length) {
       await this.gravar(sessao, existentes, finais, 'sistema');
-      throw new ErroApi(409, 'PRECOS_ALTERADOS', 'Alguns preços ou quantidades mudaram desde que você montou o carrinho. Confira e confirme.', {
-        diferencas,
-        sessao: await this.sessoes.publica(sessao.id),
-      });
+      const mostrar = precosVisiveis(sessao, config.mostrarPrecos);
+      // Sem preço, o cliente só precisa saber do que ele percebe: quantidade limitada e produto que saiu.
+      const visiveis = mostrar
+        ? diferencas
+        : diferencas
+            .filter((d) => !d.depois || d.depois.quantidade !== d.antes.quantidade)
+            .map((d) => ({ sku: d.sku, nome: d.nome, antes: { quantidade: d.antes.quantidade }, depois: d.depois && { quantidade: d.depois.quantidade } }));
+      if (visiveis.length) {
+        const publica = await this.sessoes.publica(sessao.id);
+        throw new ErroApi(
+          409,
+          'PRECOS_ALTERADOS',
+          mostrar
+            ? 'Alguns preços ou quantidades mudaram desde que você montou o carrinho. Confira e confirme.'
+            : 'Alguns itens mudaram desde que você montou o carrinho. Confira e confirme.',
+          { diferencas: visiveis, sessao: mostrar ? publica : sessaoSemPreco(publica) },
+        );
+      }
     }
 
     const subtotal = calcularTotais(finais, null).subtotal;
     const frete = checkout.tipo === 'entrega' ? freteDaRegra(config.frete, subtotal).valor : 0;
     const totais = calcularTotais(finais, frete);
-    const cliente = checkout.tipo === 'entrega' ? { nome: checkout.entrega.nome, telefone: checkout.entrega.telefone } : sessao.cliente;
+    // Nome e telefone do checkout valem para o pedido; o resto do pré-cadastro (e-mail, documento) continua.
+    const clienteAntes = sessao.cliente as unknown as Cliente;
+    const { endereco: _enderecoDoContato, ...semEndereco } = clienteAntes;
+    const cliente: Cliente =
+      checkout.tipo === 'entrega' ? { ...semEndereco, nome: checkout.entrega.nome, telefone: checkout.entrega.telefone } : clienteAntes;
     await this.prisma.$transaction(async (tx) => {
       await tx.sessao.update({
         where: { id: sessao.id },
@@ -241,6 +305,8 @@ export class CarrinhoService {
     });
 
     const completa = await this.sessoes.completa(sessao.id);
+    // Histórico pelo telefone original (o da Kentro); o do checkout só se não houver.
+    await this.clientes.registrarFinalizacao(sessao.lojaId, clienteAntes.telefone, completa).catch(() => undefined);
     for (const acao of this.aoFinalizar) await acao(completa).catch(() => undefined);
     const { eventos: _eventos, resumo: _resumo, ...publica } = completa;
     return publica;
@@ -254,15 +320,7 @@ export class CarrinhoService {
     avisos: string[],
     conhecido?: { nome: string; variacaoNome: string | null },
   ): Promise<ItemRevalidado | null> {
-    let promessa = cache.get(desejado.produtoId);
-    if (!promessa) {
-      promessa = this.catalogo.obterProduto(lojaId, desejado.produtoId).catch((e: unknown) => {
-        if (e instanceof NaoEncontrado) return null;
-        throw e;
-      });
-      cache.set(desejado.produtoId, promessa);
-    }
-    const produto = await promessa;
+    const produto = await this.carregar(lojaId, desejado.produtoId, cache);
     if (!produto) {
       avisos.push(conhecido ? `${nomeCompleto(conhecido)} não está mais disponível.` : 'Um produto do carrinho não está mais disponível.');
       return null;

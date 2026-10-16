@@ -30,6 +30,7 @@ model Loja {
   regras     RegraProduto[]
   config     ConfigLoja?
   sessoes    Sessao[]
+  clientes   ClienteLoja[]
 
   @@map("lojas")
 }
@@ -103,6 +104,12 @@ model ConfigLoja {
   expiracaoLinkDias Int      @default(7) @map("expiracao_link_dias")
   categoriasOcultas String[] @default([]) @map("categorias_ocultas")
   urlCapturaKentro  String?  @map("url_captura_kentro")
+  /// Padrão da loja; cada link pode mudar (Sessao.mostrarPrecos).
+  mostrarPrecos     Boolean  @default(true) @map("mostrar_precos")
+  /// Logo enviado pelo admin (PNG/JPG/WebP até 300 KB), servido com cache longo pelo hash.
+  logo              Bytes?
+  logoTipo          String?  @map("logo_tipo")
+  logoHash          String?  @map("logo_hash")
   atualizadoEm      DateTime @updatedAt @map("atualizado_em")
 
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
@@ -132,6 +139,12 @@ model Sessao {
   abertaEm     DateTime?    @map("aberta_em")
   finalizadaEm DateTime?    @map("finalizada_em")
   expiraEm     DateTime     @map("expira_em")
+  /// Link com filtro (categoria, busca ou produtos escolhidos). null = catálogo todo.
+  filtro        Json?
+  /// Com filtro: true = o cliente vê só o filtro; false = pode abrir o catálogo todo.
+  restrito      Boolean      @default(true)
+  /// null = segue a loja.
+  mostrarPrecos Boolean?     @map("mostrar_precos")
   criadaEm     DateTime     @default(now()) @map("criada_em")
   atualizadaEm DateTime     @updatedAt @map("atualizada_em")
 
@@ -170,6 +183,28 @@ enum AutorEvento {
   atendente
   sistema
   ia
+}
+
+/// Cliente da loja pelo telefone: endereços usados e últimos pedidos (para "pedir de novo").
+model ClienteLoja {
+  id           String   @id @default(uuid()) @db.Uuid
+  lojaId       String   @map("loja_id") @db.Uuid
+  /// Só dígitos, com DDI (ex.: 5538988887777).
+  telefone     String
+  nome         String   @default("")
+  email        String?
+  documento    String?
+  /// Até 5, o mais recente primeiro.
+  enderecos    Json     @default("[]")
+  /// Até 5 pedidos finalizados, o mais recente primeiro (itens com produtoId/variacaoId para repetir).
+  pedidos      Json     @default("[]")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@unique([lojaId, telefone])
+  @@map("clientes_loja")
 }
 
 model EventoSessao {

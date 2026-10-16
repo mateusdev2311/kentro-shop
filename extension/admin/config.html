@@ -50,6 +50,22 @@
   .etiquetas { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .etiquetas li { padding: 2px 10px; border-radius: 999px; background: #eef7f1; color: #046c3e; font-size: .85em; }
   .previa { padding-left: 18px; margin: 4px 0; }
+  .duas-colunas { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
+  @media (max-width: 720px) { .duas-colunas { grid-template-columns: minmax(0, 1fr); } }
+  input.cor { width: 64px; height: 34px; padding: 2px; }
+  label.em-linha { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+  label.em-linha input { width: auto; }
+  .logo-atual { display: block; max-width: 120px; max-height: 60px; margin: 4px 0; }
+  .previa-tema { border: 1px solid var(--ext-color-border); border-radius: 12px; overflow: hidden; width: 240px; }
+  .previa-topo { padding: 14px 12px; color: #fff; font-weight: 700; }
+  .previa-corpo { padding: 12px; background: #f7f5f2; }
+  .previa-cartao { height: 70px; border-radius: 10px; background: #fff; margin-bottom: 10px; }
+  .previa-botao { width: 100%; border: 0; color: #fff; padding: 8px; border-radius: 10px; }
+  .loja-retirada { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--ext-color-border); max-width: 640px; }
+  .loja-retirada input { max-width: none; }
+  .lista-simples { list-style: none; padding: 0; }
+  .lista-simples label { font-weight: 400; display: flex; gap: 6px; align-items: center; }
+  .lista-simples input { width: auto; }
 </style>
 
 <h1>Kentro Shop</h1>
@@ -93,7 +109,11 @@
 <!-- Loja configurada: abas de configuração -->
 <section id="loja" hidden>
   <nav class="abas">
-    <button type="button" class="ativa" id="botao-aba-integracao">Integração</button>
+    <button type="button" class="ativa" id="botao-aba-integracao" data-aba="integracao">Integração</button>
+    <button type="button" id="botao-aba-aparencia" data-aba="aparencia">Aparência</button>
+    <button type="button" id="botao-aba-entrega" data-aba="entrega">Entrega e frete</button>
+    <button type="button" id="botao-aba-pedidos" data-aba="pedidos">Pedidos</button>
+    <button type="button" id="botao-aba-catalogo" data-aba="catalogo">Catálogo</button>
   </nav>
 
   <section id="aba-integracao">
@@ -112,6 +132,83 @@
       <h2>Prévia do catálogo</h2>
       <ul id="previa" class="previa"></ul>
     </div>
+  </section>
+
+  <section id="aba-aparencia" hidden>
+    <p class="muted">Como o catálogo aparece para o cliente no celular.</p>
+    <div class="duas-colunas">
+      <div>
+        <label for="ap-nome">Nome exibido</label>
+        <input id="ap-nome" maxlength="60">
+        <label>Logo (PNG, JPG ou WebP, até 300 KB)</label>
+        <img id="ap-logo-atual" class="logo-atual" alt="Logo atual" hidden>
+        <input id="ap-logo" type="file" accept="image/png,image/jpeg,image/webp">
+        <button type="button" id="btn-remover-logo" hidden>Remover logo</button>
+        <label for="ap-cor">Cor principal (botões e destaques)</label>
+        <input id="ap-cor" type="color" class="cor">
+        <label for="ap-cor-topo">Cor do topo</label>
+        <input id="ap-cor-topo" type="color" class="cor">
+        <label for="ap-layout">Vitrine</label>
+        <select id="ap-layout">
+          <option value="grade">Grade (2 produtos por linha)</option>
+          <option value="lista">Lista (1 produto por linha, com foto ao lado)</option>
+        </select>
+        <label class="em-linha"><input type="checkbox" id="ap-destaque"> Mostrar a faixa de boas-vindas</label>
+        <label for="ap-boas-vindas">Texto de boas-vindas</label>
+        <input id="ap-boas-vindas" maxlength="200" placeholder="Escolha os produtos, ajuste as quantidades e finalize.">
+      </div>
+      <div>
+        <label>Prévia</label>
+        <div id="ap-previa" class="previa-tema">
+          <div id="ap-previa-topo" class="previa-topo"><span id="ap-previa-nome"></span></div>
+          <div class="previa-corpo">
+            <div class="previa-cartao"></div>
+            <button type="button" id="ap-previa-botao" class="previa-botao" tabindex="-1">Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="acoes"><button type="button" class="principal" id="btn-salvar-aparencia">Salvar aparência</button></div>
+    <p id="resultado-aparencia" class="resultado"></p>
+  </section>
+
+  <section id="aba-entrega" hidden>
+    <label class="em-linha"><input type="checkbox" id="ent-entrega"> Fazemos entrega</label>
+    <label class="em-linha"><input type="checkbox" id="ent-retirada"> O cliente pode retirar na loja</label>
+    <div id="bloco-lojas">
+      <h2>Lojas para retirada</h2>
+      <div id="lojas-retirada"></div>
+      <button type="button" id="btn-add-loja">Adicionar loja</button>
+    </div>
+    <h2>Frete</h2>
+    <label for="fr-regra">Como cobrar o frete</label>
+    <select id="fr-regra">
+      <option value="a_combinar">A combinar com o atendente</option>
+      <option value="fixo">Valor fixo</option>
+      <option value="gratis_acima_de">Valor fixo, grátis acima de um valor</option>
+    </select>
+    <div id="bloco-valor"><label for="fr-valor">Valor do frete (R$)</label><input id="fr-valor" inputmode="decimal"></div>
+    <div id="bloco-minimo"><label for="fr-minimo">Grátis para pedidos a partir de (R$)</label><input id="fr-minimo" inputmode="decimal"></div>
+    <label for="fr-prazo">Prazo (opcional)</label>
+    <input id="fr-prazo" maxlength="80" placeholder="Ex.: até 3 dias úteis">
+    <div class="acoes"><button type="button" class="principal" id="btn-salvar-entrega">Salvar entrega e frete</button></div>
+    <p id="resultado-entrega" class="resultado"></p>
+  </section>
+
+  <section id="aba-pedidos" hidden>
+    <label class="em-linha"><input type="checkbox" id="pd-precos"> Mostrar os preços no catálogo</label>
+    <span class="ajuda">Desligado, o cliente monta a lista sem ver valores e envia um pedido de orçamento. O atendente pode mudar isso em cada link.</span>
+    <label for="pd-validade">Validade do link (dias)</label>
+    <input id="pd-validade" type="number" min="1" max="60">
+    <div class="acoes"><button type="button" class="principal" id="btn-salvar-pedidos">Salvar pedidos</button></div>
+    <p id="resultado-pedidos" class="resultado"></p>
+  </section>
+
+  <section id="aba-catalogo" hidden>
+    <p class="muted">Categorias marcadas ficam escondidas do cliente (os produtos só delas também).</p>
+    <ul id="lista-categorias" class="lista-simples"></ul>
+    <div class="acoes"><button type="button" class="principal" id="btn-salvar-catalogo">Salvar catálogo</button></div>
+    <p id="resultado-catalogo" class="resultado"></p>
   </section>
 </section>
 
@@ -471,6 +568,222 @@
     });
   }
 
+  // ── Abas ────────────────────────────────────────────────────────────────
+  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo'];
+  var configuracoes = null;
+
+  function abrirAba(nome) {
+    ABAS.forEach(function (a) {
+      $('aba-' + a).hidden = a !== nome;
+      $('botao-aba-' + a).className = a === nome ? 'ativa' : '';
+    });
+    if (nome === 'catalogo') carregarCategoriasOcultas();
+  }
+  ABAS.forEach(function (a) {
+    $('botao-aba-' + a).addEventListener('click', function () { abrirAba(a); });
+  });
+
+  /** Salva parte das configurações (PATCH) e mostra o resultado no parágrafo da aba. */
+  function salvarConfig(corpo, botao, idResultado, mensagemOk) {
+    botao.disabled = true;
+    $(idResultado).textContent = 'Salvando…';
+    return api('/v1/loja/configuracoes', { method: 'PATCH', body: corpo }).then(function (c) {
+      if (c && c.tema) configuracoes = c;
+      $(idResultado).textContent = mensagemOk;
+    }, function (erro) {
+      $(idResultado).textContent = mensagemDeErro(erro);
+    }).then(function () { botao.disabled = false; });
+  }
+
+  function numeroBr(texto) {
+    var t = String(texto || '').trim().replace(/\s/g, '');
+    if (!t) return undefined;
+    if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+    var n = Number(t);
+    return isFinite(n) ? Math.round(n * 100) / 100 : undefined;
+  }
+  function textoBr(n) { return n === undefined || n === null ? '' : String(n).replace('.', ','); }
+
+  function preencherConfiguracoes(c) {
+    configuracoes = c;
+    // Aparência
+    $('ap-nome').value = c.tema.nome || '';
+    $('ap-cor').value = (c.tema.corPrimaria || '#7C3AED').toLowerCase();
+    $('ap-cor-topo').value = (c.tema.corTopo || '#2b2d2f').toLowerCase();
+    $('ap-layout').value = c.tema.layout === 'lista' ? 'lista' : 'grade';
+    $('ap-destaque').checked = c.tema.destaque !== false;
+    $('ap-boas-vindas').value = c.tema.boasVindas || '';
+    mostrarLogo(c.tema.logoUrl);
+    atualizarPrevia();
+    // Entrega e frete
+    $('ent-entrega').checked = c.entrega.habilitada;
+    $('ent-retirada').checked = c.retirada.habilitada;
+    limpar($('lojas-retirada'));
+    (c.lojasRetirada || []).forEach(adicionarLoja);
+    $('fr-regra').value = c.frete.regra;
+    $('fr-valor').value = textoBr(c.frete.valor);
+    $('fr-minimo').value = textoBr(c.frete.minimo);
+    $('fr-prazo').value = c.frete.prazo || '';
+    mostrarCamposFrete();
+    // Pedidos
+    $('pd-precos').checked = c.mostrarPrecos !== false;
+    $('pd-validade').value = String(c.expiracaoLinkDias || 7);
+  }
+
+  function carregarConfiguracoes() {
+    return api('/v1/loja/configuracoes').then(preencherConfiguracoes, function (erro) {
+      ['resultado-aparencia', 'resultado-entrega', 'resultado-pedidos', 'resultado-catalogo'].forEach(function (id) {
+        $(id).textContent = mensagemDeErro(erro);
+      });
+    });
+  }
+
+  // ── Aba Aparência ────────────────────────────────────────────────────────
+  function atualizarPrevia() {
+    $('ap-previa-topo').style.background = $('ap-cor-topo').value;
+    $('ap-previa-botao').style.background = $('ap-cor').value;
+    $('ap-previa-nome').textContent = $('ap-nome').value || 'Sua loja';
+  }
+  ['ap-cor', 'ap-cor-topo', 'ap-nome'].forEach(function (id) { $(id).addEventListener('input', atualizarPrevia); });
+
+  function mostrarLogo(url) {
+    $('ap-logo-atual').hidden = !url;
+    $('btn-remover-logo').hidden = !url;
+    if (url) $('ap-logo-atual').src = url;
+    else $('ap-logo-atual').removeAttribute('src');
+  }
+
+  $('ap-logo').addEventListener('change', function () {
+    var arquivo = this.files && this.files[0];
+    if (!arquivo) return;
+    if (arquivo.size > 300 * 1024) { $('resultado-aparencia').textContent = 'O logo pode ter até 300 KB.'; return; }
+    if (['image/png', 'image/jpeg', 'image/webp'].indexOf(arquivo.type) < 0) { $('resultado-aparencia').textContent = 'Envie o logo em PNG, JPG ou WebP.'; return; }
+    var leitor = new FileReader();
+    leitor.onload = function () {
+      var base64 = String(leitor.result || '').split(',')[1] || '';
+      $('resultado-aparencia').textContent = 'Enviando o logo…';
+      api('/v1/loja/logo', { method: 'PUT', body: { tipo: arquivo.type, base64: base64 } }).then(function (r) {
+        mostrarLogo(r.logoUrl);
+        $('resultado-aparencia').textContent = 'Logo atualizado.';
+      }, function (erro) {
+        $('resultado-aparencia').textContent = mensagemDeErro(erro);
+      });
+    };
+    leitor.readAsDataURL(arquivo);
+  });
+
+  $('btn-remover-logo').addEventListener('click', function () {
+    api('/v1/loja/logo', { method: 'DELETE' }).then(function () {
+      mostrarLogo(null);
+      $('ap-logo').value = '';
+      $('resultado-aparencia').textContent = 'Logo removido.';
+    }, function (erro) { $('resultado-aparencia').textContent = mensagemDeErro(erro); });
+  });
+
+  $('btn-salvar-aparencia').addEventListener('click', function () {
+    salvarConfig({
+      tema: {
+        nome: $('ap-nome').value.trim(),
+        corPrimaria: $('ap-cor').value,
+        corTopo: $('ap-cor-topo').value,
+        layout: $('ap-layout').value,
+        destaque: $('ap-destaque').checked,
+        boasVindas: $('ap-boas-vindas').value.trim()
+      }
+    }, this, 'resultado-aparencia', 'Aparência salva.');
+  });
+
+  // ── Aba Entrega e frete ──────────────────────────────────────────────────
+  function adicionarLoja(loja) {
+    loja = loja || {};
+    var linha = el('div', null, 'loja-retirada');
+    if (loja.id) linha.setAttribute('data-id', loja.id);
+    [['nome', 'Nome da loja', 80], ['endereco', 'Endereço', 160], ['horario', 'Horário', 80], ['orientacoes', 'Orientações para retirar', 200]].forEach(function (c) {
+      var campo = document.createElement('input');
+      campo.setAttribute('data-loja-campo', c[0]);
+      campo.placeholder = c[1];
+      campo.maxLength = c[2];
+      campo.value = loja[c[0]] || '';
+      linha.appendChild(campo);
+    });
+    var remover = el('button', 'Remover');
+    remover.type = 'button';
+    remover.addEventListener('click', function () { linha.parentNode.removeChild(linha); });
+    linha.appendChild(remover);
+    $('lojas-retirada').appendChild(linha);
+  }
+  $('btn-add-loja').addEventListener('click', function () { adicionarLoja(null); });
+
+  function mostrarCamposFrete() {
+    var regra = $('fr-regra').value;
+    $('bloco-valor').hidden = regra === 'a_combinar';
+    $('bloco-minimo').hidden = regra !== 'gratis_acima_de';
+  }
+  $('fr-regra').addEventListener('change', mostrarCamposFrete);
+
+  $('btn-salvar-entrega').addEventListener('click', function () {
+    var lojas = [];
+    Array.prototype.forEach.call($('lojas-retirada').children, function (linha) {
+      var loja = {};
+      Array.prototype.forEach.call(linha.querySelectorAll('[data-loja-campo]'), function (c) { loja[c.getAttribute('data-loja-campo')] = c.value.trim(); });
+      if (!loja.nome && !loja.endereco) return;
+      if (linha.getAttribute('data-id')) loja.id = linha.getAttribute('data-id');
+      lojas.push(loja);
+    });
+    var regra = $('fr-regra').value;
+    var frete = { regra: regra };
+    if (regra !== 'a_combinar') frete.valor = numeroBr($('fr-valor').value);
+    if (regra === 'gratis_acima_de') frete.minimo = numeroBr($('fr-minimo').value);
+    if ($('fr-prazo').value.trim()) frete.prazo = $('fr-prazo').value.trim();
+    salvarConfig({
+      entrega: { habilitada: $('ent-entrega').checked },
+      retirada: { habilitada: $('ent-retirada').checked },
+      lojasRetirada: lojas,
+      frete: frete
+    }, this, 'resultado-entrega', 'Entrega e frete salvos.');
+  });
+
+  // ── Aba Pedidos ──────────────────────────────────────────────────────────
+  $('btn-salvar-pedidos').addEventListener('click', function () {
+    salvarConfig({
+      mostrarPrecos: $('pd-precos').checked,
+      expiracaoLinkDias: Math.max(1, Math.min(60, Math.floor(Number($('pd-validade').value)) || 7))
+    }, this, 'resultado-pedidos', 'Pedidos salvos.');
+  });
+
+  // ── Aba Catálogo ─────────────────────────────────────────────────────────
+  function carregarCategoriasOcultas() {
+    var lista = $('lista-categorias');
+    limpar(lista);
+    lista.appendChild(el('li', 'Carregando categorias…', 'muted'));
+    api('/v1/loja/catalogo/categorias').then(function (categorias) {
+      limpar(lista);
+      var ocultas = (configuracoes && configuracoes.categoriasOcultas) || [];
+      if (!categorias || !categorias.length) lista.appendChild(el('li', 'A plataforma não tem categorias.', 'muted'));
+      (categorias || []).forEach(function (c) {
+        var caixa = document.createElement('input');
+        caixa.type = 'checkbox';
+        caixa.setAttribute('data-ocultar', c.id);
+        caixa.checked = ocultas.indexOf(c.id) >= 0;
+        var rotulo = el('label');
+        rotulo.appendChild(caixa);
+        rotulo.appendChild(document.createTextNode(' Esconder ' + c.nome));
+        var item = el('li');
+        item.appendChild(rotulo);
+        lista.appendChild(item);
+      });
+    }, function (erro) {
+      limpar(lista);
+      lista.appendChild(el('li', erro.codigo === 'SEM_INTEGRACAO' || erro.status === 409 ? 'Configure a integração para ver as categorias.' : mensagemDeErro(erro), 'muted'));
+    });
+  }
+
+  $('btn-salvar-catalogo').addEventListener('click', function () {
+    var ocultas = [];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-ocultar]'), function (c) { if (c.checked) ocultas.push(c.getAttribute('data-ocultar')); });
+    salvarConfig({ categoriasOcultas: ocultas }, this, 'resultado-catalogo', 'Catálogo salvo.');
+  });
+
   // ── Início ───────────────────────────────────────────────────────────────
   omni.ready(function (ctx) {
     var c = (ctx && ctx.config) || {};
@@ -492,7 +805,7 @@
       estado.loja = loja;
       $('loja').hidden = false;
       Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
-      return carregarIntegracao();
+      return Promise.all([carregarIntegracao(), carregarConfiguracoes()]);
     }, function (erro) {
       if (erro.status === 401) {
         mostrarAviso('A chave de admin é inválida. Cole a chave correta na configuração da extensão ou crie uma loja nova.');

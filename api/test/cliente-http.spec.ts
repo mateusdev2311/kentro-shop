@@ -43,7 +43,7 @@ function montar(respostas: Array<Resposta | 'pendurar'>, timeoutMs = 8000) {
 describe('ClienteHttpConector', () => {
   it('devolve o JSON e registra a chamada pela operação', async () => {
     const { pedir, registros } = montar([{ status: 200, corpo: { success: true, data: [1] } }]);
-    expect(await pedir()).toEqual({ status: 200, corpo: { success: true, data: [1] } });
+    expect(await pedir()).toMatchObject({ status: 200, corpo: { success: true, data: [1] } });
     expect(registros).toHaveLength(1);
     expect(registros[0]).toMatchObject({ plataforma: 'teste', operacao: 'listarProdutos', statusHttp: 200, erroCodigo: null });
   });

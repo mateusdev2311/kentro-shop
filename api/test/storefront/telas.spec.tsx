@@ -43,6 +43,8 @@ interface Estado {
   linkInvalido: boolean;
   precoMudaUmaVez: boolean;
   erroFinalizar?: { codigo: string; mensagem: string };
+  /** Como a API faz no catálogo sem preço: zera os valores nas respostas. */
+  semPreco?: boolean;
 }
 
 let estado: Estado;
@@ -77,7 +79,24 @@ function sessao(status: Sessao['status'] = 'navegando'): Sessao {
 
 const json = (status: number, corpo: unknown) => ({ ok: status < 400, status, json: async () => corpo }) as unknown as Response;
 
+const CAMPOS_DE_VALOR = new Set(['preco', 'precoUnitario', 'subtotal', 'total', 'valor']);
+function zerarValores(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(zerarValores);
+  if (!v || typeof v !== 'object') return v;
+  return Object.fromEntries(
+    Object.entries(v)
+      .filter(([k]) => k !== 'precoDe')
+      .map(([k, x]) => [k, CAMPOS_DE_VALOR.has(k) && typeof x === 'number' ? 0 : zerarValores(x)]),
+  );
+}
+
 async function servidor(url: string, init?: RequestInit): Promise<Response> {
+  const resposta = await servidorBase(url, init);
+  if (!estado.semPreco) return resposta;
+  return json(resposta.status, zerarValores(await resposta.json()));
+}
+
+async function servidorBase(url: string, init?: RequestInit): Promise<Response> {
   const metodo = init?.method ?? 'GET';
   const caminho = url.replace('/v1/catalogo/tok', '');
   const corpo = init?.body ? JSON.parse(String(init.body)) : undefined;
@@ -179,6 +198,10 @@ beforeEach(() => {
       entrega: { habilitada: true },
       retirada: { habilitada: false, lojas: [] },
       frete: { regra: 'a_combinar' },
+      historico: { enderecos: [], pedidos: [] },
+      filtro: null,
+      restrito: true,
+      mostrarPrecos: true,
     },
     carrinho: [],
     chamadas: [],
@@ -306,6 +329,113 @@ describe('catálogo do cliente', () => {
     clicar(elemento('button', 'Continuar'));
     await ate(() => tem('R$ 115,00'));
     expect(chamadas('/frete')[0].corpo).toEqual({ cep: '39400000' });
+  });
+
+  it('endereços salvos: escolher um preenche o formulário', async () => {
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 1 }];
+    estado.abertura.historico = {
+      enderecos: [
+        { cep: '39400-000', estado: 'MG', cidade: 'Montes Claros', bairro: 'Centro', rua: 'Rua A', numero: '10', complemento: '', referencia: 'Praça' },
+        { cep: '01001-000', estado: 'SP', cidade: 'São Paulo', bairro: 'Sé', rua: 'Praça da Sé', numero: '1', complemento: 'Ap 3', referencia: '' },
+      ],
+      pedidos: [],
+    };
+    await montar();
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    clicar(elemento('button', 'Continuar'));
+    expect(tem('Usar um endereço salvo')).toBe(true);
+    clicar(elemento('.endereco-salvo', 'Praça da Sé, 1'));
+    expect(elemento<HTMLInputElement>('#f-rua').value).toBe('Praça da Sé');
+    expect(elemento<HTMLInputElement>('#f-cep').value).toBe('01001-000');
+    expect(elemento<HTMLInputElement>('#f-complemento').value).toBe('Ap 3');
+    expect(elemento<HTMLInputElement>('#f-estado').value).toBe('SP');
+    expect(elemento('.endereco-salvo', 'Praça da Sé, 1').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('pedir de novo: os itens do último pedido entram no carrinho (e o servidor revalida)', async () => {
+    estado.abertura.historico = {
+      enderecos: [],
+      pedidos: [
+        {
+          data: '2026-09-01T12:00:00.000Z',
+          total: 260,
+          itens: [
+            { produtoId: 'PISO', variacaoId: null, sku: 'PISO', nome: 'Porcelanato Bege', variacaoNome: null, quantidade: 2 },
+            { produtoId: 'TINTA', variacaoId: 'v1', sku: 'TINTA-B', nome: 'Tinta Acrílica', variacaoNome: 'Branco', quantidade: 1 },
+          ],
+        },
+      ],
+    };
+    await montar();
+    expect(tem('Seu último pedido')).toBe(true);
+    expect(elemento('.pedir-de-novo').textContent).toContain('2× Porcelanato Bege');
+    clicar(elemento('button', 'Pedir de novo'));
+    expect(elemento('.contador').textContent).toBe('3');
+    await ate(() => chamadas('/carrinho', 'PUT').length === 1);
+    expect(chamadas('/carrinho')[0].corpo).toEqual({
+      itens: [
+        { produtoId: 'PISO', quantidade: 2 },
+        { produtoId: 'TINTA', variacaoId: 'v1', quantidade: 1 },
+      ],
+    });
+  });
+
+  it('link com seleção restrita: faixa "Separados para você", sem categorias e sem "ver tudo"', async () => {
+    estado.abertura.filtro = { produtoIds: ['PISO', 'ARG'] };
+    estado.abertura.restrito = true;
+    await montar();
+    expect(tem('Separados para você')).toBe(true);
+    expect(raiz.querySelector('.categorias')).toBeNull();
+    expect(tem('Ver todo o catálogo')).toBe(false);
+    expect(chamadas('/produtos?selecao=1')).toHaveLength(1);
+  });
+
+  it('link com categoria não restrita: começa filtrado e "Ver todo o catálogo" libera tudo', async () => {
+    estado.abertura.filtro = { categoriaId: '2' };
+    estado.abertura.restrito = false;
+    await montar();
+    await ate(() => tem('Selecionados para você: Argamassas'));
+    expect(chamadas('/produtos?selecao=1')).toHaveLength(1);
+    clicar(elemento('button', 'Ver todo o catálogo'));
+    await ate(() => chamadas('/produtos').length === 1);
+    expect(tem('Selecionados para você')).toBe(false);
+  });
+
+  it('sem preço: nenhum valor na tela e o pedido vira "pedido de orçamento"', async () => {
+    estado.abertura.mostrarPrecos = false;
+    estado.semPreco = true;
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 2 }];
+    await montar();
+    expect(elemento('.produto', 'Porcelanato Bege').textContent).toContain('Preço sob consulta');
+    clicar(elemento('.produto', 'Tinta Acrílica'));
+    expect(elemento('button', 'Adicionar').hasAttribute('disabled')).toBe(false); // preço 0 não é "indisponível"
+    clicar(elemento('.fechar'));
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    expect(tem('R$')).toBe(false);
+    clicar(elemento('button', 'Continuar'));
+    digitar(elemento<HTMLInputElement>('#f-numero'), '10');
+    expect(tem('R$')).toBe(false);
+    clicar(elemento('button', 'Enviar pedido de orçamento'));
+    await ate(() => tem('Pedido de orçamento enviado!'));
+    expect(tem('R$')).toBe(false);
+  });
+
+  it('aparência: cor do topo, vitrine em lista, sem a faixa de boas-vindas e com logo', async () => {
+    estado.abertura.tema = {
+      nome: 'Loja Teste',
+      corPrimaria: '#0055aa',
+      corTopo: '#003366',
+      layout: 'lista',
+      destaque: false,
+      logoUrl: 'https://shop.teste/v1/publico/lojas/x/logo?v=abc',
+    };
+    await montar();
+    expect(document.documentElement.style.getPropertyValue('--cor-topo')).toBe('#003366');
+    expect(elemento('.grade').classList.contains('lista')).toBe(true);
+    expect(tem('Monte seu pedido com calma.')).toBe(false);
+    expect(raiz.querySelector<HTMLImageElement>('.marca-icone')!.src).toBe('https://shop.teste/v1/publico/lojas/x/logo?v=abc');
   });
 
   it('409 mostra as diferenças e confirmar reenvia', async () => {

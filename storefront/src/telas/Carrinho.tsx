@@ -1,5 +1,6 @@
 import type { Carrinho as EstadoCarrinho } from '../carrinho';
 import { brl, num, unidade } from '../formato';
+import { precos } from '../precos';
 import { Imagem } from './comum';
 
 interface Props {
@@ -48,6 +49,7 @@ export function Carrinho({ carrinho, aoContinuar, aoFechar }: Props) {
     );
   }
   const itens = linhas.reduce((s, i) => s + i.quantidade, 0);
+  const comPreco = precos.visiveis();
   const subtotal = subtotalDaTela(carrinho);
   return (
     <div class="carrinho">
@@ -63,8 +65,7 @@ export function Carrinho({ carrinho, aoContinuar, aoFechar }: Props) {
             <div class="item-info">
               <strong>{i.nome}</strong>
               <small>
-                {i.variacaoNome ? `${i.variacaoNome} · ` : ''}
-                {brl(i.precoUnitario)}/{unidade(i.unidade, 1)}
+                {comPreco ? `${i.variacaoNome ? `${i.variacaoNome} · ` : ''}${brl(i.precoUnitario)}/${unidade(i.unidade, 1)}` : (i.variacaoNome ?? '')}
                 {m2}
               </small>
               <div class="item-acoes">
@@ -84,7 +85,7 @@ export function Carrinho({ carrinho, aoContinuar, aoFechar }: Props) {
                     +
                   </button>
                 </div>
-                <span class="item-preco">{brl(i.precoUnitario * i.quantidade)}</span>
+                {comPreco && <span class="item-preco">{brl(i.precoUnitario * i.quantidade)}</span>}
               </div>
               <button type="button" class="remover" onClick={() => carrinho.alterar(i.produtoId, i.variacaoId, 0)}>
                 Remover
@@ -93,27 +94,36 @@ export function Carrinho({ carrinho, aoContinuar, aoFechar }: Props) {
           </div>
         );
       })}
-      <div class="totais">
-        <div>
-          <span>
-            Subtotal ({itens} {itens === 1 ? 'item' : 'itens'})
-          </span>
-          <span>{brl(subtotal)}</span>
+      {comPreco ? (
+        <div class="totais">
+          <div>
+            <span>
+              Subtotal ({itens} {itens === 1 ? 'item' : 'itens'})
+            </span>
+            <span>{brl(subtotal)}</span>
+          </div>
+          <div>
+            <span>Entrega</span>
+            <span class="dica">calculada no próximo passo</span>
+          </div>
+          <div class="total">
+            <span>Total</span>
+            <span>{brl(subtotal)}</span>
+          </div>
         </div>
-        <div>
-          <span>Entrega</span>
-          <span class="dica">calculada no próximo passo</span>
+      ) : (
+        <div class="totais">
+          <div class="total">
+            <span>Itens</span>
+            <span>{itens}</span>
+          </div>
         </div>
-        <div class="total">
-          <span>Total</span>
-          <span>{brl(subtotal)}</span>
-        </div>
-      </div>
+      )}
       <button type="button" class="botao primario largo" onClick={aoContinuar}>
         Continuar
       </button>
       <p class="dica" style={{ textAlign: 'center' }}>
-        Nada é cobrado agora. Um atendente confirma o pedido com você.
+        {comPreco ? 'Nada é cobrado agora. Um atendente confirma o pedido com você.' : 'O atendente envia os valores pela conversa.'}
       </p>
     </div>
   );

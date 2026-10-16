@@ -47,7 +47,7 @@ describe('carrinho e catálogo do cliente (rotas públicas)', () => {
     expect(res.body.sessao).toMatchObject({ status: 'navegando', cliente: { nome: 'Ana Souza' }, itens: [] });
     expect(res.body.sessao.eventos).toBeUndefined();
     expect(res.body.sessao.resumo).toBeUndefined();
-    expect(res.body.tema).toEqual({ nome: 'Loja Teste', corPrimaria: '#7C3AED' });
+    expect(res.body.tema).toEqual({ nome: 'Loja Teste', corPrimaria: '#7C3AED', layout: 'grade', destaque: true });
     expect(res.body.entrega).toEqual({ habilitada: true });
     expect(res.body.retirada).toEqual({ habilitada: false, lojas: [] });
     expect(res.body.frete).toEqual({ regra: 'a_combinar' });

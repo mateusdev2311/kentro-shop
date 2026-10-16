@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsObject,
@@ -23,6 +24,19 @@ export class EnderecoContatoDto {
   @IsOptional() @IsString() @MaxLength(120) rua?: string;
   @IsOptional() @IsString() @MaxLength(20) numero?: string;
   @IsOptional() @IsString() @MaxLength(80) complemento?: string;
+}
+
+/** O que o link mostra: uma categoria, uma busca ou produtos escolhidos pelo atendente (ou pela IA). */
+export class FiltroLinkDto {
+  @IsOptional() @IsString() @MaxLength(50) categoriaId?: string;
+  @IsOptional() @IsString() @MaxLength(100) busca?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  produtoIds?: string[];
 }
 
 export class CriarSessaoDto {
@@ -54,6 +68,29 @@ export class CriarSessaoDto {
   @ValidateNested()
   @Type(() => EnderecoContatoDto)
   endereco?: EnderecoContatoDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => FiltroLinkDto)
+  filtro?: FiltroLinkDto;
+
+  /** Com filtro: true (padrão) = o cliente vê só o filtro. */
+  @IsOptional()
+  @IsBoolean()
+  restrito?: boolean;
+
+  /** Ausente = segue a loja. */
+  @IsOptional()
+  @IsBoolean()
+  mostrarPrecos?: boolean;
+
+  /** Carrinho pronto montado pelo atendente. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ItemPedidoDto)
+  itens?: ItemPedidoDto[];
 }
 
 export class ItemPedidoDto {

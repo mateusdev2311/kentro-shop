@@ -81,6 +81,17 @@ export interface SessaoCompleta {
   abertaEm: string | null;
   finalizadaEm: string | null;
   expiraEm: string;
+  /** Link com filtro (null = catálogo todo). */
+  filtro: FiltroLink | null;
+  restrito: boolean;
+  /** null = segue a loja. */
+  mostrarPrecos: boolean | null;
+}
+
+export interface FiltroLink {
+  categoriaId?: string;
+  busca?: string;
+  produtoIds?: string[];
 }
 
 /** O que o catálogo do cliente recebe (sem a atividade e sem o resumo do atendente). */

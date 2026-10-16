@@ -20,9 +20,9 @@ export class LojasController {
   @Get('loja')
   @UseGuards(ChaveLojaGuard)
   @Papel('atendimento')
-  dados(@Req() req: RequisicaoDaLoja) {
+  async dados(@Req() req: RequisicaoDaLoja) {
     const { id, nome, status, plano } = req.loja;
-    return { id, nome, status, plano, papel: req.papel };
+    return { id, nome, status, plano, papel: req.papel, plataforma: await this.lojas.plataforma(id) };
   }
 
   @Post('loja/chave-admin/rotacionar')
