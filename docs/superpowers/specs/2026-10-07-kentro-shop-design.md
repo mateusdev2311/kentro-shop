@@ -295,6 +295,7 @@ export interface CtxConector {
 Uma suíte genérica (`conectores/nucleo/contrato.spec.ts`) roda contra **cada** conector, com HTTP simulado a partir de **respostas reais gravadas** (fixtures em `conectores/<id>/fixtures/`). Ela verifica: o modelo normalizado (tipos, preços numéricos, URLs HTTPS), paginação, produto com e sem variação, busca vazia, credencial inválida → `CredencialInvalida`, 429 → nova tentativa, e as capacidades declaradas coerentes com os métodos implementados. **Nenhum conector entra sem passar.**
 
 ### 7.4 Regras da loja por cima do produto
+*(Fase 1.2: o conector também pode trazer `regras` — o Demonstração traz selo, m² e compre junto de exemplo. Elas são a base; as gravadas pela loja têm prioridade campo a campo.)*
 `CatalogoService` = conector + `regras_produto` da loja. Aplica, por SKU:
 - `oculto`: remove da listagem;
 - `selo`: ex.: "Mais vendido";
@@ -355,6 +356,13 @@ No banco ficam **apenas hashes** (SHA-256) da `chave_admin`, da `chave_atendimen
 - `PUT /v1/catalogo/:token/carrinho` `{ itens: [{ produtoId, variacaoId?, quantidade }] }` (revalida ao vivo os itens alterados).
 - `POST /v1/catalogo/:token/frete` `{ cep }` · `POST /v1/catalogo/:token/finalizar` (revalida tudo; pode responder `409 PRECOS_ALTERADOS` com a lista de diferenças).
 
+**Como ficou na Fase 1.2:**
+- `POST /v1/sessoes` responde 201 quando cria e 200 quando reaproveita. `GET /v1/sessoes/chat/:chatId` sem sessão → 404 `SEM_SESSAO`. O nome do atendente (`X-Kentro-Usuario-Nome`, codificado) entra no texto do evento ("Link do catálogo gerado por X"), porque o autor do evento é só o tipo (`atendente`).
+- `finalizar` recebe `{ tipo: 'entrega', entrega: {nome, telefone, cep, estado, cidade, bairro, rua, numero, complemento, referencia}, observacoes }` ou `{ tipo: 'retirada', lojaRetiradaId, observacoes }`. Campo faltando → 400 "Preencha: CEP, Número.". Pedido já enviado → 409 `PEDIDO_JA_ENVIADO`.
+- O 409 `PRECOS_ALTERADOS` traz, além de `erro`, `diferencas: [{ sku, nome, antes: {preco, quantidade}, depois: {preco, quantidade} | null }]` e a `sessao` com o carrinho **já gravado** com os valores novos; o cliente confirma finalizando de novo.
+- `frete` só pela regra da loja (`a_combinar`, `fixo`, `gratis_acima_de`) até algum conector suportar `cotarFrete`.
+- Os assets de `/assets/*` (nome com hash) saem com `Cache-Control: public, max-age=31536000, immutable`; a página `/c/:token`, com `no-cache`.
+
 **MCP:** `POST /mcp` (streamable-http), seção 11.
 
 **Superadmin:** `GET /v1/admin/lojas` · `PATCH /v1/admin/lojas/:id` `{ status, plano, limites }`.
@@ -377,6 +385,8 @@ No banco ficam **apenas hashes** (SHA-256) da `chave_admin`, da `chave_atendimen
 - **Tema da loja:** cor principal, logo, nome e boas-vindas via variáveis CSS.
 - Imagens com `loading="lazy"`; assets versionados (`?v=`) ou com hash para evitar cache velho após deploy.
 - **Link expirado ou inválido:** tela amigável "Peça um novo link no WhatsApp".
+
+**Como ficou na Fase 1.2:** Preact + Vite, ~16 kB de JS (gzip). Carrinho otimista com envio 350 ms depois da última mudança; resposta de versão antiga é descartada; a finalização primeiro garante que o servidor tem o carrinho da tela. Variação esgotada aparece riscada e não entra na faixa "a partir de". Sem imagem → marcador com as iniciais. Fonte do sistema (nenhum recurso de terceiros além do ViaCEP).
 
 ---
 
@@ -546,6 +556,12 @@ A Fase 0 criou só a tabela `lojas` (migração `inicial`). Cada tabela abaixo e
 
 **Toda consulta filtra por `loja_id`**: use um repositório ou middleware que injete o filtro, e um teste que tente ler dados de outra loja.
 
+**Fase 1.2 (migração `sessoes`):** criou `configuracoes_loja`, `sessoes`, `itens_carrinho` e `eventos_sessao`.
+- `configuracoes_loja` nasce só para leitura, com padrões: entrega ligada, retirada desligada, frete `a_combinar`, tema com o nome da loja e `#7C3AED`, link de 7 dias. A edição entra na 1.3.
+- `itens_carrinho.variacao_id` é NOT NULL com padrão `''` (produto simples), porque o único `(sessao_id, produto_id, variacao_id)` não funciona com NULL no Postgres; `preco_unitario` é `numeric(12,2)`.
+- Todas as chaves estrangeiras apagam em cascata a partir da loja e da sessão.
+- O banco precisa ser **UTF8** (a API confere no boot e se recusa a subir em outra codificação).
+
 ---
 
 ## 13. Segurança e LGPD
@@ -573,7 +589,7 @@ A Fase 0 criou só a tabela `lojas` (migração `inicial`). Cada tabela abaixo e
 - **Unitários:** cálculo de totais, aplicação de regras, revalidação (preço mudou, estoque acabou, item removido da plataforma), máquina de status da sessão.
 - **Contrato por conector** (seção 7.3), obrigatório.
 - **API ponta a ponta** (Postgres de teste): registrar loja → integrar com conector falso → gerar link → carrinho → finalizar → webhook recebido → criar pedido; isolamento entre lojas; autenticação de cada rota.
-- **Catálogo:** Playwright em viewport 390×844 (fluxo completo, calculadora, compre junto, CEP com ViaCEP simulado).
+- **Catálogo:** Playwright em viewport 390×844 (fluxo completo, calculadora, compre junto, CEP com ViaCEP simulado). *Na Fase 1.2:* Jest + jsdom renderizando os componentes Preact com `fetch` simulado (mesmos fluxos); o Playwright fica para quando houver CI, e o 390×844 é conferido à mão.
 - **Extensão:** página de teste com `omni` simulado (como na demo) para painel e configurações.
 - CI: build + testes antes de qualquer deploy.
 

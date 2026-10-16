@@ -25,10 +25,11 @@ describe('página do catálogo', () => {
     expect(res.text).toContain('id="app"');
   });
 
-  it('serve os arquivos do build do catálogo', async () => {
+  it('serve os arquivos do build do catálogo; os de /assets (nome com hash) com cache longo', async () => {
     const res = await request(app.getHttpServer()).get('/assets/a.js');
     expect(res.status).toBe(200);
     expect(res.text).toBe('console.log(1)');
+    expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
   });
 
   it('a raiz continua sendo a verificação de saúde', async () => {

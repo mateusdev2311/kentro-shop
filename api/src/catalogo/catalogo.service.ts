@@ -7,15 +7,20 @@ import { RegraPublica, RegrasService } from '../regras/regras.service';
 
 export const POR_PAGINA = 24;
 
+/** As regras que vêm do conector são a base; as gravadas pela loja têm prioridade, campo a campo. */
 function aplicar(produto: Produto, regra: RegraPublica | undefined, compreJunto?: string[]): Produto {
   if (!regra && !compreJunto) return produto;
+  const base = produto.regras;
+  const selo = regra?.selo || base?.selo;
+  const m2PorUnidade = regra?.m2PorUnidade || base?.m2PorUnidade;
+  const rendimentoM2 = regra?.rendimentoM2 || base?.rendimentoM2;
   return {
     ...produto,
     regras: {
-      ...(regra?.selo ? { selo: regra.selo } : {}),
-      ...(regra?.m2PorUnidade ? { m2PorUnidade: regra.m2PorUnidade } : {}),
-      ...(regra?.rendimentoM2 ? { rendimentoM2: regra.rendimentoM2 } : {}),
-      compreJunto: compreJunto ?? regra?.compreJunto ?? [],
+      ...(selo ? { selo } : {}),
+      ...(m2PorUnidade ? { m2PorUnidade } : {}),
+      ...(rendimentoM2 ? { rendimentoM2 } : {}),
+      compreJunto: compreJunto ?? (regra?.compreJunto.length ? regra.compreJunto : base?.compreJunto) ?? [],
     },
   };
 }

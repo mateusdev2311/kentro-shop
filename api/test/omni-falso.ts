@@ -24,17 +24,33 @@ export interface OpcoesTela {
    * - kentro: como o toError do host: 401/403 → forbidden, 404 → not_found, 429 → rate_limited, demais → http_error só com status.
    */
   proxy?: 'rejeita' | 'resolve' | 'kentro';
+  /** Atendimento aberto (omni.chats.getSelected); padrão: nenhum. */
+  chat?: { id: number | string; contactId?: number; contact?: { name?: string; phone?: string } } | null;
+  /** Contatos por id (omni.contacts.get). */
+  contatos?: Record<string, { name?: string; phone?: string }>;
+  /** Intervalo da consulta periódica do painel, para o teste não esperar 5 s. */
+  intervaloMs?: number;
 }
 
 export interface Tela {
   document: Document;
   chamadas: ChamadaHttp[];
   storage: Record<string, unknown>;
+  /** Mesmo objeto das respostas simuladas: o teste pode trocar entre uma consulta e outra. */
+  respostas: Record<string, { status: number; body: unknown }>;
+  toasts: string[];
+  copiados: string[];
   clicar(id: string): Promise<void>;
   texto(id: string): string;
   visivel(id: string): boolean;
   preencher(id: string, valor: string): void;
   valor(id: string): string;
+  /** Dispara um evento do host (ex.: omniChatSelected). */
+  emitir(evento: string, dado: unknown): Promise<void>;
+  esperar(ms?: number): Promise<void>;
+  /** Simula a aba da Kentro ficando oculta/visível. */
+  ocultar(oculto: boolean): Promise<void>;
+  fechar(): void;
 }
 
 const DIR = path.join(__dirname, '..', '..', 'extension');
@@ -47,6 +63,9 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
   const chamadas: ChamadaHttp[] = [];
   const storage: Record<string, unknown> = { ...(opcoes.storage ?? {}) };
   const respostas = opcoes.respostas ?? {};
+  const ouvintes: Record<string, ((dado: unknown) => void)[]> = {};
+  const toasts: string[] = [];
+  const copiados: string[] = [];
 
   const omni = {
     ready(cb: (ctx: unknown) => void) {
@@ -60,7 +79,11 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
         0,
       );
     },
-    on() {},
+    on(evento: string, cb: (dado: unknown) => void) {
+      (ouvintes[evento] ??= []).push(cb);
+    },
+    chats: { getSelected: () => Promise.resolve(opcoes.chat ?? null) },
+    contacts: { get: (id: number) => Promise.resolve(opcoes.contatos?.[String(id)] ?? null) },
     http: {
       request(req: ChamadaHttp) {
         chamadas.push(req);
@@ -90,14 +113,33 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
         return Promise.resolve({ key: k, removed: true });
       },
     },
-    ui: { toast: () => Promise.resolve(), resize: () => Promise.resolve() },
+    ui: {
+      toast: (texto: string) => {
+        toasts.push(texto);
+        return Promise.resolve();
+      },
+      resize: () => Promise.resolve(),
+    },
   };
 
+  let oculto = false;
   const html = readFileSync(path.join(DIR, arquivo), 'utf8');
   const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, {
     runScripts: 'dangerously',
     beforeParse(window) {
       (window as unknown as { omni: typeof omni }).omni = omni;
+      if (opcoes.intervaloMs) (window as unknown as { KENTRO_SHOP_INTERVALO_MS: number }).KENTRO_SHOP_INTERVALO_MS = opcoes.intervaloMs;
+      // O jsdom considera a página sempre oculta; aqui ela começa visível e o teste controla.
+      Object.defineProperty(window.document, 'hidden', { configurable: true, get: () => oculto });
+      Object.defineProperty(window.navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: (texto: string) => {
+            copiados.push(texto);
+            return Promise.resolve();
+          },
+        },
+      });
     },
   });
   await esperar();
@@ -112,6 +154,23 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     document,
     chamadas,
     storage,
+    respostas,
+    toasts,
+    copiados,
+    async emitir(evento, dado) {
+      for (const cb of ouvintes[evento] ?? []) cb(dado);
+      await esperar();
+    },
+    async esperar(ms = 0) {
+      await new Promise((r) => setTimeout(r, ms));
+      await esperar();
+    },
+    async ocultar(valor) {
+      oculto = valor;
+      document.dispatchEvent(new dom.window.Event('visibilitychange'));
+      await esperar();
+    },
+    fechar: () => dom.window.close(),
     async clicar(id) {
       elemento(id).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await esperar();
