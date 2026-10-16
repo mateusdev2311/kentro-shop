@@ -156,7 +156,9 @@ export function produtoDaKentro(p: Bruto): Produto {
     unidade: texto(p.measurementunit).toUpperCase() || 'UN',
     // A Kentro não obriga controle de estoque: quantidade zerada vira "não controla".
     estoque: Number.isFinite(qtd) && qtd > 0 ? qtd : null,
-    disponivel: Number(p.available) === 1 && preco > 0,
+    // Sem preço cadastrado continua disponível: serve ao catálogo sem preço (lista para orçamento).
+    // Com preços visíveis, o carrinho recusa produto sem preço.
+    disponivel: Number(p.available) === 1,
     categoriaIds: lista(p.groups).map(idDoGrupo).filter(Boolean),
     variacoes: [],
   };

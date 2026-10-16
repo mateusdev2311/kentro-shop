@@ -613,6 +613,15 @@ A Fase 0 criou só a tabela `lojas` (migração `inicial`). Cada tabela abaixo e
 - Conector eCommerce-net (catálogo, categorias, variações, compre junto; frete opcional), regras por SKU via banco (sem tela ainda), catálogo completo, sessões com revalidação, painel (sem edição do carrinho), Configurações (Integração, Catálogo, Entrega, Pedidos em `handoff`, IA, Saúde básica), MCP, evento de finalização.
 - **Aceite:** um admin configura a loja sozinho em menos de 15 min; a IA busca produtos, envia o link, o cliente compra no celular, o atendente vê ao vivo e a IA confirma e transfere.
 
+**Fase 1.3 — melhorias pedidas em 16/10/2026 (implementadas; plano `2026-10-16-kentro-shop-fase-1-3-melhorias.md`)**
+- Pré-cadastro: o link leva e-mail, documento e endereço do contato da Kentro; o checkout já vem preenchido.
+- Histórico pelo telefone (`clientes_loja`): endereços salvos e "Pedir de novo" no catálogo; "Pedidos anteriores" no painel.
+- Link montado pelo atendente: carrinho pronto, seleção de produtos, categoria ou busca, restrito (padrão) ou não; o link montado expira o anterior do mesmo atendimento.
+- Catálogo sem preço (padrão da loja e por link): o preço sai das respostas públicas; pedido vira "pedido de orçamento".
+- Admin: abas Aparência (logo no banco, cores com contraste conferido, grade ou lista, boas-vindas), Entrega e frete, Pedidos e Catálogo.
+- Conectores novos: Shopify (seção 7.4.1) e Kentro (catálogo interno pelo MCP da instância, com token). Loja com catálogo Kentro: o painel lança o pedido no carrinho nativo do atendimento.
+- Nuvemshop aguarda o app no portal de parceiros (OAuth).
+
 **Fase 2**
 - Modo `criar_pedido` (eCommerce-net), atendente editando o carrinho e dando desconto, tela de Regras de produtos, Saúde completa, conector WooCommerce.
 - **Aceite:** pedido criado na plataforma com número exibido no painel e na conversa; WooCommerce passa na bateria de contrato.

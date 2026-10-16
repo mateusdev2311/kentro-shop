@@ -82,6 +82,20 @@ describe('catálogo sem preço', () => {
     expect(painel.body.totais.total).toBe(279.8);
   });
 
+  it('produto cadastrado sem preço só entra no carrinho de link sem preço (lista para orçamento)', async () => {
+    controleFalso.precos.A1 = 0;
+    const comPreco = await gerarLink(app, loja, '100');
+    const r1 = await pub('put', `/v1/catalogo/${comPreco}/carrinho`).send({ itens: [{ produtoId: 'id-A1', quantidade: 1 }] });
+    expect(r1.body.sessao.itens).toEqual([]);
+    expect(r1.body.avisos).toEqual(['Produto A1 não está mais disponível.']);
+
+    const semPreco = await gerarLink(app, loja, '200', { mostrarPrecos: false });
+    const r2 = await pub('put', `/v1/catalogo/${semPreco}/carrinho`).send({ itens: [{ produtoId: 'id-A1', quantidade: 2 }] });
+    expect(r2.body.sessao.itens).toEqual([expect.objectContaining({ produtoId: 'id-A1', quantidade: 2 })]);
+    const fim = await pub('post', `/v1/catalogo/${semPreco}/finalizar`).send({ tipo: 'entrega', entrega: ENTREGA });
+    expect(fim.status).toBe(200);
+  });
+
   it('sem preço, produto que sumiu ainda avisa (409), mas a diferença não traz preço', async () => {
     await semPrecoNaLoja();
     const t = await gerarLink(app, loja);

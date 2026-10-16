@@ -124,6 +124,7 @@ export class CarrinhoService {
     if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
     // Link restrito: o cliente só põe no carrinho o que está no filtro (o que o atendente já pôs continua).
     const filtro = sessao.restrito ? (sessao.filtro as unknown as FiltroLink | null) : null;
+    const aceitaSemPreco = !precosVisiveis(sessao, (await this.configLoja.obter(sessao.lojaId)).mostrarPrecos);
 
     const desejados = new Map<string, { produtoId: string; variacaoId: string; quantidade: number }>();
     for (const p of pedidos) {
@@ -153,7 +154,7 @@ export class CarrinhoService {
           continue;
         }
       }
-      const item = await this.revalidarItem(sessao.lojaId, desejado, cache, avisos, existente);
+      const item = await this.revalidarItem(sessao.lojaId, desejado, cache, avisos, existente, aceitaSemPreco);
       if (item) finais.push(item);
     }
 
@@ -248,7 +249,7 @@ export class CarrinhoService {
     const diferencas: Diferenca[] = [];
     for (const existente of existentes) {
       const antes = daLinha(existente);
-      const novo = await this.revalidarItem(sessao.lojaId, antes, cache, [], antes);
+      const novo = await this.revalidarItem(sessao.lojaId, antes, cache, [], antes, !precosVisiveis(sessao, config.mostrarPrecos));
       if (novo) finais.push(novo);
       if (!novo || novo.precoUnitario !== antes.precoUnitario || novo.quantidade !== antes.quantidade) {
         diferencas.push({
@@ -319,6 +320,8 @@ export class CarrinhoService {
     cache: Map<string, Promise<Produto | null>>,
     avisos: string[],
     conhecido?: { nome: string; variacaoNome: string | null },
+    /** Link sem preço (lista para orçamento): produto disponível sem preço cadastrado pode entrar. */
+    aceitaSemPreco = false,
   ): Promise<ItemRevalidado | null> {
     const produto = await this.carregar(lojaId, desejado.produtoId, cache);
     if (!produto) {
@@ -340,7 +343,7 @@ export class CarrinhoService {
 
     const fonte = variacao ?? produto;
     const nome = { nome: produto.nome, variacaoNome: variacao?.nome ?? null };
-    if (!fonte.disponivel || !(fonte.preco > 0)) {
+    if (!fonte.disponivel || (!(fonte.preco > 0) && !aceitaSemPreco)) {
       avisos.push(`${nomeCompleto(nome)} não está mais disponível.`);
       return null;
     }
