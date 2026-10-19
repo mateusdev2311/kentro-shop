@@ -30,6 +30,8 @@ export interface IntegracaoLida {
   ultimoTesteEm: Date | null;
   ultimoErro: string | null;
   credenciais: Record<string, string>;
+  /** Plataforma com OAuth: a loja já autorizou o app. */
+  conectada?: boolean;
 }
 
 @Injectable()
@@ -43,6 +45,10 @@ export class IntegracoesService {
 
   async salvar(lojaId: string, plataforma: string, recebidas: Record<string, unknown>): Promise<void> {
     const conector = this.registro.obter(plataforma);
+    // Gravar pelo formulário apagaria o token que a autorização deu.
+    if (conector.capacidades.oauth) {
+      throw new ErroApi(400, 'USE_CONECTAR', `Para a ${conector.nome}, use o botão "Conectar ${conector.nome}".`);
+    }
     const declaradas = new Map(conector.camposDeCredencial.map((c) => [c.chave, c]));
     const desconhecidas = Object.keys(recebidas).filter((k) => !declaradas.has(k));
     if (desconhecidas.length) throw new ErroApi(400, 'ENTRADA_INVALIDA', `Campo desconhecido: ${desconhecidas.join(', ')}.`);
@@ -86,9 +92,31 @@ export class IntegracoesService {
       if (valor) credenciais[campo.chave] = valor;
     }
 
+    await this.gravar(lojaId, conector, credenciais);
+  }
+
+  /** Credenciais que vieram da autorização (OAuth), já trocadas pelo conector. */
+  async salvarAutorizacao(lojaId: string, plataforma: string, credenciais: Record<string, string>): Promise<void> {
+    await this.gravar(lojaId, this.registro.obter(plataforma), credenciais);
+  }
+
+  private async gravar(lojaId: string, conector: Conector, credenciais: Record<string, string>): Promise<void> {
     const { cifrado, iv } = cifrar(JSON.stringify(credenciais), this.config.chaveMestra);
-    const dados = { plataforma, credenciaisCifradas: paraBytes(cifrado), iv: paraBytes(iv), status: 'pendente' as const, ultimoErro: null };
+    const dados = {
+      plataforma: conector.id,
+      credenciaisCifradas: paraBytes(cifrado),
+      iv: paraBytes(iv),
+      status: 'pendente' as const,
+      ultimoErro: null,
+      idExterno: conector.idExterno?.(credenciais) ?? null,
+    };
     await this.prisma.integracao.upsert({ where: { lojaId }, create: { lojaId, ...dados }, update: dados });
+  }
+
+  /** Contexto para concluir a autorização: ainda sem credenciais, só o cliente HTTP do conector. */
+  contextoDeAutorizacao(lojaId: string, plataforma: string): { conector: Conector; ctx: CtxConector } {
+    const conector = this.registro.obter(plataforma);
+    return { conector, ctx: this.criarContexto(lojaId, conector, {}) };
   }
 
   async ler(lojaId: string): Promise<IntegracaoLida> {
@@ -107,6 +135,7 @@ export class IntegracoesService {
       ultimoTesteEm: linha.ultimoTesteEm,
       ultimoErro: linha.ultimoErro,
       credenciais: mascaradas,
+      ...(conector.capacidades.oauth ? { conectada: Object.keys(credenciais).length > 0 } : {}),
     };
   }
 
@@ -134,9 +163,13 @@ export class IntegracoesService {
     const linha = await this.prisma.integracao.findUnique({ where: { lojaId } });
     if (!linha) throw new SemIntegracao();
     const conector = this.registro.obter(linha.plataforma);
+    return { conector, ctx: this.criarContexto(lojaId, conector, this.decifrarCredenciais(linha.credenciaisCifradas, linha.iv)) };
+  }
+
+  private criarContexto(lojaId: string, conector: Conector, credenciais: Record<string, string>): CtxConector {
     const ctx: CtxConector = {
       lojaId,
-      credenciais: this.decifrarCredenciais(linha.credenciaisCifradas, linha.iv),
+      credenciais,
       http: criarClienteHttp({
         lojaId,
         plataforma: conector.id,
@@ -153,7 +186,7 @@ export class IntegracoesService {
       // O catálogo da Kentro é uma cópia enviada pela extensão (não há leitura ao vivo sem token).
       ...(conector.id === 'kentro' ? { catalogoLocal: this.catalogoKentro.leitor(lojaId) } : {}),
     };
-    return { conector, ctx };
+    return ctx;
   }
 
   private async credenciaisGravadas(lojaId: string, plataforma: string): Promise<Record<string, string> | null> {

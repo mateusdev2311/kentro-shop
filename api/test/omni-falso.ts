@@ -163,6 +163,8 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     beforeParse(window) {
       (window as unknown as { omni: typeof omni }).omni = omni;
       if (opcoes.intervaloMs) (window as unknown as { KENTRO_SHOP_INTERVALO_MS: number }).KENTRO_SHOP_INTERVALO_MS = opcoes.intervaloMs;
+      // O jsdom não abre abas: dentro da Kentro a nova aba também pode ser bloqueada (a tela tem o link de reserva).
+      window.open = () => null;
       // O jsdom considera a página sempre oculta; aqui ela começa visível e o teste controla.
       Object.defineProperty(window.document, 'hidden', { configurable: true, get: () => oculto });
       Object.defineProperty(window.navigator, 'clipboard', {

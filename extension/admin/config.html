@@ -110,6 +110,9 @@
   button.suave:hover:not(:disabled) { background: var(--ks-suave-forte); }
   button.perigo { min-height: 32px; padding: 0 10px; color: var(--ks-erro-texto); background: none; border-color: transparent; font-size: .9em; }
   button.perigo:hover:not(:disabled) { background: var(--ks-erro-suave); }
+  button.link { min-height: 0; padding: 0; border: 0; background: none; color: var(--ks-primaria-texto); font-size: inherit; text-decoration: underline; }
+  button.link:hover:not(:disabled) { background: none; }
+  a { color: var(--ks-primaria-texto); }
   button:disabled { opacity: .5; cursor: default; }
   :focus-visible { outline: 2px solid var(--ext-color-primary); outline-offset: 2px; }
   .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
@@ -350,6 +353,16 @@
           <span class="ajuda">Os produtos, preços e grupos vêm do cadastro da Kentro, sem token. A cópia é atualizada ao abrir esta tela e, a cada hora, pelo painel do atendimento.</span>
         </div>
         <button type="button" class="suave" id="btn-sincronizar"><svg class="ic"><use href="#i-sincronizar"/></svg>Sincronizar agora</button>
+      </div>
+      <div id="bloco-oauth" class="sincronizar" hidden>
+        <span class="bolha"><svg class="ic"><use href="#i-plug"/></svg></span>
+        <div>
+          <strong id="oauth-titulo"></strong>
+          <p id="oauth-estado" class="muted"></p>
+          <p id="oauth-link-caixa" class="ajuda" hidden>Se a página não abriu, <a id="oauth-link" href="#" target="_blank" rel="noopener">abra a autorização</a>
+            ou <button type="button" class="link" id="btn-copiar-oauth">copie o link</button> e cole no navegador. O link vale por 30 minutos.</p>
+        </div>
+        <button type="button" class="principal" id="btn-conectar"></button>
       </div>
       <p id="resultado-teste" class="resultado"></p>
       <div id="bloco-capacidades" hidden>
@@ -687,8 +700,13 @@
     limpar(alvo);
     estado.alterado = false;
     $('bloco-kentro').hidden = !conector || conector.id !== 'kentro';
+    var oauth = !!(conector && conector.capacidades.oauth);
+    $('bloco-oauth').hidden = !oauth;
+    // Com OAuth não há formulário: "Salvar" apagaria o token.
+    $('btn-salvar-integracao').hidden = oauth;
     if (!conector) return;
     if (conector.id === 'kentro') mostrarEstadoKentro();
+    if (oauth) mostrarEstadoOAuth(conector);
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
       rotulo.setAttribute('for', 'campo-' + campo.chave);
@@ -792,6 +810,78 @@
       mostrarResultado('Integração salva. Buscando os produtos da Kentro…');
       return sincronizarKentro();
     });
+  });
+
+  // ── Plataformas com OAuth (ex.: Nuvemshop): o lojista autoriza o app na página da plataforma ──
+  var ESPERA_OAUTH_MS = window.KENTRO_SHOP_INTERVALO_MS || 4000;
+  var MAX_ESPERAS_OAUTH = 150; // 10 minutos
+  var esperaOAuth = 0;         // muda a cada "Conectar" ou troca de plataforma: a espera antiga para
+  var urlOAuth = '';
+
+  function oauthConectada(conector) {
+    return !!(estado.integracao && estado.integracao.plataforma === conector.id && estado.integracao.conectada);
+  }
+
+  function mostrarEstadoOAuth(conector) {
+    esperaOAuth++;
+    var conectada = oauthConectada(conector);
+    $('oauth-titulo').textContent = conector.nome;
+    $('oauth-estado').textContent = conectada
+      ? 'Loja conectada. Se trocar de loja ou o acesso parar de funcionar, conecte de novo.'
+      : 'Clique em Conectar: abre a página da ' + conector.nome + ', você entra na sua loja e aceita. Depois é só voltar para esta tela.';
+    $('btn-conectar').textContent = conectada ? 'Conectar de novo' : 'Conectar ' + conector.nome;
+    $('oauth-link-caixa').hidden = true;
+  }
+
+  /** Confere de tempos em tempos se a autorização voltou (o retorno já testa a integração). */
+  function aguardarAutorizacao(conector, testeAntes, minha, tentativa) {
+    if (minha !== esperaOAuth) return;
+    if (tentativa >= MAX_ESPERAS_OAUTH) {
+      $('oauth-estado').textContent = 'Não recebemos a autorização. Clique em Conectar para gerar outro link.';
+      return;
+    }
+    setTimeout(function () {
+      if (minha !== esperaOAuth) return;
+      api('/v1/loja/integracao').then(function (lida) {
+        if (minha !== esperaOAuth) return;
+        var voltou = lida && lida.plataforma === conector.id && lida.conectada && lida.ultimoTesteEm !== testeAntes;
+        if (!voltou) return aguardarAutorizacao(conector, testeAntes, minha, tentativa + 1);
+        estado.integracao = lida;
+        estado.situacao = lida.status;
+        mostrarEstadoOAuth(conector);
+        atualizarStatus();
+        if (lida.status === 'ok') {
+          mostrarResultado('Conexão funcionando: ' + conector.nome + '.');
+          mostrarCapacidades();
+          return carregarPrevia();
+        }
+        mostrarResultado('A conexão falhou: ' + (lida.ultimoErro || 'confira a loja na ' + conector.nome + '.'));
+      }, function () { aguardarAutorizacao(conector, testeAntes, minha, tentativa + 1); });
+    }, ESPERA_OAUTH_MS);
+  }
+
+  $('btn-conectar').addEventListener('click', function () {
+    var botao = this;
+    var conector = conectorAtual();
+    if (!conector) return;
+    botao.disabled = true;
+    mostrarResultado('');
+    api('/v1/loja/integracao/oauth/iniciar', { method: 'POST', body: { plataforma: conector.id } }).then(function (r) {
+      urlOAuth = r.url;
+      mostrarEstadoOAuth(conector);
+      $('oauth-link').href = r.url;
+      $('oauth-link-caixa').hidden = false;
+      $('oauth-estado').textContent = 'Aguardando a autorização na ' + conector.nome + '…';
+      // A Kentro pode bloquear a nova aba: o link e o "copiar" ficam como reserva.
+      try { window.open(r.url, '_blank', 'noopener'); } catch (e) { /* sem nova aba */ }
+      aguardarAutorizacao(conector, estado.integracao ? estado.integracao.ultimoTesteEm : null, esperaOAuth, 0);
+    }, function (erro) {
+      mostrarResultado(mensagemDeErro(erro));
+    }).then(function () { botao.disabled = false; });
+  });
+
+  $('btn-copiar-oauth').addEventListener('click', function () {
+    if (urlOAuth) copiar(urlOAuth, 'Link copiado. Cole no navegador para autorizar.');
   });
 
   // ── Catálogo da Kentro: a extensão lê os produtos e envia uma cópia ao Kentro Shop ──

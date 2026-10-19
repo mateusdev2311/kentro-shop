@@ -19,6 +19,7 @@ export function configDeTeste(sobrescrever: Partial<ConfigApp> = {}): ConfigApp 
     urlPublica: 'https://shop.teste',
     dirExtensao: path.join(__dirname, '..', '..', 'extension'),
     dirPublic: path.join(__dirname, 'fixtures', 'public'),
+    nuvemshop: null,
     ...sobrescrever,
   };
 }
@@ -28,7 +29,7 @@ export async function criarAppDeTeste(sobrescrever: Partial<ConfigApp> = {}, opc
   const modulo = await Test.createTestingModule({
     imports: [AppModule.com(config, { conectores: [conectorFalso], ...opcoes })],
   }).compile();
-  const app = modulo.createNestApplication<NestExpressApplication>();
+  const app = modulo.createNestApplication<NestExpressApplication>({ rawBody: true });
   configurarApp(app, config);
   await app.init();
   return app;

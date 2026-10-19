@@ -10,6 +10,8 @@ export interface ConfigApp {
   urlPublica: string;
   dirExtensao: string;
   dirPublic: string;
+  /** App de parceiro da Nuvemshop (OAuth). null = a plataforma não aparece na integração. */
+  nuvemshop: { appId: string; clientSecret: string } | null;
 }
 
 const OBRIGATORIAS = ['DATABASE_URL', 'CHAVE_MESTRA_CRIPTO', 'TOKEN_SUPERADMIN', 'URL_PUBLICA'] as const;
@@ -36,5 +38,17 @@ export function lerConfig(env: NodeJS.ProcessEnv): ConfigApp {
     urlPublica: env.URL_PUBLICA!.trim().replace(/\/+$/, ''),
     dirExtensao: env.DIR_EXTENSAO || path.join(dist, 'extensao'),
     dirPublic: env.DIR_PUBLIC || path.join(dist, 'public'),
+    nuvemshop: lerNuvemshop(env),
   };
+}
+
+/** NUVEMSHOP_APP_ID e NUVEMSHOP_CLIENT_SECRET (painel de parceiros > Chaves de acesso): os dois ou nenhum. */
+function lerNuvemshop(env: NodeJS.ProcessEnv): ConfigApp['nuvemshop'] {
+  const appId = env.NUVEMSHOP_APP_ID?.trim() ?? '';
+  const clientSecret = env.NUVEMSHOP_CLIENT_SECRET?.trim() ?? '';
+  if (!appId && !clientSecret) return null;
+  if (!/^\d+$/.test(appId) || !clientSecret) {
+    throw new Error('Para a Nuvemshop, defina NUVEMSHOP_APP_ID (número) e NUVEMSHOP_CLIENT_SECRET juntos.');
+  }
+  return { appId, clientSecret };
 }

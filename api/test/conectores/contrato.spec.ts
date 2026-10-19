@@ -2,7 +2,9 @@ import { conectorDemonstracao } from '../../src/conectores/demonstracao/demonstr
 import { conectorEcommercenet } from '../../src/conectores/ecommercenet/ecommercenet.conector';
 import { conectorKentro } from '../../src/conectores/kentro/kentro.conector';
 import { conectorShopify } from '../../src/conectores/shopify/shopify.conector';
+import { criarConectorNuvemshop } from '../../src/conectores/nuvemshop/nuvemshop.conector';
 import { catalogoEmMemoria } from './catalogo-memoria';
+import { APP_TESTE, criarFetchNuvemshop, NUVEMSHOP_CREDENCIAIS } from './fixtures-nuvemshop';
 import { conectorFalso } from './conector-falso';
 import { criarFetchShopify, SHOPIFY_CREDENCIAIS } from './fixtures-shopify';
 import { rodarContrato } from './contrato';
@@ -39,6 +41,18 @@ rodarContrato('Shopify (respostas sintéticas)', () => ({
   idSimples: 'porcelanato-calacata',
   idComVariacao: 'tinta-acrilica',
   idInexistente: 'nao-existe',
+  buscaVazia: 'zzzzzz',
+  porPagina: 2,
+}));
+
+rodarContrato('Nuvemshop (respostas sintéticas)', () => ({
+  conector: criarConectorNuvemshop(APP_TESTE),
+  credenciaisValidas: NUVEMSHOP_CREDENCIAIS,
+  credenciaisInvalidas: { ...NUVEMSHOP_CREDENCIAIS, access_token: 'errado' },
+  fetchDeFixtures: criarFetchNuvemshop(),
+  idSimples: '101',
+  idComVariacao: '102',
+  idInexistente: '999',
   buscaVazia: 'zzzzzz',
   porPagina: 2,
 }));

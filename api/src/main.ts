@@ -10,7 +10,8 @@ import { aplicarMigracoes } from './comum/migracoes';
 async function iniciar(): Promise<void> {
   const config = lerConfig(process.env);
   aplicarMigracoes(config.databaseUrl, path.join(__dirname, 'prisma', 'schema.prisma'));
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.com(config));
+  // rawBody: os webhooks da Nuvemshop são assinados sobre o corpo exato da requisição.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.com(config), { rawBody: true });
   configurarApp(app, config);
   await app.listen(config.porta);
 }

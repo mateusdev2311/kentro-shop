@@ -87,11 +87,14 @@ model Integracao {
   status              StatusIntegracao @default(pendente)
   ultimoTesteEm       DateTime?        @map("ultimo_teste_em")
   ultimoErro          String?          @map("ultimo_erro")
+  /// Id da loja na plataforma (ex.: store_id da Nuvemshop), para achar a integração pelos webhooks dela.
+  idExterno           String?          @map("id_externo")
   criadoEm            DateTime         @default(now()) @map("criado_em")
   atualizadoEm        DateTime         @updatedAt @map("atualizado_em")
 
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
 
+  @@index([plataforma, idExterno])
   @@map("integracoes")
 }
 

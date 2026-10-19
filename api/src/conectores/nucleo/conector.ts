@@ -99,6 +99,10 @@ export interface Conector {
   criarPedido?(ctx: CtxConector, pedido: PedidoParaCriar): Promise<PedidoCriado>;
   /** null = a loja não habilitou essa consulta (ex.: Shopify sem o token da Admin API) ou o cliente não existe. */
   historicoDoCliente?(ctx: CtxConector, telefone: string): Promise<HistoricoCliente | null>;
-  urlDeAutorizacao?(ctx: CtxConector, urlRetorno: string): string;
+  /** OAuth: página onde o lojista autoriza. `estado` volta no retorno e identifica a loja. */
+  urlDeAutorizacao?(estado: string): string;
+  /** OAuth: troca o que veio no retorno (ex.: code) pelas credenciais a gravar. ctx sem credenciais. */
   concluirAutorizacao?(ctx: CtxConector, params: Record<string, string>): Promise<Record<string, string>>;
+  /** Id da loja na plataforma, gravado à parte para achar a integração (ex.: webhooks da plataforma). */
+  idExterno?(credenciais: Record<string, string>): string | null;
 }

@@ -78,8 +78,9 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
       expect(typeof conector.criarPedido === 'function').toBe(capacidades.criarPedido);
       expect(typeof conector.urlDeAutorizacao === 'function').toBe(capacidades.oauth);
       expect(typeof conector.historicoDoCliente === 'function').toBe(capacidades.historicoCliente);
-      // Conector com credencial declara os campos; o sem credencial não declara nenhum.
-      expect(conector.camposDeCredencial.length > 0).toBe(!!c.credenciaisInvalidas);
+      // Credencial digitada pelo lojista = campos declarados. OAuth (vem da autorização) e sem credencial: nenhum.
+      expect(conector.camposDeCredencial.length > 0).toBe(!!c.credenciaisInvalidas && !capacidades.oauth);
+      if (capacidades.oauth) expect(typeof conector.concluirAutorizacao).toBe('function');
     });
 
     it('lista categorias normalizadas', async () => {

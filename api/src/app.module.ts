@@ -7,7 +7,7 @@ import { ConfigApp, CONFIG_APP } from './comum/config';
 import { ConfigLojaModule } from './config-loja/config-loja.module';
 import { ConfiguracoesModule } from './config-loja/configuracoes.module';
 import { PrismaService } from './comum/prisma.service';
-import { ConectoresModule } from './conectores/conectores.module';
+import { ConectoresModule, conectoresPadrao } from './conectores/conectores.module';
 import { Conector } from './conectores/nucleo/conector';
 import { ExtensaoController } from './arquivos-extensao/extensao.controller';
 import { IntegracoesModule } from './integracoes/integracoes.module';
@@ -32,7 +32,7 @@ export class AppModule {
           { name: 'registro', limit: 5, ttl: 3_600_000 },
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
-        ConectoresModule.com(opcoes.conectores), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule],
+        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule],
       providers: [{ provide: CONFIG_APP, useValue: config }, PrismaService],
       exports: [CONFIG_APP, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
