@@ -185,6 +185,8 @@ model Sessao {
   restrito      Boolean      @default(true)
   /// null = segue a loja.
   mostrarPrecos Boolean?     @map("mostrar_precos")
+  /// Pedido criado na plataforma ao finalizar (modo criar_pedido): { idExterno, numero, url, status }.
+  pedido        Json?
   criadaEm     DateTime     @default(now()) @map("criada_em")
   atualizadaEm DateTime     @updatedAt @map("atualizada_em")
 

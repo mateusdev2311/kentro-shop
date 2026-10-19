@@ -113,6 +113,21 @@ export class IntegracoesService {
     await this.prisma.integracao.upsert({ where: { lojaId }, create: { lojaId, ...dados }, update: dados });
   }
 
+  /** A loja cria o pedido na plataforma ao finalizar? (modo "criar pedido" + conector que sabe criar). */
+  async criaPedidoNaPlataforma(lojaId: string, modoPedido: string): Promise<boolean> {
+    if (modoPedido !== 'criar_pedido') return false;
+    const linha = await this.prisma.integracao.findUnique({ where: { lojaId }, select: { plataforma: true } });
+    if (!linha) return false;
+    const conector = this.registro.listar().find((c) => c.id === linha.plataforma);
+    return !!conector?.capacidades.criarPedido && !!conector.criarPedido;
+  }
+
+  /** Depois da autorização: o que o conector precisa fazer na plataforma (ex.: registrar webhooks). */
+  async aoConectar(lojaId: string): Promise<void> {
+    const { conector, ctx } = await this.contexto(lojaId);
+    await conector.aoConectar?.(ctx);
+  }
+
   /** Contexto para concluir a autorização: ainda sem credenciais, só o cliente HTTP do conector. */
   contextoDeAutorizacao(lojaId: string, plataforma: string): { conector: Conector; ctx: CtxConector } {
     const conector = this.registro.obter(plataforma);

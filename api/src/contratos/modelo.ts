@@ -83,7 +83,8 @@ export interface HistoricoCliente {
     numero: string;
     data: string; // ISO 8601
     total: number;
-    itens: { sku: string; nome: string; quantidade: number }[];
+    /** produtoId/variacaoId permitem "pedir de novo" (quando a plataforma informa). */
+    itens: { sku: string; nome: string; quantidade: number; produtoId?: string; variacaoId?: string }[];
   }[];
 }
 

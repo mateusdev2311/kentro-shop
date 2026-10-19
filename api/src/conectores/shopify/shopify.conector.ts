@@ -334,7 +334,7 @@ export const conectorShopify: Conector = {
   },
 
   /** Endereços e últimos pedidos pelo telefone (Admin API). Sem o token Admin: null. */
-  async historicoDoCliente(ctx, telefone): Promise<HistoricoCliente | null> {
+  async historicoDoCliente(ctx, { telefone }): Promise<HistoricoCliente | null> {
     if (!temAdmin(ctx)) return null;
     let digitos = telefone.replace(/\D/g, '');
     if (digitos.length === 10 || digitos.length === 11) digitos = `55${digitos}`;

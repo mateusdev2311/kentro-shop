@@ -148,7 +148,7 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     expect(tela.copiados).toEqual(['https://shop.teste/c/tok123']);
   });
 
-  it('busca produtos, escolhe variação e quantidade e gera um link só com a seleção (sem preço, catálogo liberado)', async () => {
+  it('busca produtos, escolhe variação e quantidade e gera um link com os escolhidos em destaque (sem preço, catálogo liberado)', async () => {
     await montar();
     tela.preencher('montar-busca', 'tinta');
     await tela.clicar('btn-buscar');
@@ -162,8 +162,7 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     await clicarEm('[data-adicionar="T1"]');
     expect(tela.texto('montar-itens')).toContain('3× Porcelanato Bege');
     (tela.document.getElementById('op-carrinho') as HTMLInputElement).checked = false;
-    (tela.document.getElementById('op-selecao') as HTMLInputElement).checked = true;
-    (tela.document.getElementById('op-catalogo-todo') as HTMLInputElement).checked = true;
+    (tela.document.getElementById('op-ver-destaque') as HTMLInputElement).checked = true;
     (tela.document.getElementById('op-sem-preco') as HTMLInputElement).checked = true;
     await tela.clicar('btn-gerar-montado');
     const corpo = corpoDoPost();
@@ -171,11 +170,25 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     expect(corpo.itens).toBeUndefined();
   });
 
-  it('link limitado a uma categoria', async () => {
+  it('"só os escolhidos" gera link restrito à seleção; sem escolher nada, pede os produtos', async () => {
+    await montar();
+    (tela.document.getElementById('op-ver-escolhidos') as HTMLInputElement).checked = true;
+    await tela.clicar('btn-gerar-montado');
+    expect(tela.texto('montar-aviso')).toBe('Escolha os produtos que o cliente vai ver.');
+    await clicarEm('[data-usar-pedido="0"]');
+    await tela.clicar('btn-gerar-montado');
+    const corpo = corpoDoPost();
+    expect(corpo.filtro).toEqual({ produtoIds: ['A1', 'T1'] });
+    expect(corpo.restrito).toBeUndefined(); // restrito é o padrão do link com filtro
+  });
+
+  it('link limitado a uma categoria: escolher a categoria marca a opção', async () => {
     await montar();
     await tela.esperar(5);
-    (tela.document.getElementById('montar-categoria') as HTMLSelectElement).value = '2';
-    (tela.document.getElementById('op-categoria') as HTMLInputElement).checked = true;
+    const select = tela.document.getElementById('montar-categoria') as HTMLSelectElement;
+    select.value = '2';
+    select.dispatchEvent(new tela.document.defaultView!.Event('change', { bubbles: true }));
+    expect((tela.document.getElementById('op-ver-categoria') as HTMLInputElement).checked).toBe(true);
     await tela.clicar('btn-gerar-montado');
     expect(corpoDoPost()).toMatchObject({ filtro: { categoriaId: '2' } });
     expect(corpoDoPost().restrito).toBeUndefined();
@@ -186,6 +199,38 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     await tela.clicar('btn-gerar-montado');
     expect(tela.chamadas.some((c) => c.method === 'POST')).toBe(false);
     expect(tela.texto('montar-aviso')).toBe('Adicione produtos ou escolha uma opção do link.');
+  });
+
+  it('sem link aberto, só existe o "Gerar link" (não há carrinho para adicionar)', async () => {
+    await montar();
+    expect(tela.visivel('acao-carrinho')).toBe(false);
+    expect((tela.document.getElementById('link-novo') as HTMLDetailsElement).open).toBe(true);
+    expect(tela.texto('btn-gerar-montado')).toBe('Gerar link');
+  });
+
+  it('com link aberto: "Adicionar ao carrinho do cliente" soma ao carrinho dele, no mesmo link', async () => {
+    const aberta = sessao({ status: 'navegando' });
+    await montar({
+      respostas: {
+        [rota(57)]: { status: 200, body: aberta },
+        [`POST /v1/sessoes/${aberta.id}/itens`]: { status: 200, body: { sessao: aberta, avisos: [] } },
+      },
+    });
+    expect(tela.visivel('acao-carrinho')).toBe(true);
+    expect(tela.visivel('aviso-link-novo')).toBe(true);
+    expect(tela.texto('btn-gerar-montado')).toBe('Gerar link novo');
+    await clicarEm('[data-usar-pedido="0"]');
+    await tela.clicar('btn-adicionar-carrinho');
+    const post = tela.chamadas.find((c) => c.method === 'POST' && c.url.endsWith(`/v1/sessoes/${aberta.id}/itens`))!;
+    expect(JSON.parse(post.body!)).toEqual({
+      itens: [
+        { produtoId: 'A1', quantidade: 2 },
+        { produtoId: 'T1', variacaoId: 'v1', quantidade: 1 },
+      ],
+    });
+    expect(tela.chamadas.some((c) => c.method === 'POST' && c.url.endsWith('/v1/sessoes'))).toBe(false); // nada de link novo
+    expect(tela.texto('montar-aviso')).toBe('Adicionado ao carrinho do cliente. Ele vê ao voltar para o catálogo.');
+    expect(tela.texto('montar-itens')).toBe('');
   });
 });
 

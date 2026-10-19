@@ -5,6 +5,7 @@ import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { FiltroErrosConector } from '../conectores/nucleo/filtro';
 import { NaoEncontrado } from '../conectores/nucleo/erros';
 import { Produto } from '../contratos/modelo';
+import { IntegracoesService } from '../integracoes/integracoes.service';
 import { CarrinhoService, permitidoPeloFiltro } from './carrinho.service';
 import { ClientesService } from './clientes.service';
 import { paginaSemPreco, precosVisiveis, produtoSemPreco, sessaoSemPreco } from './sem-preco';
@@ -31,6 +32,7 @@ export class CatalogoPublicoController {
     private readonly catalogo: CatalogoService,
     private readonly configLoja: ConfigLojaService,
     private readonly clientes: ClientesService,
+    private readonly integracoes: IntegracoesService,
   ) {}
 
   @Get('abrir')
@@ -38,7 +40,10 @@ export class CatalogoPublicoController {
     const [sessao, config] = await Promise.all([this.sessoes.abrir(token), this.configLoja.obter(req.sessao.lojaId)]);
     const historico = await this.clientes.historico(req.sessao.lojaId, sessao.cliente);
     const mostrarPrecos = precosVisiveis(sessao, config.mostrarPrecos);
+    // Pedido criado na loja: o checkout pede o e-mail e termina no link de pagamento da plataforma.
+    const pedidoNaLoja = mostrarPrecos && (await this.integracoes.criaPedidoNaPlataforma(req.sessao.lojaId, config.modoPedido));
     return {
+      pedidoNaLoja,
       sessao: mostrarPrecos ? sessao : sessaoSemPreco(sessao),
       historico: mostrarPrecos ? historico : { ...historico, pedidos: historico.pedidos.map((p) => ({ ...p, total: 0 })) },
       filtro: sessao.filtro,
@@ -87,7 +92,9 @@ export class CatalogoPublicoController {
 
     if (filtro?.produtoIds?.length) {
       // Seleção do atendente: os produtos na ordem em que ele escolheu, numa página só.
-      const achados = numero > 1 ? [] : await Promise.all(filtro.produtoIds.map((id) => this.catalogo.obterProduto(lojaId, id).catch(() => null)));
+      const ids = filtro.produtoIds;
+      const mapa = numero > 1 ? new Map<string, Produto | null>() : await this.catalogo.obterVarios(lojaId, ids).catch(() => new Map<string, Produto | null>());
+      const achados = ids.map((id) => mapa.get(id) ?? null);
       const palavras = termo ? semAcento(termo).split(/\s+/) : [];
       const itens = achados.filter((p): p is Produto => !!p && visivel(p) && palavras.every((w) => semAcento(`${p.nome} ${p.sku}`).includes(w)));
       const pagina = { itens, pagina: numero, porPagina: Math.max(itens.length, 1), total: itens.length, temMais: false };

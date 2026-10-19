@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { ErroApi } from '../comum/erros';
 import { FiltroErrosConector } from '../conectores/nucleo/filtro';
@@ -65,5 +65,12 @@ export class SessoesController {
   @Put(':id/carrinho')
   carrinhoDoAtendente(@Req() req: RequisicaoDaLoja, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SalvarCarrinhoDto) {
     return this.carrinho.definirPeloAtendente(req.loja.id, id, dto.itens);
+  }
+
+  /** O atendente soma itens ao carrinho do link aberto, sem gerar link novo (o cliente não perde o que escolheu). */
+  @Post(':id/itens')
+  @HttpCode(200)
+  adicionarItens(@Req() req: RequisicaoDaLoja, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: SalvarCarrinhoDto) {
+    return this.carrinho.adicionarPeloAtendente(req.loja.id, id, dto.itens);
   }
 }

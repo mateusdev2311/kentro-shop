@@ -41,6 +41,9 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   });
   const [lojaId, setLojaId] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  // Pedido criado na loja: a plataforma pede o e-mail do comprador (vem do cadastro da Kentro, quando há).
+  const pedidoNaLoja = !!abertura.pedidoNaLoja;
+  const [email, setEmail] = useState(sessao.cliente.email ?? '');
   const aCombinar = abertura.frete.regra === 'a_combinar';
   const [frete, setFrete] = useState<CotacaoFrete | null>(aCombinar ? { titulo: 'Frete a combinar', valor: null, prazo: abertura.frete.prazo } : null);
   const [erro, setErro] = useState('');
@@ -114,7 +117,9 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
     setErro('');
     if (!tipo) return setErro('Escolha entrega ou retirada.');
     if (tipo === 'retirada' && !lojaId) return setErro('Escolha a loja para retirada.');
-    const corpo: CorpoFinalizar = tipo === 'entrega' ? { tipo, entrega: dados, observacoes } : { tipo, lojaRetiradaId: lojaId, observacoes };
+    if (pedidoNaLoja && !/^\S+@\S+\.\S+$/.test(email.trim())) return setErro('Informe o seu e-mail para receber o pedido.');
+    const base: CorpoFinalizar = tipo === 'entrega' ? { tipo, entrega: dados, observacoes } : { tipo, lojaRetiradaId: lojaId, observacoes };
+    const corpo: CorpoFinalizar = pedidoNaLoja ? { ...base, email: email.trim() } : base;
     setEnviando(true);
     try {
       await aoEnviar(corpo);
@@ -216,6 +221,24 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
 
       {tipo && (
         <>
+          {pedidoNaLoja && (
+            <>
+              <label class="campo" for="f-email">
+                E-mail
+              </label>
+              <input
+                class="entrada"
+                id="f-email"
+                type="email"
+                inputMode="email"
+                autocomplete="email"
+                maxLength={120}
+                value={email}
+                onInput={(e) => setEmail(e.currentTarget.value)}
+              />
+              <small class="dica">A loja envia a confirmação do pedido e do pagamento para este e-mail.</small>
+            </>
+          )}
           <label class="campo" for="f-observacoes">
             Observações (opcional)
           </label>
@@ -267,10 +290,14 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
       {tipo && (
         <>
           <button type="button" class="botao primario largo" disabled={enviando} onClick={() => void enviar()}>
-            {enviando ? 'Enviando…' : comPreco ? 'Enviar pedido para o atendente' : 'Enviar pedido de orçamento'}
+            {enviando ? 'Enviando…' : pedidoNaLoja ? 'Fechar pedido e ir para o pagamento' : comPreco ? 'Enviar pedido para o atendente' : 'Enviar pedido de orçamento'}
           </button>
           <p class="dica" style={{ textAlign: 'center' }}>
-            {comPreco ? 'O pagamento é combinado com o atendente pelo WhatsApp.' : 'O atendente envia os valores e o frete pela conversa.'}
+            {pedidoNaLoja
+              ? 'Você paga no site da loja, com as formas de pagamento dela. O atendente acompanha pelo WhatsApp.'
+              : comPreco
+                ? 'O pagamento é combinado com o atendente pelo WhatsApp.'
+                : 'O atendente envia os valores e o frete pela conversa.'}
           </p>
         </>
       )}

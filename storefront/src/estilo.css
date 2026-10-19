@@ -381,3 +381,7 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 .grade.lista .produto-info { padding: 2px 0; }
 .grade.lista .marcador { font-size: 22px; }
 .contador { border-color: var(--cor-topo); }
+
+/* Pedido criado na loja: o botão de pagamento é um link (abre o checkout da plataforma). */
+a.botao { text-decoration: none; }
+.confirmado .pagar { margin: 4px 0 18px; height: 52px; font-size: 16px; }

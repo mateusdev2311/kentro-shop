@@ -56,6 +56,8 @@ export interface MudancaConfig {
   expiracaoLinkDias?: number;
   mostrarPrecos?: boolean;
   categoriasOcultas?: string[];
+  /** criar_pedido: ao finalizar, o pedido é criado na plataforma (ex.: rascunho com link de pagamento na Nuvemshop). */
+  modoPedido?: 'handoff' | 'criar_pedido';
 }
 
 const COR_PADRAO = '#7C3AED';
@@ -184,6 +186,7 @@ export class ConfigLojaService {
       ...(frete ? { frete: frete as unknown as Prisma.InputJsonValue } : {}),
       ...(mudanca.expiracaoLinkDias !== undefined ? { expiracaoLinkDias: mudanca.expiracaoLinkDias } : {}),
       ...(mudanca.mostrarPrecos !== undefined ? { mostrarPrecos: mudanca.mostrarPrecos } : {}),
+      ...(mudanca.modoPedido ? { modoPedido: mudanca.modoPedido } : {}),
       ...(mudanca.categoriasOcultas ? { categoriasOcultas: [...new Set(mudanca.categoriasOcultas.map((c) => c.trim()).filter(Boolean))] } : {}),
     };
     await this.prisma.configLoja.upsert({

@@ -212,8 +212,15 @@
 
   .opcoes-link { display: grid; gap: 2px; }
   .opcoes-link label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; font-size: .9em; cursor: pointer; }
-  .opcoes-link select { min-height: 30px; margin-left: 40px; }
+  .opcoes-link select { min-height: 30px; margin-left: 26px; }
+  .opcoes-link.escolha { margin-bottom: 6px; }
+  input[type=radio] { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; flex: none; accent-color: var(--ext-color-primary); }
   #montar-aviso { margin: 10px 0 0; }
+  .dica-acao { margin-top: 6px; font-size: .82em; text-align: center; }
+  details.link-novo { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--ks-linha); }
+  details.link-novo > summary { cursor: pointer; font-size: .9em; font-weight: 600; color: var(--ks-primaria-texto); }
+  details.link-novo[open] > summary { margin-bottom: 2px; }
+  #aviso-link-novo { margin: 10px 0 0; }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -305,7 +312,7 @@
   <details class="cartao dobravel" id="montar">
     <summary>
       <span class="bolha"><svg class="ic"><use href="#i-montar"/></svg></span>
-      <span><strong>Montar carrinho ou link com filtro</strong><small>Escolha os produtos antes de mandar o link</small></span>
+      <span><strong>Escolher produtos para o cliente</strong><small>Coloque no carrinho dele ou mande um link com eles</small></span>
       <svg class="ic seta"><use href="#i-seta"/></svg>
     </summary>
     <div class="dobravel-corpo">
@@ -322,17 +329,31 @@
       <ul class="itens compacta" id="montar-itens"></ul>
       <p class="vazio-linha" id="montar-vazio">Nenhum item escolhido.</p>
 
-      <p class="subtitulo">Opções do link</p>
-      <div class="opcoes-link">
-        <label><input type="checkbox" id="op-carrinho" checked> Colocar os itens no carrinho do cliente</label>
-        <label><input type="checkbox" id="op-selecao"> Mostrar ao cliente só os itens escolhidos</label>
-        <label><input type="checkbox" id="op-categoria"> Mostrar só a categoria
-          <select id="montar-categoria" aria-label="Categoria"><option value="">—</option></select></label>
-        <label><input type="checkbox" id="op-catalogo-todo"> Deixar o cliente ver o catálogo todo</label>
-        <label><input type="checkbox" id="op-sem-preco"> Esconder os preços</label>
-      </div>
       <div id="montar-aviso" class="aviso" hidden></div>
-      <button type="button" class="principal largo" id="btn-gerar-montado"><svg class="ic"><use href="#i-link"/></svg>Gerar link montado</button>
+
+      <!-- Link aberto: os itens vão para o carrinho que o cliente já tem (mesmo link) -->
+      <div id="acao-carrinho" hidden>
+        <button type="button" class="principal largo" id="btn-adicionar-carrinho"><svg class="ic"><use href="#i-carrinho"/></svg>Adicionar ao carrinho do cliente</button>
+        <p class="muted dica-acao">Vai para o link que ele já tem, sem perder o que ele escolheu. Ele vê ao voltar para o catálogo.</p>
+      </div>
+
+      <details class="link-novo" id="link-novo">
+        <summary id="link-novo-titulo">Opções do link</summary>
+        <p class="subtitulo">O que o cliente vê</p>
+        <div class="opcoes-link escolha">
+          <label><input type="radio" name="op-visao" id="op-ver-tudo" checked> Todo o catálogo</label>
+          <label><input type="radio" name="op-visao" id="op-ver-escolhidos"> Só os produtos escolhidos</label>
+          <label><input type="radio" name="op-visao" id="op-ver-destaque"> Os escolhidos em destaque, com o catálogo liberado</label>
+          <label><input type="radio" name="op-visao" id="op-ver-categoria"> Só uma categoria
+            <select id="montar-categoria" aria-label="Categoria"><option value="">Escolha…</option></select></label>
+        </div>
+        <div class="opcoes-link">
+          <label><input type="checkbox" id="op-carrinho" checked> Já colocar os escolhidos no carrinho</label>
+          <label><input type="checkbox" id="op-sem-preco"> Esconder os preços (pedido de orçamento)</label>
+        </div>
+        <p class="aviso info" id="aviso-link-novo" hidden>O link que o cliente já tem deixa de valer, e o carrinho dele recomeça com o que você escolher aqui.</p>
+        <button type="button" class="principal largo" id="btn-gerar-montado"><svg class="ic"><use href="#i-link"/></svg>Gerar link</button>
+      </details>
     </div>
   </details>
 </div>
@@ -486,13 +507,14 @@
     sessao = null;
     $('com-sessao').hidden = true;
     $('sem-sessao').hidden = false;
+    atualizarAcoesMontar();
   }
 
   var STATUS = {
     link_enviado: { rotulo: 'Link enviado', etapa: 1, texto: 'Aguardando o cliente abrir o catálogo.' },
     navegando: { rotulo: 'Montando o carrinho', etapa: 2, texto: 'O cliente está escolhendo os produtos — o carrinho atualiza sozinho.' },
     finalizado: { rotulo: 'Finalizado', etapa: 4, texto: 'O cliente finalizou. Confira o resumo e conclua a venda.' },
-    pedido_criado: { rotulo: 'Pedido criado', etapa: 4, texto: 'O pedido foi criado na loja.' },
+    pedido_criado: { rotulo: 'Pedido na loja', etapa: 4, texto: 'O pedido foi criado na loja e o cliente recebeu o link de pagamento.' },
     expirado: { rotulo: 'Link expirado', etapa: 1, texto: 'O link expirou. Gere um novo para o cliente.' }
   };
 
@@ -517,9 +539,10 @@
     renderItens(s);
     renderHandoff(s);
     renderEventos(s);
+    atualizarAcoesMontar();
     if (!anterior || anterior.id !== s.id) $('carrinho-kentro').textContent = '';
-    // Aviso só quando o painel viu o pedido em aberto e ele acabou de ser finalizado.
-    if (anterior && anterior.id === s.id && aberta(anterior) && s.status === 'finalizado') {
+    // Aviso só quando o painel viu o pedido em aberto e ele acabou de ser finalizado (ou virou pedido na loja).
+    if (anterior && anterior.id === s.id && aberta(anterior) && (s.status === 'finalizado' || s.status === 'pedido_criado')) {
       toast('O cliente finalizou o pedido: ' + brl(s.totais.total));
       // Catálogo da Kentro: o pedido vai também para o carrinho nativo do atendimento.
       if (usaCarrinhoKentro()) lancarNoCarrinhoKentro(s);
@@ -592,6 +615,10 @@
     par('Total', brl(s.totais.total));
     par('Observações', c.observacoes);
     par('Finalizado', hora(s.finalizadaEm));
+    if (s.pedido) {
+      par('Pedido na loja', 'nº ' + s.pedido.numero + ' · aguardando pagamento');
+      par('Pagamento', s.pedido.url);
+    }
   }
 
   function renderEventos(s) {
@@ -873,28 +900,64 @@
 
   $('btn-buscar').addEventListener('click', buscar);
   $('montar-busca').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
+  $('montar-categoria').addEventListener('change', function () { if (this.value) $('op-ver-categoria').checked = true; });
+
+  function itensDaMontagem() {
+    return montagem.map(function (i) {
+      var item = { produtoId: i.produtoId, quantidade: i.quantidade };
+      if (i.variacaoId) item.variacaoId = i.variacaoId;
+      return item;
+    });
+  }
+
+  /**
+   * Com link aberto, o caminho principal é pôr no carrinho que o cliente já tem; o link novo fica como opção
+   * (e avisa que o link atual deixa de valer). Sem link, só existe o link novo.
+   */
+  function atualizarAcoesMontar() {
+    var temLink = !!(sessao && aberta(sessao));
+    $('acao-carrinho').hidden = !temLink;
+    $('aviso-link-novo').hidden = !temLink;
+    $('link-novo-titulo').textContent = temLink ? 'Ou mandar um link novo, com outras opções' : 'Opções do link';
+    $('btn-gerar-montado').className = temLink ? 'largo' : 'principal largo';
+    $('btn-gerar-montado').lastChild.textContent = temLink ? 'Gerar link novo' : 'Gerar link';
+    if (!temLink) $('link-novo').open = true;
+  }
+
+  $('btn-adicionar-carrinho').addEventListener('click', function () {
+    if (!chat || !sessao || !aberta(sessao)) return;
+    if (!montagem.length) { avisoMontar('Escolha os produtos para adicionar ao carrinho.'); return; }
+    var botao = this;
+    var id = chat.id;
+    botao.disabled = true;
+    avisoMontar('');
+    api('/v1/sessoes/' + encodeURIComponent(sessao.id) + '/itens', { method: 'POST', body: { itens: itensDaMontagem() } }).then(function (r) {
+      if (!chat || chat.id !== id) return;
+      mostrarSessao(r.sessao);
+      montagem = [];
+      renderMontagem();
+      avisoMontar(r.avisos && r.avisos.length ? r.avisos.join(' ') : 'Adicionado ao carrinho do cliente. Ele vê ao voltar para o catálogo.', 'info');
+      toast('Itens adicionados ao carrinho do cliente.');
+    }, function (e) {
+      avisoMontar(mensagemDeErro(e));
+    }).then(function () { botao.disabled = false; });
+  });
 
   $('btn-gerar-montado').addEventListener('click', function () {
     if (!chat) return;
     var corpo = corpoDoLink(chat);
-    if ($('op-carrinho').checked && montagem.length) {
-      corpo.itens = montagem.map(function (i) {
-        var item = { produtoId: i.produtoId, quantidade: i.quantidade };
-        if (i.variacaoId) item.variacaoId = i.variacaoId;
-        return item;
-      });
-    }
-    var filtro = null;
-    if ($('op-selecao').checked && montagem.length) {
+    var visao = $('op-ver-escolhidos').checked ? 'escolhidos' : $('op-ver-destaque').checked ? 'destaque' : $('op-ver-categoria').checked ? 'categoria' : 'tudo';
+    if ((visao === 'escolhidos' || visao === 'destaque') && !montagem.length) { avisoMontar('Escolha os produtos que o cliente vai ver.'); return; }
+    if (visao === 'categoria' && !$('montar-categoria').value) { avisoMontar('Escolha a categoria.'); return; }
+    if ($('op-carrinho').checked && montagem.length) corpo.itens = itensDaMontagem();
+    if (visao === 'escolhidos' || visao === 'destaque') {
       var ids = [];
       montagem.forEach(function (i) { if (ids.indexOf(i.produtoId) < 0) ids.push(i.produtoId); });
-      filtro = { produtoIds: ids };
-    } else if ($('op-categoria').checked && $('montar-categoria').value) {
-      filtro = { categoriaId: $('montar-categoria').value };
-    }
-    if (filtro) {
-      corpo.filtro = filtro;
-      if ($('op-catalogo-todo').checked) corpo.restrito = false;
+      corpo.filtro = { produtoIds: ids };
+      // Em destaque: o link abre nos escolhidos, mas o cliente pode ver o resto do catálogo.
+      if (visao === 'destaque') corpo.restrito = false;
+    } else if (visao === 'categoria') {
+      corpo.filtro = { categoriaId: $('montar-categoria').value };
     }
     if ($('op-sem-preco').checked) corpo.mostrarPrecos = false;
     if (!corpo.itens && !corpo.filtro && corpo.mostrarPrecos === undefined) {
@@ -995,6 +1058,7 @@
     $('com-sessao').hidden = true;
     $('sem-sessao').hidden = true;
     limparMontagem();
+    atualizarAcoesMontar();
     $('secao-historico').hidden = true;
     $('ferramentas').hidden = !id;
     if (!id) { chat = null; $('sem-chat').hidden = false; return; }

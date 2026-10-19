@@ -6,7 +6,7 @@ import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { calcularTotais, resumoDoPedido } from './calculo';
-import { Checkout, Cliente, EnderecoContato, EventoPublico, FiltroLink, ItemPublico, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
+import { Checkout, Cliente, EnderecoContato, EventoPublico, FiltroLink, ItemPublico, PedidoNaLoja, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
 
 const MAX_EVENTOS = 30;
 const ABERTOS: StatusSessao[] = ['link_enviado', 'navegando'];
@@ -168,6 +168,8 @@ export class SessoesService {
     const cliente = s.cliente as unknown as Cliente;
     const checkout = (s.checkout as unknown as Checkout | null) ?? null;
     const totais = s.totais as unknown as Totais;
+    const pedido = (s.pedido as unknown as PedidoNaLoja | null) ?? null;
+    const resumo = resumoDoPedido({ cliente, checkout, itens, totais });
     return {
       id: s.id,
       status: s.status,
@@ -177,13 +179,14 @@ export class SessoesService {
       totais,
       checkout,
       eventos: s.eventos.map((e) => ({ em: e.em.toISOString(), texto: e.texto, autor: e.autor })),
-      resumo: resumoDoPedido({ cliente, checkout, itens, totais }),
+      resumo: pedido ? `${resumo}\n\nPedido na loja: nº ${pedido.numero}${pedido.url ? `\nLink de pagamento: ${pedido.url}` : ''}` : resumo,
       abertaEm: s.abertaEm?.toISOString() ?? null,
       finalizadaEm: s.finalizadaEm?.toISOString() ?? null,
       expiraEm: s.expiraEm.toISOString(),
       filtro: (s.filtro as unknown as FiltroLink | null) ?? null,
       restrito: s.restrito,
       mostrarPrecos: s.mostrarPrecos,
+      pedido,
     };
   }
 

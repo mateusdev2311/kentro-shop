@@ -8,7 +8,7 @@ const conectores = {
   status: 200,
   body: [
     { id: 'falso', nome: 'Falso', capacidades: { buscaTextual: true }, camposDeCredencial: [{ chave: 'token', rotulo: 'Token', tipo: 'segredo', obrigatorio: true }] },
-    { id: 'nuvemshop', nome: 'Nuvemshop', capacidades: { buscaTextual: true, categorias: true, variacoes: true, oauth: true }, camposDeCredencial: [] },
+    { id: 'nuvemshop', nome: 'Nuvemshop', capacidades: { buscaTextual: true, categorias: true, variacoes: true, oauth: true, criarPedido: true }, camposDeCredencial: [] },
   ],
 };
 const semIntegracao = { status: 404, body: { erro: { codigo: 'NAO_ENCONTRADO', mensagem: 'Esta loja ainda não configurou a integração.' } } };
@@ -71,6 +71,33 @@ describe('aba Integração: Nuvemshop (OAuth)', () => {
     expect(t.texto('status')).toBe('Loja Loja X · Integração: funcionando');
     expect(t.texto('btn-conectar')).toBe('Conectar de novo');
     expect(t.visivel('bloco-capacidades')).toBe(true);
+  });
+
+  it('aba Pedidos: com a Nuvemshop, oferece criar o pedido na loja e salva o modo', async () => {
+    const configuracoes = {
+      status: 200,
+      body: {
+        tema: { nome: 'Loja X', corPrimaria: '#7c3aed' },
+        entrega: { habilitada: true },
+        retirada: { habilitada: false },
+        lojasRetirada: [],
+        frete: { regra: 'a_combinar' },
+        mostrarPrecos: true,
+        expiracaoLinkDias: 7,
+        modoPedido: 'handoff',
+        categoriasOcultas: [],
+      },
+    };
+    t = await tela({ 'GET /v1/loja/integracao': conectada, 'GET /v1/loja/configuracoes': configuracoes, 'PATCH /v1/loja/configuracoes': configuracoes });
+    await t.esperar(5);
+    await t.clicar('botao-aba-pedidos');
+    expect(t.visivel('bloco-modo-pedido')).toBe(true);
+    expect(t.texto('pd-plataforma')).toBe('Nuvemshop');
+    expect((t.document.getElementById('pd-criar-pedido') as HTMLInputElement).checked).toBe(false);
+    (t.document.getElementById('pd-criar-pedido') as HTMLInputElement).checked = true;
+    await t.clicar('btn-salvar-pedidos');
+    const patch = t.chamadas.find((c) => c.method === 'PATCH')!;
+    expect(JSON.parse(patch.body!)).toEqual({ mostrarPrecos: true, expiracaoLinkDias: 7, modoPedido: 'criar_pedido' });
   });
 
   it('já conectada ao abrir: diz que está conectada', async () => {

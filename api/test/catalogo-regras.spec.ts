@@ -1,4 +1,5 @@
 import { CatalogoService } from '../src/catalogo/catalogo.service';
+import { CacheCatalogo } from '../src/integracoes/cache-catalogo';
 import { Produto } from '../src/contratos/modelo';
 import { IntegracoesService } from '../src/integracoes/integracoes.service';
 import { RegraPublica, RegrasService } from '../src/regras/regras.service';
@@ -31,7 +32,7 @@ function montar(regraDaLoja?: Partial<RegraPublica>) {
   const regras = {
     porSkus: async () => new Map(regraDaLoja ? [['P1', { compreJunto: [], ...regraDaLoja } as RegraPublica]] : []),
   } as unknown as RegrasService;
-  return new CatalogoService(integracoes, regras);
+  return new CatalogoService(integracoes, regras, new CacheCatalogo());
 }
 
 describe('regras do catálogo', () => {

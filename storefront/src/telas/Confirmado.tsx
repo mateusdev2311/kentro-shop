@@ -12,17 +12,26 @@ export function Confirmado({ sessao }: { sessao: Sessao }) {
         ? `${c.loja.nome} — ${c.loja.endereco}`
         : '';
   const frete = sessao.totais.frete;
+  // Pedido criado na loja: falta só o pagamento, no checkout da própria loja.
+  const pagar = sessao.pedido?.url;
   return (
     <div class="carrinho confirmado">
       <div class="selo-ok" aria-hidden="true">
         ✓
       </div>
-      <h2 id="carrinho-titulo">{comPreco ? 'Pedido enviado!' : 'Pedido de orçamento enviado!'}</h2>
+      <h2 id="carrinho-titulo">{pagar ? `Pedido nº ${sessao.pedido!.numero} criado!` : comPreco ? 'Pedido enviado!' : 'Pedido de orçamento enviado!'}</h2>
       <p>
-        {comPreco
-          ? 'Recebemos seu pedido. Um atendente vai conferir estoque, prazo e pagamento e confirmar tudo com você no WhatsApp.'
-          : 'Recebemos sua lista. Um atendente vai preparar os valores e o frete e enviar para você no WhatsApp.'}
+        {pagar
+          ? 'Falta só o pagamento. Ele é feito no site da loja, com segurança; o atendente acompanha tudo pelo WhatsApp.'
+          : comPreco
+            ? 'Recebemos seu pedido. Um atendente vai conferir estoque, prazo e pagamento e confirmar tudo com você no WhatsApp.'
+            : 'Recebemos sua lista. Um atendente vai preparar os valores e o frete e enviar para você no WhatsApp.'}
       </p>
+      {pagar && (
+        <a class="botao primario largo pagar" href={pagar} target="_blank" rel="noopener">
+          Pagar o pedido
+        </a>
+      )}
       <div class="resumo-lista">
         {sessao.itens.map((i) => (
           <div key={`${i.produtoId}|${i.variacaoId ?? ''}`}>

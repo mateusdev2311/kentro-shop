@@ -65,8 +65,17 @@ export interface Cliente {
 
 export type StatusSessao = 'link_enviado' | 'navegando' | 'finalizado' | 'pedido_criado' | 'expirado';
 
+/** Pedido criado na loja ao finalizar: número e link de pagamento. */
+export interface PedidoNaLoja {
+  numero: string;
+  url?: string;
+  status: string;
+}
+
 export interface Sessao {
   id: string;
+  /** Ausente ou null = o atendente fecha a venda. */
+  pedido?: PedidoNaLoja | null;
   status: StatusSessao;
   url: string;
   cliente: Cliente;
@@ -109,6 +118,8 @@ export interface PedidoAnterior {
 
 export interface Abertura {
   sessao: Sessao;
+  /** O pedido é criado na loja (ex.: Nuvemshop): o checkout pede o e-mail e termina no link de pagamento. */
+  pedidoNaLoja?: boolean;
   /** Endereços e pedidos anteriores do mesmo telefone nesta loja. */
   historico: { enderecos: EnderecoSalvo[]; pedidos: PedidoAnterior[] };
   /** Link montado pelo atendente (categoria, busca ou produtos escolhidos). */
@@ -144,8 +155,9 @@ export interface PedidoDeItem {
   quantidade: number;
 }
 
-export type CorpoFinalizar =
+export type CorpoFinalizar = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
-  | { tipo: 'retirada'; lojaRetiradaId: string; observacoes: string };
+  | { tipo: 'retirada'; lojaRetiradaId: string; observacoes: string }
+) & { email?: string };
 
 export const pedidoAberto = (s: Sessao | null) => !s || s.status === 'link_enviado' || s.status === 'navegando';

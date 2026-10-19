@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Logger, Param, Post, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsString, Length } from 'class-validator';
 import { Response } from 'express';
@@ -60,6 +60,8 @@ h1{margin:0 0 8px;font-size:21px}p{margin:0;color:#6e675e}</style></head>
 @Throttle({ publico: { limit: 30, ttl: 60_000 } })
 @SkipThrottle({ registro: true })
 export class OAuthRetornoController {
+  private readonly logger = new Logger('OAuth');
+
   constructor(
     private readonly integracoes: IntegracoesService,
     private readonly registro: RegistroConectores,
@@ -98,6 +100,10 @@ export class OAuthRetornoController {
     }
     // Já deixa a integração testada (e a loja ativa): a tela de admin só precisa perceber.
     const teste = await this.integracoes.testar(estado.lojaId).catch(() => null);
+    // Webhooks (produto alterado, app desinstalado): sem eles a conexão funciona, só com cache mais lento.
+    await this.integracoes
+      .aoConectar(estado.lojaId)
+      .catch((e: unknown) => this.logger.warn(`webhooks da ${conector.nome} não registrados: ${e instanceof Error ? e.message : 'erro'}`));
     const nome = teste?.ok && teste.nomeLoja ? ` "${teste.nomeLoja}"` : '';
     return responder(200, true, `${conector.nome} conectada`, `A loja${nome} está ligada ao Kentro Shop. Pode fechar esta página e voltar para a Kentro.`);
   }

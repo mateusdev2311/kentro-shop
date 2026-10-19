@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsObject,
@@ -140,4 +141,10 @@ export class FinalizarDto {
   @IsString()
   @MaxLength(500)
   observacoes?: string;
+
+  /** Obrigatório quando o pedido é criado na loja (ex.: Nuvemshop pede o e-mail do comprador). */
+  @IsOptional()
+  @IsEmail({}, { message: 'Confira o e-mail.' })
+  @MaxLength(120)
+  email?: string;
 }

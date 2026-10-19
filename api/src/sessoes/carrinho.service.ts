@@ -3,15 +3,16 @@ import { ItemCarrinho, Prisma, Sessao as SessaoBanco } from '@prisma/client';
 import { CatalogoService } from '../catalogo/catalogo.service';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
-import { NaoEncontrado } from '../conectores/nucleo/erros';
+import { ErroConector, NaoEncontrado } from '../conectores/nucleo/erros';
 import { Produto } from '../contratos/modelo';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
+import { IntegracoesService } from '../integracoes/integracoes.service';
 import { arredondar, calcularTotais, freteDaRegra, moeda, unidade } from './calculo';
 import { FinalizarDto, ItemPedidoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 import { ClientesService } from './clientes.service';
 import { precosVisiveis, sessaoSemPreco } from './sem-preco';
-import { Checkout, Cliente, DadosEntrega, FiltroLink, SessaoCompleta, SessaoPublica } from './tipos';
+import { Checkout, Cliente, DadosEntrega, FiltroLink, PedidoNaLoja, SessaoCompleta, SessaoPublica } from './tipos';
 
 export const MAX_QUANTIDADE = 999;
 const MAX_ITENS = 100;
@@ -93,6 +94,7 @@ export class CarrinhoService {
     private readonly catalogo: CatalogoService,
     private readonly configLoja: ConfigLojaService,
     private readonly clientes: ClientesService,
+    private readonly integracoes: IntegracoesService,
   ) {}
 
   /** Ações depois da finalização (na 1.4: aviso para a Kentro). Falha numa delas não desfaz o pedido. */
@@ -120,6 +122,14 @@ export class CarrinhoService {
     return { sessao: await this.sessoes.completa(sessao.id), avisos };
   }
 
+  /** O atendente soma itens ao carrinho do link aberto (o cliente continua com o mesmo link e o que já escolheu). */
+  async adicionarPeloAtendente(lojaId: string, sessaoId: string, novos: ItemPedidoDto[]): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
+    const existentes = await this.prisma.itemCarrinho.findMany({ where: { sessaoId, sessao: { lojaId } } });
+    const atuais: ItemPedidoDto[] = existentes.map((i) => ({ produtoId: i.produtoId, ...(i.variacaoId ? { variacaoId: i.variacaoId } : {}), quantidade: i.quantidade }));
+    // definirNaSessao soma as linhas repetidas (mesmo produto e variação), até o máximo por item.
+    return this.definirPeloAtendente(lojaId, sessaoId, [...atuais, ...novos]);
+  }
+
   private async definirNaSessao(sessao: SessaoBanco, pedidos: ItemPedidoDto[], autor: 'cliente' | 'atendente'): Promise<string[]> {
     if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
     // Link restrito: o cliente só põe no carrinho o que está no filtro (o que o atendente já pôs continua).
@@ -140,6 +150,9 @@ export class CarrinhoService {
     const avisos: string[] = [];
     const finais: ItemRevalidado[] = [];
     const cache = new Map<string, Promise<Produto | null>>();
+    // Uma consulta para todos os produtos que mudaram, em vez de uma por item.
+    const mudaram = [...desejados].filter(([k, d]) => porChave.get(k)?.quantidade !== d.quantidade).map(([, d]) => d.produtoId);
+    await this.preCarregar(sessao.lojaId, mudaram, cache);
 
     for (const [k, desejado] of desejados) {
       const existente = porChave.get(k);
@@ -160,6 +173,14 @@ export class CarrinhoService {
 
     await this.gravar(sessao, existentes, finais, autor);
     return avisos;
+  }
+
+  /** Vários produtos numa consulta só (quando a plataforma deixa). fresco = sem cache: preço e estoque de agora. */
+  private async preCarregar(lojaId: string, ids: string[], cache: Map<string, Promise<Produto | null>>, fresco = false): Promise<void> {
+    const faltam = [...new Set(ids)].filter((id) => !cache.has(id));
+    if (!faltam.length) return;
+    const mapa = await this.catalogo.obterVarios(lojaId, faltam, { fresco });
+    for (const id of faltam) cache.set(id, Promise.resolve(mapa.get(id) ?? null));
   }
 
   /** Produto da plataforma, uma consulta por produto na mesma operação. Inexistente = null. */
@@ -241,10 +262,19 @@ export class CarrinhoService {
       checkout = { tipo: 'retirada', loja, observacoes };
     }
 
+    // Pedido criado na loja (ex.: Nuvemshop): a plataforma exige o e-mail do comprador.
+    // Pedido de orçamento (link sem preço) segue para o atendente: o checkout da loja mostraria os valores.
+    const pedidoNaLoja =
+      precosVisiveis(sessao, config.mostrarPrecos) && (await this.integracoes.criaPedidoNaPlataforma(sessao.lojaId, config.modoPedido));
+    const email = texto(dto.email, 120) || (sessao.cliente as unknown as Cliente).email || '';
+    if (pedidoNaLoja && !email) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'Informe o seu e-mail para receber o pedido.');
+
     const existentes = await this.prisma.itemCarrinho.findMany({ where: { sessaoId: sessao.id }, orderBy: { revalidadoEm: 'asc' } });
     if (!existentes.length) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'O carrinho está vazio.');
 
     const cache = new Map<string, Promise<Produto | null>>();
+    // Finalizar vale o preço e o estoque de agora: lê de novo, sem cache, numa consulta só.
+    await this.preCarregar(sessao.lojaId, existentes.map((e) => e.produtoId), cache, true);
     const finais: ItemRevalidado[] = [];
     const diferencas: Diferenca[] = [];
     for (const existente of existentes) {
@@ -289,8 +319,9 @@ export class CarrinhoService {
     // Nome e telefone do checkout valem para o pedido; o resto do pré-cadastro (e-mail, documento) continua.
     const clienteAntes = sessao.cliente as unknown as Cliente;
     const { endereco: _enderecoDoContato, ...semEndereco } = clienteAntes;
-    const cliente: Cliente =
+    const doCheckout: Cliente =
       checkout.tipo === 'entrega' ? { ...semEndereco, nome: checkout.entrega.nome, telefone: checkout.entrega.telefone } : clienteAntes;
+    const cliente: Cliente = email ? { ...doCheckout, email } : doCheckout;
     await this.prisma.$transaction(async (tx) => {
       await tx.sessao.update({
         where: { id: sessao.id },
@@ -305,12 +336,47 @@ export class CarrinhoService {
       await this.sessoes.registrar(sessao.id, 'finalizou', `Cliente finalizou o pedido (${checkout.tipo}) — ${moeda(totais.total)}`, 'cliente', tx);
     });
 
-    const completa = await this.sessoes.completa(sessao.id);
+    let completa = await this.sessoes.completa(sessao.id);
     // Histórico pelo telefone original (o da Kentro); o do checkout só se não houver.
     await this.clientes.registrarFinalizacao(sessao.lojaId, clienteAntes.telefone, completa).catch(() => undefined);
+    if (pedidoNaLoja) completa = await this.criarNaPlataforma(sessao.lojaId, completa);
     for (const acao of this.aoFinalizar) await acao(completa).catch(() => undefined);
     const { eventos: _eventos, resumo: _resumo, ...publica } = completa;
     return publica;
+  }
+
+  /**
+   * Cria o pedido na plataforma (ex.: rascunho com link de pagamento na Nuvemshop). Falha não desfaz a finalização:
+   * o pedido segue para o atendente, com o motivo na atividade.
+   */
+  private async criarNaPlataforma(lojaId: string, completa: SessaoCompleta): Promise<SessaoCompleta> {
+    const checkout = completa.checkout!;
+    try {
+      const { conector, ctx } = await this.integracoes.contexto(lojaId);
+      const pedido: PedidoNaLoja = await conector.criarPedido!(ctx, {
+        cliente: { nome: completa.cliente.nome, telefone: completa.cliente.telefone, email: completa.cliente.email, documento: completa.cliente.documento },
+        entrega:
+          checkout.tipo === 'entrega'
+            ? { tipo: 'entrega', endereco: { ...checkout.entrega, complemento: checkout.entrega.complemento || undefined, referencia: checkout.entrega.referencia || undefined } }
+            : { tipo: 'retirada', lojaRetiradaId: checkout.loja.id },
+        itens: completa.itens.map((i) => ({ produtoId: i.produtoId, variacaoId: i.variacaoId ?? undefined, sku: i.sku, quantidade: i.quantidade, precoUnitario: i.precoUnitario })),
+        ...(checkout.tipo === 'entrega' && completa.totais.frete !== null ? { frete: { titulo: 'Frete', valor: completa.totais.frete } } : {}),
+        observacoes: [checkout.observacoes, checkout.tipo === 'retirada' ? `Retirada em ${checkout.loja.nome} — ${checkout.loja.endereco}` : '']
+          .filter(Boolean)
+          .join('\n'),
+        referenciaExterna: completa.id,
+      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.sessao.update({ where: { id: completa.id }, data: { status: 'pedido_criado', pedido: pedido as unknown as Prisma.InputJsonValue } });
+        const link = pedido.url ? ', com link de pagamento para o cliente' : '';
+        await this.sessoes.registrar(completa.id, 'pedido', `Pedido nº ${pedido.numero} criado na ${conector.nome}${link}`, 'sistema', tx);
+      });
+      return this.sessoes.completa(completa.id);
+    } catch (e) {
+      const motivo = e instanceof ErroConector ? e.message : 'erro inesperado.';
+      await this.sessoes.registrar(completa.id, 'pedido', `Não foi possível criar o pedido na loja (${motivo}) O atendente fecha a venda.`, 'sistema').catch(() => undefined);
+      return this.sessoes.completa(completa.id);
+    }
   }
 
   /** Revalida um item na plataforma. Devolve null (com aviso) se não puder ser vendido. */
@@ -330,8 +396,11 @@ export class CarrinhoService {
     }
 
     let variacao = null;
-    if (desejado.variacaoId) {
-      variacao = produto.variacoes.find((v) => v.id === desejado.variacaoId) ?? null;
+    // Variação informada para produto sem variações (pedido anterior da plataforma, que sempre tem uma variante):
+    // vale o produto simples.
+    const variacaoId = produto.variacoes.length ? desejado.variacaoId : '';
+    if (variacaoId) {
+      variacao = produto.variacoes.find((v) => v.id === variacaoId) ?? null;
       if (!variacao) {
         avisos.push(`A opção escolhida de ${produto.nome} não existe mais.`);
         return null;
@@ -359,7 +428,7 @@ export class CarrinhoService {
     const m2PorUnidade = produto.regras?.m2PorUnidade;
     return {
       produtoId: desejado.produtoId,
-      variacaoId: desejado.variacaoId,
+      variacaoId,
       sku: fonte.sku,
       nome: produto.nome,
       variacaoNome: variacao?.nome ?? null,

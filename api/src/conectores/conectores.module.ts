@@ -14,7 +14,11 @@ export const CONECTORES_PADRAO: Conector[] = [conectorEcommercenet, conectorShop
 /** Conectores de produção: a Nuvemshop só aparece com o app de parceiro configurado. */
 export function conectoresPadrao(config: Pick<ConfigApp, 'nuvemshop' | 'urlPublica'>): Conector[] {
   if (!config.nuvemshop) return CONECTORES_PADRAO;
-  const nuvemshop = criarConectorNuvemshop({ ...config.nuvemshop, userAgent: `Kentro Shop (${config.urlPublica})` });
+  const nuvemshop = criarConectorNuvemshop({
+    ...config.nuvemshop,
+    userAgent: `Kentro Shop (${config.urlPublica})`,
+    urlWebhooks: `${config.urlPublica}/v1/nuvemshop/webhooks`,
+  });
   return [conectorEcommercenet, conectorShopify, nuvemshop, conectorKentro, conectorDemonstracao];
 }
 

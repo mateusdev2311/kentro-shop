@@ -86,6 +86,16 @@ export interface SessaoCompleta {
   restrito: boolean;
   /** null = segue a loja. */
   mostrarPrecos: boolean | null;
+  /** Pedido criado na loja ao finalizar (modo "criar pedido"); null = o atendente fecha a venda. */
+  pedido: PedidoNaLoja | null;
+}
+
+export interface PedidoNaLoja {
+  idExterno: string;
+  numero: string;
+  /** Link de pagamento (checkout da plataforma). */
+  url?: string;
+  status: string;
 }
 
 export interface FiltroLink {

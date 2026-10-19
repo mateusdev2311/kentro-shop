@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../comum/prisma.service';
+import { ConsultaCliente } from '../conectores/nucleo/conector';
 import { IntegracoesService } from '../integracoes/integracoes.service';
 import { Cliente, EnderecoContato, SessaoCompleta } from './tipos';
 
@@ -130,27 +131,42 @@ export class ClientesService {
     if (!telefone) return { enderecos: [], pedidos: [] };
     const [salvo, daPlataforma] = await Promise.all([
       this.prisma.clienteLoja.findUnique({ where: { lojaId_telefone: { lojaId, telefone } } }),
-      this.enderecosDaPlataforma(lojaId, telefone),
+      this.daPlataforma(lojaId, { telefone, email: cliente.email ?? undefined, documento: cliente.documento ?? undefined }),
     ]);
     const doContato = cliente.endereco && (cliente.endereco.rua || cliente.endereco.cep) ? [completo(cliente.endereco as EnderecoContato)] : [];
+    const pedidosSalvos = (salvo?.pedidos as unknown as PedidoAnterior[]) ?? [];
     return {
-      enderecos: semRepetir([...((salvo?.enderecos as unknown as EnderecoSalvo[]) ?? []), ...doContato, ...daPlataforma]).slice(0, MAX_ENDERECOS),
-      pedidos: (salvo?.pedidos as unknown as PedidoAnterior[]) ?? [],
+      enderecos: semRepetir([...((salvo?.enderecos as unknown as EnderecoSalvo[]) ?? []), ...doContato, ...daPlataforma.enderecos]).slice(0, MAX_ENDERECOS),
+      // Os pedidos feitos pelo Kentro Shop vêm primeiro; sem nenhum, os da loja na plataforma (cliente antigo).
+      pedidos: pedidosSalvos.length ? pedidosSalvos : daPlataforma.pedidos,
     };
   }
 
-  /** Endereços que a plataforma conhece (ex.: Shopify com a Admin API). Lento ou com erro: ignora. */
-  private async enderecosDaPlataforma(lojaId: string, telefone: string): Promise<EnderecoSalvo[]> {
+  /** O que a plataforma conhece do cliente (ex.: Shopify com a Admin API, Nuvemshop). Lento ou com erro: ignora. */
+  private async daPlataforma(lojaId: string, consulta: ConsultaCliente): Promise<Historico> {
+    const vazio: Historico = { enderecos: [], pedidos: [] };
     try {
       const { conector, ctx } = await this.integracoes.contexto(lojaId);
-      if (!conector.capacidades.historicoCliente || !conector.historicoDoCliente) return [];
+      if (!conector.capacidades.historicoCliente || !conector.historicoDoCliente) return vazio;
       let relogio: ReturnType<typeof setTimeout> | undefined;
       const limite = new Promise<null>((resolver) => (relogio = setTimeout(() => resolver(null), ESPERA_PLATAFORMA_MS)));
-      const h = await Promise.race([conector.historicoDoCliente(ctx, telefone), limite]).finally(() => clearTimeout(relogio));
-      return (h?.enderecos ?? []).map((e) => completo(e));
+      const h = await Promise.race([conector.historicoDoCliente(ctx, consulta), limite]).finally(() => clearTimeout(relogio));
+      if (!h) return vazio;
+      return {
+        enderecos: h.enderecos.map((e) => completo(e)),
+        // Só entra no "pedir de novo" o pedido cujos itens a plataforma identifica (produto e variação).
+        pedidos: h.pedidos
+          .filter((p) => p.itens.length && p.itens.every((i) => i.produtoId))
+          .slice(0, MAX_PEDIDOS)
+          .map((p) => ({
+            data: p.data,
+            total: p.total,
+            itens: p.itens.map((i) => ({ produtoId: i.produtoId!, variacaoId: i.variacaoId || null, sku: i.sku, nome: i.nome, variacaoNome: null, quantidade: i.quantidade })),
+          })),
+      };
     } catch (e) {
       this.logger.warn(`histórico da plataforma indisponível: ${e instanceof Error ? e.constructor.name : 'erro'}`);
-      return [];
+      return vazio;
     }
   }
 }

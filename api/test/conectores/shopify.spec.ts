@@ -118,15 +118,15 @@ describe('conector Shopify', () => {
   });
 
   it('histórico do cliente pelo telefone (Admin API); sem token Admin devolve null', async () => {
-    expect(await conectorShopify.historicoDoCliente!(ctx(), '5538988887777')).toBeNull();
-    const h = await conectorShopify.historicoDoCliente!(ctx(SHOPIFY_COM_ADMIN), '(38) 98888-7777');
+    expect(await conectorShopify.historicoDoCliente!(ctx(), { telefone: '5538988887777' })).toBeNull();
+    const h = await conectorShopify.historicoDoCliente!(ctx(SHOPIFY_COM_ADMIN), { telefone: '(38) 98888-7777' });
     expect(h).toEqual({
       nome: 'Ana Souza',
       email: 'ana@x.com',
       enderecos: [{ cep: '39400-000', estado: 'MG', cidade: 'Montes Claros', bairro: '', rua: 'Rua A, 10', numero: '', complemento: 'Centro' }],
       pedidos: [{ numero: '#1001', data: '2026-09-01T12:00:00Z', total: 239.8, itens: [{ sku: 'PRC-CAL', nome: 'Porcelanato Calacata 60x60', quantidade: 2 }] }],
     });
-    expect(await conectorShopify.historicoDoCliente!(ctx(SHOPIFY_COM_ADMIN), '5511900000000')).toBeNull();
+    expect(await conectorShopify.historicoDoCliente!(ctx(SHOPIFY_COM_ADMIN), { telefone: '5511900000000' })).toBeNull();
   });
 
   it('relacionados pelas recomendações da Shopify, sem o próprio produto', async () => {

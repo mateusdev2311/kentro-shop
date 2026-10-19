@@ -127,10 +127,12 @@ async function servidorBase(url: string, init?: RequestInit): Promise<Response> 
       });
     }
     const s = sessao('finalizado');
-    const c = corpo as { tipo: string; entrega?: Record<string, string> };
+    const c = corpo as { tipo: string; entrega?: Record<string, string>; email?: string };
     return json(200, {
       ...s,
       checkout: c.tipo === 'entrega' ? { tipo: 'entrega', entrega: { ...c.entrega, cep: '39400-000' }, observacoes: '' } : null,
+      // Pedido criado na loja (modo "criar pedido"): número e link de pagamento.
+      ...(c.email ? { status: 'pedido_criado', pedido: { numero: '1042', url: 'https://loja.teste/pagar/1042', status: 'aguardando_pagamento' } } : {}),
     });
   }
   return json(404, { erro: { codigo: 'NAO_ENCONTRADO', mensagem: 'Recurso não encontrado.' } });
@@ -486,6 +488,27 @@ describe('catálogo do cliente', () => {
     clicar(elemento('button', 'Enviar pedido para o atendente'));
     await ate(() => chamadas('/finalizar').length === 1);
     expect(chamadas('/finalizar')[0].corpo).toEqual({ tipo: 'retirada', lojaRetiradaId: 'centro', observacoes: '' });
+  });
+
+  it('pedido criado na loja: pede o e-mail e termina no botão de pagamento', async () => {
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 1 }];
+    estado.abertura.pedidoNaLoja = true;
+    estado.abertura.retirada = { habilitada: true, lojas: [{ id: 'centro', nome: 'Loja Centro', endereco: 'Rua B, 2', horario: '', orientacoes: '' }] };
+    await montar();
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    clicar(elemento('button', 'Continuar'));
+    clicar(elemento('.opcao', 'Retirada'));
+    clicar(elemento('.loja', 'Loja Centro'));
+    expect(tem('Você paga no site da loja')).toBe(true);
+    clicar(elemento('button', 'Fechar pedido e ir para o pagamento'));
+    expect(elemento('[role=alert]').textContent).toBe('Informe o seu e-mail para receber o pedido.');
+    expect(chamadas('/finalizar')).toHaveLength(0);
+    digitar(elemento<HTMLInputElement>('#f-email'), ' ana@exemplo.com ');
+    clicar(elemento('button', 'Fechar pedido e ir para o pagamento'));
+    await ate(() => tem('Pedido nº 1042 criado!'));
+    expect(chamadas('/finalizar')[0].corpo).toEqual({ tipo: 'retirada', lojaRetiradaId: 'centro', observacoes: '', email: 'ana@exemplo.com' });
+    expect(elemento<HTMLAnchorElement>('a.pagar').href).toBe('https://loja.teste/pagar/1042');
   });
 
   it('link inválido mostra a tela amigável', async () => {

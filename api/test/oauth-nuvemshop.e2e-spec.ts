@@ -5,19 +5,25 @@ import request from 'supertest';
 import { Conector } from '../src/conectores/nucleo/conector';
 import { RecusadoPelaPlataforma } from '../src/conectores/nucleo/erros';
 import { criarAppDeTeste } from './app';
-import { conectorFalso } from './conectores/conector-falso';
+import { conectorFalso, controleFalso, reiniciarFalso } from './conectores/conector-falso';
 import { limparBanco } from './limpar';
 
 const prisma = new PrismaClient();
 const SEGREDO = 'segredo-do-app';
 let ipSeq = 0;
 
+const registrosDeWebhook: string[] = [];
+
 /** Plataforma com OAuth em memória (o conector de verdade é testado com a Nuvemshop simulada). */
 const nuvemFalsa: Conector = {
   ...conectorFalso,
   id: 'nuvemshop',
   nome: 'Nuvemshop',
+  cacheSegundos: 60,
   capacidades: { ...conectorFalso.capacidades, oauth: true },
+  async aoConectar() {
+    registrosDeWebhook.push('registrou');
+  },
   camposDeCredencial: [],
   urlDeAutorizacao: (estado) => `https://plataforma.teste/autorizar?state=${encodeURIComponent(estado)}`,
   async concluirAutorizacao(_ctx, params) {
@@ -44,7 +50,7 @@ describe('Nuvemshop: autorização (OAuth) e webhooks de LGPD', () => {
   const webhook = (caminho: string, corpo: object, assinatura?: string) => {
     const bruto = JSON.stringify(corpo);
     return http()
-      .post(`/v1/nuvemshop/lgpd/${caminho}`)
+      .post(caminho.startsWith('/') ? caminho : `/v1/nuvemshop/lgpd/${caminho}`)
       .set('Content-Type', 'application/json')
       .set('x-linkedstore-hmac-sha256', assinatura ?? createHmac('sha256', SEGREDO).update(bruto).digest('hex'))
       .send(bruto);
@@ -141,6 +147,25 @@ describe('Nuvemshop: autorização (OAuth) e webhooks de LGPD', () => {
     await webhook('customers-redact', { store_id: 555, customer: { id: 2, email: 'bia@exemplo.com', phone: '' } });
     await webhook('customers-redact', { store_id: 999, customer: { id: 3, phone: '+55 21 91111-1111' } }); // outra conta
     expect((await prisma.clienteLoja.findMany({ where: { lojaId: loja.lojaId } })).map((c) => c.nome)).toEqual(['Caio']);
+  });
+
+  it('conectar registra os webhooks; produto alterado na loja limpa o cache do catálogo', async () => {
+    registrosDeWebhook.length = 0;
+    await conectar();
+    expect(registrosDeWebhook).toEqual(['registrou']);
+    const produto = async () => (await http().get('/v1/loja/catalogo/produtos/id-A1').set('X-Loja-Chave', loja.chaveAtendimento)).body.preco;
+    expect(await produto()).toBe(129.9);
+    controleFalso.precos.A1 = 99.9;
+    expect(await produto()).toBe(129.9); // em cache
+    expect((await webhook('/v1/nuvemshop/webhooks', { store_id: 555, event: 'product/updated', id: 1 })).status).toBe(200);
+    expect(await produto()).toBe(99.9);
+    reiniciarFalso();
+  });
+
+  it('webhook app/uninstalled desconecta na hora', async () => {
+    await conectar();
+    expect((await webhook('/v1/nuvemshop/webhooks', { store_id: 555, event: 'app/uninstalled', id: 47447 })).status).toBe(200);
+    expect(await prisma.integracao.count()).toBe(0);
   });
 
   it('customers/data_request responde 200', async () => {

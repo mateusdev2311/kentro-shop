@@ -1,7 +1,7 @@
 import { criarClienteHttp } from '../../src/conectores/nucleo/cliente-http';
 import { CtxConector } from '../../src/conectores/nucleo/conector';
 import { RecusadoPelaPlataforma } from '../../src/conectores/nucleo/erros';
-import { criarConectorNuvemshop, idioma } from '../../src/conectores/nuvemshop/nuvemshop.conector';
+import { criarConectorNuvemshop, idioma, ufDe } from '../../src/conectores/nuvemshop/nuvemshop.conector';
 import { APP_TESTE, ChamadaNuvemshop, criarFetchNuvemshop, NUVEMSHOP_CREDENCIAIS } from './fixtures-nuvemshop';
 
 const conector = criarConectorNuvemshop(APP_TESTE);
@@ -117,6 +117,93 @@ describe('conector Nuvemshop', () => {
     expect(idioma({ es: 'Hola' })).toBe('Hola');
     expect(idioma({ fr: 'Salut' })).toBe('Salut');
     expect(idioma('Texto')).toBe('Texto');
+  });
+
+  it('carrinho numa chamada só: vários ids em /products?ids=, despublicado fica de fora; SKU vai um a um', async () => {
+    const chamadas: ChamadaNuvemshop[] = [];
+    const mapa = await conector.obterProdutos!(ctx(chamadas), ['101', '102', '104', 'ARG']);
+    expect([...mapa.keys()]).toEqual(['101', '102', 'ARG']);
+    expect(chamadas).toHaveLength(2);
+    expect(new URL(chamadas[0].url).searchParams.get('ids')).toBe('101,102,104');
+    expect(conector.cacheSegundos).toBe(60);
+  });
+
+  it('ao conectar registra só os webhooks que faltam', async () => {
+    const chamadas: ChamadaNuvemshop[] = [];
+    await conector.aoConectar!(ctx(chamadas));
+    const criados = chamadas.filter((c) => c.metodo === 'POST').map((c) => c.corpo);
+    expect(criados).toEqual(
+      ['product/created', 'product/updated', 'product/deleted'].map((event) => ({ event, url: 'https://shop.teste/v1/nuvemshop/webhooks' })),
+    );
+  });
+
+  it('rascunho de pedido: variante do produto simples, frete calculado, CPF e link de pagamento em https', async () => {
+    const chamadas: ChamadaNuvemshop[] = [];
+    const pedido = await conector.criarPedido!(ctx(chamadas), {
+      cliente: { nome: 'Ana Maria Souza', telefone: '(38) 98888-7777', email: 'ana@exemplo.com', documento: '123.456.789-09' },
+      entrega: { tipo: 'entrega', endereco: { cep: '39400-000', estado: 'MG', cidade: 'Montes Claros', bairro: 'Centro', rua: 'Rua A', numero: '10', complemento: 'Casa 2' } },
+      itens: [
+        { produtoId: '101', sku: 'PRC-CAL', quantidade: 2, precoUnitario: 119.9 },
+        { produtoId: '102', variacaoId: '1002', sku: 'TNT-BR', quantidade: 1, precoUnitario: 80 },
+      ],
+      frete: { titulo: 'Frete', valor: 25 },
+      observacoes: 'Entregar sábado',
+      referenciaExterna: 'sessao-1',
+    });
+    expect(pedido).toEqual({ idExterno: '9001', numero: '9001', url: 'https://loja-teste.lojavirtualnuvem.com.br/checkout/v3/9001/tk', status: 'aguardando_pagamento' });
+    const envios = chamadas.filter((c) => c.url.endsWith('/draft_orders'));
+    expect(envios).toHaveLength(2); // o objeto "shipping" foi recusado e foi de novo como lista
+    expect(envios[1].corpo).toMatchObject({
+      contact_name: 'Ana',
+      contact_lastname: 'Maria Souza',
+      contact_email: 'ana@exemplo.com',
+      cpf_cnpj: '12345678909',
+      payment_status: 'pending',
+      products: [
+        { variant_id: 1001, quantity: 2 },
+        { variant_id: 1002, quantity: 1 },
+      ],
+      shipping: [{ cost: '25.00', shipping_address: [{ address: 'Rua A', number: '10', floor: 'Casa 2', locality: 'Centro', city: 'Montes Claros', province: 'MG', zipcode: '39400000' }] }],
+    });
+    expect((envios[1].corpo as { note: string }).note).toContain('Entregar sábado');
+  });
+
+  it('rascunho sem e-mail é recusado antes de chamar a Nuvemshop', async () => {
+    const chamadas: ChamadaNuvemshop[] = [];
+    const sem = conector.criarPedido!(ctx(chamadas), {
+      cliente: { nome: 'Ana', telefone: '1' },
+      entrega: { tipo: 'retirada' },
+      itens: [{ produtoId: '101', sku: 'PRC-CAL', quantidade: 1, precoUnitario: 119.9 }],
+      referenciaExterna: 's',
+    });
+    await expect(sem).rejects.toThrow('o cliente precisa informar o e-mail');
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('histórico pelo e-mail (ou CPF): endereços com a UF e pedidos com produto e variante', async () => {
+    const porEmail = await conector.historicoDoCliente!(ctx(), { telefone: '5538988887777', email: 'Ana@Exemplo.com' });
+    expect(porEmail).toEqual({
+      nome: 'Ana Souza',
+      email: 'ana@exemplo.com',
+      enderecos: [{ cep: '39400000', estado: 'MG', cidade: 'Montes Claros', bairro: 'Centro', rua: 'Rua A', numero: '10', complemento: 'Casa 2' }],
+      pedidos: [
+        {
+          numero: '104',
+          data: '2026-09-10T10:00:00-0300',
+          total: 239.8,
+          itens: [{ sku: 'PRC-CAL', nome: 'Porcelanato Calacata 60x60', quantidade: 2, produtoId: '101', variacaoId: '1001' }],
+        },
+      ],
+    });
+    expect((await conector.historicoDoCliente!(ctx(), { telefone: '1', documento: '123.456.789-09' }))?.nome).toBe('Ana Souza');
+    expect(await conector.historicoDoCliente!(ctx(), { telefone: '5538988887777' })).toBeNull(); // só telefone: a Nuvemshop não busca
+  });
+
+  it('estado por extenso vira sigla', () => {
+    expect(ufDe('São Paulo')).toBe('SP');
+    expect(ufDe('mg')).toBe('MG');
+    expect(ufDe('Distrito Federal')).toBe('DF');
+    expect(ufDe('Buenos Aires')).toBe('');
   });
 
   it('sem token ou store_id gravado: recusa antes de chamar', async () => {

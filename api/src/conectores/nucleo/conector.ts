@@ -69,6 +69,13 @@ export interface ItemCotacao {
   quantidade: number;
 }
 
+/** Quem procurar na plataforma: o telefone (com DDI) e o que a Kentro já sabe do contato. */
+export interface ConsultaCliente {
+  telefone: string;
+  email?: string;
+  documento?: string;
+}
+
 export interface FiltroProdutos {
   busca?: string;
   categoriaId?: string;
@@ -83,6 +90,11 @@ export interface Conector {
   readonly camposDeCredencial: CampoCredencial[];
   /** Ritmo de requisições por loja (token bucket). */
   readonly ritmo: { porSegundo: number; rajada: number };
+  /**
+   * Segundos que as leituras do catálogo podem ficar em cache (plataforma com limite de chamadas apertado).
+   * Ausente = sem cache. A finalização do pedido sempre lê de novo.
+   */
+  readonly cacheSegundos?: number;
 
   /**
    * Para onde os segredos são enviados, quando isso vem de um campo que não é do tipo url (ex.: domínio da loja).
@@ -94,11 +106,15 @@ export interface Conector {
   listarCategorias(ctx: CtxConector): Promise<Categoria[]>;
   listarProdutos(ctx: CtxConector, filtro: FiltroProdutos): Promise<Pagina<Produto>>;
   obterProduto(ctx: CtxConector, produtoId: string): Promise<Produto | null>;
+  /** Vários produtos numa chamada (conferência do carrinho). Inexistente ou fora de venda: fica de fora do mapa. */
+  obterProdutos?(ctx: CtxConector, ids: string[]): Promise<Map<string, Produto>>;
+  /** Depois da autorização (OAuth): ex. registrar os webhooks. Falha aqui não desfaz a conexão. */
+  aoConectar?(ctx: CtxConector): Promise<void>;
   relacionados?(ctx: CtxConector, produtoId: string): Promise<Produto[]>;
   cotarFrete?(ctx: CtxConector, itens: ItemCotacao[], cep: string): Promise<OpcaoFrete[]>;
   criarPedido?(ctx: CtxConector, pedido: PedidoParaCriar): Promise<PedidoCriado>;
   /** null = a loja não habilitou essa consulta (ex.: Shopify sem o token da Admin API) ou o cliente não existe. */
-  historicoDoCliente?(ctx: CtxConector, telefone: string): Promise<HistoricoCliente | null>;
+  historicoDoCliente?(ctx: CtxConector, cliente: ConsultaCliente): Promise<HistoricoCliente | null>;
   /** OAuth: página onde o lojista autoriza. `estado` volta no retorno e identifica a loja. */
   urlDeAutorizacao?(estado: string): string;
   /** OAuth: troca o que veio no retorno (ex.: code) pelas credenciais a gravar. ctx sem credenciais. */

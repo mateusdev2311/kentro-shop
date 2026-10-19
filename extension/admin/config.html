@@ -494,6 +494,8 @@
         <div class="grupo-interruptores">
           <label class="interruptor"><input type="checkbox" id="pd-precos"><span><strong>Mostrar os preços no catálogo</strong>
             <small class="ajuda">Desligado, o cliente monta a lista sem ver valores e envia um pedido de orçamento. O atendente pode mudar isso em cada link.</small></span></label>
+          <label class="interruptor" id="bloco-modo-pedido" hidden><input type="checkbox" id="pd-criar-pedido"><span><strong>Criar o pedido na <span id="pd-plataforma"></span>, com link de pagamento</strong>
+            <small class="ajuda">Ao finalizar, o pedido entra na loja e o cliente paga no checkout dela, com as formas de pagamento que você já usa. Desligado, o pedido vai para o atendente fechar a venda. Pedido de orçamento (sem preço) sempre vai para o atendente.</small></span></label>
         </div>
         <label for="pd-validade">Validade do link (dias)</label>
         <input id="pd-validade" class="curto" type="number" min="1" max="60">
@@ -1066,6 +1068,7 @@
       mostrarResultado(mensagemDeErro(erro));
     }).then(function () {
       atualizarStatus();
+      mostrarModoPedido();
     });
   }
 
@@ -1129,6 +1132,18 @@
     // Pedidos
     $('pd-precos').checked = c.mostrarPrecos !== false;
     $('pd-validade').value = String(c.expiracaoLinkDias || 7);
+    $('pd-criar-pedido').checked = c.modoPedido === 'criar_pedido';
+    mostrarModoPedido();
+  }
+
+  /** "Criar o pedido na loja" só aparece quando a plataforma conectada sabe criar pedido (ex.: Nuvemshop). */
+  function mostrarModoPedido() {
+    var plataforma = estado.integracao && estado.integracao.plataforma;
+    var conector = null;
+    for (var i = 0; i < estado.conectores.length; i++) if (estado.conectores[i].id === plataforma) conector = estado.conectores[i];
+    var pode = !!(conector && conector.capacidades.criarPedido);
+    $('bloco-modo-pedido').hidden = !pode;
+    $('pd-plataforma').textContent = conector ? conector.nome : '';
   }
 
   function carregarConfiguracoes() {
@@ -1255,10 +1270,12 @@
 
   // ── Aba Pedidos ──────────────────────────────────────────────────────────
   $('btn-salvar-pedidos').addEventListener('click', function () {
-    salvarConfig({
+    var corpo = {
       mostrarPrecos: $('pd-precos').checked,
       expiracaoLinkDias: Math.max(1, Math.min(60, Math.floor(Number($('pd-validade').value)) || 7))
-    }, this, 'resultado-pedidos', 'Pedidos salvos.');
+    };
+    if (!$('bloco-modo-pedido').hidden) corpo.modoPedido = $('pd-criar-pedido').checked ? 'criar_pedido' : 'handoff';
+    salvarConfig(corpo, this, 'resultado-pedidos', 'Pedidos salvos.');
   });
 
   // ── Aba Catálogo ─────────────────────────────────────────────────────────

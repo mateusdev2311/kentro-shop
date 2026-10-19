@@ -1,5 +1,5 @@
-import { Categoria, Pagina, Produto, Variacao } from '../../contratos/modelo';
-import { Conector, CtxConector, FiltroProdutos } from '../nucleo/conector';
+import { Categoria, Endereco, HistoricoCliente, Pagina, PedidoCriado, PedidoParaCriar, Produto, Variacao } from '../../contratos/modelo';
+import { ConsultaCliente, Conector, CtxConector, FiltroProdutos } from '../nucleo/conector';
 import { CredencialInvalida, NaoEncontrado, RecusadoPelaPlataforma } from '../nucleo/erros';
 import { htmlParaTexto, numero, urlHttps } from '../nucleo/texto';
 
@@ -21,7 +21,29 @@ export interface AppNuvemshop {
   clientSecret: string;
   /** "Kentro Shop (https://…)": a Nuvemshop recusa chamada sem User-Agent com contato. */
   userAgent: string;
+  /** Para onde a Nuvemshop manda os webhooks de produto e de desinstalação (registrados ao conectar). */
+  urlWebhooks: string;
 }
+
+/** Eventos registrados ao conectar: produto mudou (limpa o cache) e app desinstalado (apaga a integração). */
+export const EVENTOS_WEBHOOK = ['app/uninstalled', 'product/created', 'product/updated', 'product/deleted'];
+
+const UFS: Record<string, string> = {
+  acre: 'AC', alagoas: 'AL', amapa: 'AP', amazonas: 'AM', bahia: 'BA', ceara: 'CE', 'distrito federal': 'DF',
+  'espirito santo': 'ES', goias: 'GO', maranhao: 'MA', 'mato grosso': 'MT', 'mato grosso do sul': 'MS',
+  'minas gerais': 'MG', para: 'PA', paraiba: 'PB', parana: 'PR', pernambuco: 'PE', piaui: 'PI',
+  'rio de janeiro': 'RJ', 'rio grande do norte': 'RN', 'rio grande do sul': 'RS', rondonia: 'RO', roraima: 'RR',
+  'santa catarina': 'SC', 'sao paulo': 'SP', sergipe: 'SE', tocantins: 'TO',
+};
+
+/** A Nuvemshop guarda o estado por extenso ("São Paulo"); o Kentro Shop usa a sigla. */
+export function ufDe(provincia: unknown): string {
+  const t = texto(provincia);
+  if (/^[a-z]{2}$/i.test(t)) return t.toUpperCase();
+  return UFS[t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()] ?? '';
+}
+
+const dinheiroTexto = (v: number) => (Math.round(v * 100) / 100).toFixed(2);
 
 const lista = (v: unknown): Bruto[] => (Array.isArray(v) ? (v as Bruto[]) : []);
 const obj = (v: unknown): Bruto => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Bruto) : {});
@@ -127,6 +149,57 @@ export function criarConectorNuvemshop(app: AppNuvemshop): Conector {
     return ctx.http.requisitar({ metodo: 'GET', url: `${BASE_API}/${loja(ctx)}${caminho}${s ? `?${s}` : ''}`, operacao, cabecalhos: cabecalhos(ctx) });
   }
 
+  async function post(ctx: CtxConector, operacao: string, caminho: string, corpo: unknown) {
+    return ctx.http.requisitar({ metodo: 'POST', url: `${BASE_API}/${loja(ctx)}${caminho}`, operacao, cabecalhos: cabecalhos(ctx), corpo });
+  }
+
+  /** GET que trata o 404 da Nuvemshop (página depois da última, busca vazia, recurso inexistente) como lista vazia. */
+  async function listar(ctx: CtxConector, operacao: string, caminho: string, consulta: Record<string, string | number | undefined>): Promise<Bruto[]> {
+    try {
+      return lista((await get(ctx, operacao, caminho, consulta)).corpo);
+    } catch (e) {
+      if (e instanceof NaoEncontrado) return [];
+      throw e;
+    }
+  }
+
+  /** Produtos pelo id, até 100 por chamada. Despublicado fica de fora. */
+  async function porIds(ctx: CtxConector, ids: string[]): Promise<Map<string, Bruto>> {
+    const mapa = new Map<string, Bruto>();
+    for (let i = 0; i < ids.length; i += 100) {
+      const parte = ids.slice(i, i + 100);
+      for (const p of await listar(ctx, 'produtosPorId', '/products', { ids: parte.join(','), per_page: MAX_POR_PAGINA })) {
+        if (p.id && p.published !== false) mapa.set(texto(p.id), p);
+      }
+    }
+    return mapa;
+  }
+
+  async function obterUm(ctx: CtxConector, id: string): Promise<Produto | null> {
+    const chave = id.trim();
+    if (!chave) return null;
+    if (/^\d+$/.test(chave)) return produtoPorId(ctx, chave);
+    try {
+      const p = obj((await get(ctx, 'produtoPorSku', `/products/sku/${encodeURIComponent(chave)}`)).corpo);
+      return p.id && p.published !== false ? produtoDaNuvemshop(p) : null;
+    } catch (e) {
+      if (e instanceof NaoEncontrado) return null;
+      throw e;
+    }
+  }
+
+  function enderecoDa(a: Bruto): Endereco {
+    return {
+      cep: texto(a.zipcode).replace(/\D/g, ''),
+      estado: ufDe(a.province),
+      cidade: texto(a.city),
+      bairro: texto(a.locality),
+      rua: texto(a.address),
+      numero: texto(a.number),
+      ...(texto(a.floor) ? { complemento: texto(a.floor) } : {}),
+    };
+  }
+
   async function produtoPorId(ctx: CtxConector, id: string): Promise<Produto | null> {
     try {
       const r = await get(ctx, 'produto', `/products/${id}`);
@@ -143,6 +216,8 @@ export function criarConectorNuvemshop(app: AppNuvemshop): Conector {
     nome: 'Nuvemshop',
     // Leaky bucket da Nuvemshop: 40 de capacidade, 2 por segundo por loja e app.
     ritmo: { porSegundo: 2, rajada: 20 },
+    // Com o limite apertado, o catálogo fica 1 minuto em cache; os webhooks de produto limpam antes.
+    cacheSegundos: 60,
     capacidades: {
       buscaTextual: true,
       categorias: true,
@@ -150,9 +225,9 @@ export function criarConectorNuvemshop(app: AppNuvemshop): Conector {
       estoque: true,
       relacionados: false,
       cotarFrete: false,
-      criarPedido: false,
+      criarPedido: true,
       oauth: true,
-      historicoCliente: false,
+      historicoCliente: true,
     },
     // Nada a digitar: o lojista autoriza o app na Nuvemshop (botão "Conectar").
     camposDeCredencial: [],
@@ -239,17 +314,112 @@ export function criarConectorNuvemshop(app: AppNuvemshop): Conector {
     },
 
     /** Pelo id da Nuvemshop ou pelo SKU de uma variante. Despublicado ou inexistente: null. */
-    async obterProduto(ctx, id): Promise<Produto | null> {
-      const chave = id.trim();
-      if (!chave) return null;
-      if (/^\d+$/.test(chave)) return produtoPorId(ctx, chave);
-      try {
-        const p = obj((await get(ctx, 'produtoPorSku', `/products/sku/${encodeURIComponent(chave)}`)).corpo);
-        return p.id && p.published !== false ? produtoDaNuvemshop(p) : null;
-      } catch (e) {
-        if (e instanceof NaoEncontrado) return null;
-        throw e;
+    obterProduto: (ctx, id) => obterUm(ctx, id),
+
+    /** O carrinho inteiro numa chamada (ids da Nuvemshop); o que vier por SKU vai um a um. */
+    async obterProdutos(ctx, ids): Promise<Map<string, Produto>> {
+      const numericos = ids.filter((id) => /^\d+$/.test(id));
+      const mapa = new Map<string, Produto>();
+      for (const [id, p] of await porIds(ctx, numericos)) mapa.set(id, produtoDaNuvemshop(p));
+      for (const id of ids.filter((x) => !/^\d+$/.test(x))) {
+        const p = await obterUm(ctx, id);
+        if (p) mapa.set(id, p);
       }
+      return mapa;
+    },
+
+    /** Registra os webhooks que faltam (produto alterado e app desinstalado). */
+    async aoConectar(ctx) {
+      const existentes = lista((await get(ctx, 'webhooks', '/webhooks')).corpo);
+      for (const evento of EVENTOS_WEBHOOK) {
+        if (existentes.some((w) => texto(w.event) === evento && texto(w.url) === app.urlWebhooks)) continue;
+        await post(ctx, 'webhookNovo', '/webhooks', { event: evento, url: app.urlWebhooks });
+      }
+    },
+
+    /**
+     * Rascunho de pedido na loja: devolve o link do checkout da Nuvemshop, onde o cliente paga com os meios da loja.
+     * O frete vai com o valor que o Kentro Shop calculou (o rascunho não cota frete sozinho).
+     */
+    async criarPedido(ctx, pedido: PedidoParaCriar): Promise<PedidoCriado> {
+      const email = texto(pedido.cliente.email);
+      if (!email) throw new RecusadoPelaPlataforma('Para criar o pedido na Nuvemshop, o cliente precisa informar o e-mail.');
+      // Produto simples não tem variação no Kentro Shop, mas o rascunho pede o id da variante: vem do produto.
+      const semVariacao = pedido.itens.filter((i) => !i.variacaoId).map((i) => i.produtoId);
+      const produtos = await porIds(ctx, [...new Set(semVariacao)]);
+      const itens = pedido.itens.map((i) => {
+        const variante = i.variacaoId || texto(lista(produtos.get(i.produtoId)?.variants)[0]?.id);
+        if (!/^\d+$/.test(variante)) throw new RecusadoPelaPlataforma(`O produto ${i.sku} não está mais à venda na Nuvemshop.`);
+        return { variant_id: Number(variante), quantity: i.quantidade };
+      });
+      const [nome, ...resto] = texto(pedido.cliente.nome).split(/\s+/);
+      const e = pedido.entrega.endereco;
+      const endereco = e && { address: e.rua, number: e.numero, floor: e.complemento ?? '', locality: e.bairro, city: e.cidade, province: e.estado, zipcode: e.cep.replace(/\D/g, '') };
+      const frete = pedido.entrega.tipo === 'entrega' && pedido.frete ? { cost: dinheiroTexto(pedido.frete.valor), ...(endereco ? { shipping_address: endereco } : {}) } : null;
+      const documento = texto(pedido.cliente.documento).replace(/\D/g, '');
+      const corpo = {
+        contact_name: nome || 'Cliente',
+        contact_lastname: resto.join(' ') || nome || 'Cliente',
+        contact_email: email,
+        contact_phone: texto(pedido.cliente.telefone),
+        ...(documento.length === 11 || documento.length === 14 ? { cpf_cnpj: documento } : {}),
+        payment_status: 'pending',
+        products: itens,
+        note: [pedido.observacoes, `Pedido feito pelo Kentro Shop (${pedido.referenciaExterna}).`].filter(Boolean).join('\n').slice(0, 1000),
+      };
+      let r;
+      try {
+        r = await post(ctx, 'rascunhoPedido', '/draft_orders', frete ? { ...corpo, shipping: frete } : corpo);
+      } catch (erro) {
+        // A documentação descreve "shipping" ora como objeto, ora como lista: recusado o objeto, tenta a lista.
+        // (Os erros da Nuvemshop vêm por campo e não chegam na mensagem; basta ter sido recusado com frete.)
+        if (!frete || !(erro instanceof RecusadoPelaPlataforma)) throw erro;
+        r = await post(ctx, 'rascunhoPedido', '/draft_orders', { ...corpo, shipping: [{ ...frete, ...(endereco ? { shipping_address: [endereco] } : {}) }] });
+      }
+      const criado = obj(r.corpo);
+      const id = texto(criado.id);
+      const url = urlHttps(texto(criado.checkout_url));
+      if (!id || !url) throw new RecusadoPelaPlataforma('A Nuvemshop não devolveu o link de pagamento do pedido.');
+      return { idExterno: id, numero: texto(criado.number) || id, url, status: 'aguardando_pagamento' };
+    },
+
+    /**
+     * Cliente da loja pelo e-mail ou CPF/CNPJ (a busca da Nuvemshop não procura telefone): endereços e últimos pedidos.
+     */
+    async historicoDoCliente(ctx, consulta: ConsultaCliente): Promise<HistoricoCliente | null> {
+      const campos = 'id,name,email,identification,default_address,addresses';
+      const email = texto(consulta.email).toLowerCase();
+      const documento = texto(consulta.documento).replace(/\D/g, '');
+      let achados = email ? await listar(ctx, 'clientePorEmail', '/customers', { email, fields: campos }) : [];
+      if (!achados.length && (documento.length === 11 || documento.length === 14)) {
+        achados = (await listar(ctx, 'clientePorDocumento', '/customers', { q: documento, fields: campos })).filter(
+          (c) => texto(c.identification).replace(/\D/g, '') === documento,
+        );
+      }
+      const cliente = achados[0];
+      if (!cliente?.id) return null;
+      const vistos = new Set<string>();
+      const enderecos = [obj(cliente.default_address), ...lista(cliente.addresses)]
+        .filter((a) => texto(a.address) && !vistos.has(texto(a.id) || texto(a.address)) && vistos.add(texto(a.id) || texto(a.address)))
+        .map(enderecoDa);
+      const pedidos = await listar(ctx, 'pedidosDoCliente', '/orders', { customer_ids: texto(cliente.id), per_page: 5, fields: 'id,number,created_at,total,products' });
+      return {
+        nome: texto(cliente.name),
+        ...(texto(cliente.email) ? { email: texto(cliente.email) } : {}),
+        enderecos,
+        pedidos: pedidos.map((o) => ({
+          numero: texto(o.number),
+          data: texto(o.created_at),
+          total: numero(o.total) ?? 0,
+          itens: lista(o.products).map((p) => ({
+            sku: texto(p.sku),
+            nome: texto(p.name),
+            quantidade: numero(p.quantity) ?? 1,
+            produtoId: texto(p.product_id),
+            variacaoId: texto(p.variant_id),
+          })),
+        })),
+      };
     },
   };
 }
