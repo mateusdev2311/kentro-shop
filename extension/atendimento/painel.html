@@ -15,163 +15,325 @@
     --ext-font-size: 14px;
     --ext-spacing: 8px;
   }
+  /* Tons derivados dos tokens da Kentro: acompanham a cor da marca e o modo escuro. */
+  :root {
+    --ks-r: max(10px, calc(var(--ext-radius) * 2.5));
+    --ks-r-p: max(7px, calc(var(--ext-radius) * 1.75));
+    --ks-superficie: color-mix(in srgb, var(--ext-color-text) 3.5%, var(--ext-color-bg));
+    --ks-superficie-2: color-mix(in srgb, var(--ext-color-text) 7%, var(--ext-color-bg));
+    --ks-linha: color-mix(in srgb, var(--ext-color-text) 11%, var(--ext-color-bg));
+    --ks-suave: color-mix(in srgb, var(--ext-color-primary) 10%, var(--ext-color-bg));
+    --ks-suave-forte: color-mix(in srgb, var(--ext-color-primary) 17%, var(--ext-color-bg));
+    --ks-primaria-texto: color-mix(in srgb, var(--ext-color-primary) 82%, var(--ext-color-text));
+    --ks-ok-suave: color-mix(in srgb, var(--ext-color-success) 13%, var(--ext-color-bg));
+    --ks-ok-texto: color-mix(in srgb, var(--ext-color-success) 58%, var(--ext-color-text));
+    --ks-erro-suave: color-mix(in srgb, var(--ext-color-error) 9%, var(--ext-color-bg));
+    --ks-erro-texto: color-mix(in srgb, var(--ext-color-error) 68%, var(--ext-color-text));
+    --ks-alerta-suave: color-mix(in srgb, #e09100 14%, var(--ext-color-bg));
+    --ks-alerta-texto: color-mix(in srgb, #e09100 58%, var(--ext-color-text));
+    --ks-sombra: 0 1px 2px color-mix(in srgb, var(--ext-color-text) 7%, transparent);
+    --ks-ic-alerta: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5v.01'/%3E%3C/svg%3E");
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: var(--ext-spacing) calc(var(--ext-spacing) * 1.5);
-    font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.4;
+    margin: 0; padding: 12px;
+    font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.45;
     color: var(--ext-color-text); background: var(--ext-color-bg);
+    -webkit-font-smoothing: antialiased;
   }
   [hidden] { display: none !important; }
-  h2 { font-size: 1em; margin: 0 0 6px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .secao { padding: 10px 0; border-bottom: 1px solid var(--ext-color-border); }
-  .secao:last-of-type { border-bottom: 0; }
+  p { margin: 0; }
+  h2 { font-size: 1em; font-weight: 650; margin: 0; display: flex; align-items: center; gap: 7px; letter-spacing: -.005em; }
+  .subtitulo { font-size: .86em; font-weight: 650; color: var(--ext-color-text-muted); margin: 16px 0 6px; }
   .muted { color: var(--ext-color-text-muted); font-size: .9em; }
-  .linha { display: flex; gap: 6px; align-items: center; }
-  .linha > .cresce { flex: 1; min-width: 0; }
-  input {
-    width: 100%; font: inherit; padding: 6px 8px; color: var(--ext-color-text);
-    background: var(--ext-color-bg); border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius);
+  .ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Cabeçalho ── */
+  .cabeca { display: flex; align-items: center; gap: 10px; padding: 0 2px 12px; }
+  .marca {
+    width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: var(--ks-r-p);
+    background: var(--ext-color-primary); color: var(--ext-color-on-primary);
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .14);
   }
+  .marca .ic { width: 18px; height: 18px; }
+  .cabeca strong { display: block; font-size: 1.04em; letter-spacing: -.01em; line-height: 1.2; }
+  .conexao { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: .84em; color: var(--ext-color-text-muted); }
+  .conexao::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ext-color-success); box-shadow: 0 0 0 3px var(--ks-ok-suave); }
+  .carregando { display: flex; align-items: center; gap: 9px; padding: 8px 2px; color: var(--ext-color-text-muted); font-size: .9em; }
+  .giro { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid var(--ks-linha); border-top-color: var(--ext-color-primary); animation: girar .8s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  /* ── Cartões e estados vazios ── */
+  .cartao { margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r); background: var(--ext-color-bg); box-shadow: var(--ks-sombra); }
+  .titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .vazio { padding: 32px 16px; text-align: center; }
+  .vazio strong { display: block; margin: 12px 0 4px; }
+  .convite { padding: 22px 16px 16px; text-align: center; }
+  .convite h2 { justify-content: center; margin: 12px 0 4px; font-size: 1.05em; }
+  .bolha { width: 46px; height: 46px; display: inline-grid; place-items: center; border-radius: 50%; background: var(--ks-suave); color: var(--ks-primaria-texto); }
+  .bolha .ic { width: 21px; height: 21px; }
+  .vazio-linha { padding: 12px; border: 1px dashed var(--ks-linha); border-radius: var(--ks-r-p); background: var(--ks-superficie); color: var(--ext-color-text-muted); font-size: .88em; text-align: center; }
+
+  /* ── Botões e campos ── */
   button {
-    font: inherit; cursor: pointer; padding: 6px 12px; border-radius: var(--ext-radius); white-space: nowrap;
-    border: 1px solid var(--ext-color-primary); background: var(--ext-color-bg); color: var(--ext-color-primary);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 12px;
+    font: inherit; font-size: .92em; font-weight: 600; white-space: nowrap; cursor: pointer;
+    color: var(--ext-color-text); background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
+    transition: background-color .15s, border-color .15s, transform .06s;
   }
-  button.principal { background: var(--ext-color-primary); color: var(--ext-color-on-primary); }
-  button.largo { width: 100%; margin-top: 8px; }
-  button.link { border: 0; padding: 2px 4px; background: none; text-decoration: underline; font-size: .85em; }
+  button:hover:not(:disabled) { background: var(--ks-superficie); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.principal { color: var(--ext-color-on-primary); background: var(--ext-color-primary); border-color: var(--ext-color-primary); }
+  button.principal:hover:not(:disabled) { background: color-mix(in srgb, var(--ext-color-primary) 86%, #000); }
+  button.suave { color: var(--ks-primaria-texto); background: var(--ks-suave); border-color: transparent; }
+  button.suave:hover:not(:disabled) { background: var(--ks-suave-forte); }
+  button.largo { width: 100%; min-height: 38px; margin-top: 10px; }
+  button.link { min-height: 0; padding: 2px 0; border: 0; background: none; color: var(--ks-primaria-texto); font-size: .85em; }
+  button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+  button.icone { width: 28px; min-height: 28px; padding: 0; border-color: transparent; background: none; color: var(--ext-color-text-muted); }
   button:disabled { opacity: .5; cursor: default; }
-  input:focus, button:focus-visible { outline: 2px solid var(--ext-color-primary); outline-offset: 1px; }
-  .aviso { padding: 8px 10px; border-radius: var(--ext-radius); margin: 8px 0; font-size: .9em;
-    background: #fff0f0; color: #b00020; border: 1px solid var(--ext-color-error); }
-  .conexao { color: var(--ext-color-text-muted); font-size: .85em; margin: 0 0 4px; }
-  .conexao::before { content: "● "; color: var(--ext-color-success); }
-  .carregando { color: var(--ext-color-text-muted); font-style: italic; }
+  :focus-visible { outline: 2px solid var(--ext-color-primary); outline-offset: 2px; }
+  input, select {
+    width: 100%; min-height: 34px; padding: 0 10px; font: inherit; color: var(--ext-color-text);
+    background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
+  }
+  select { width: auto; max-width: 100%; }
+  input:focus, select:focus { outline: none; border-color: var(--ext-color-primary); box-shadow: 0 0 0 3px var(--ks-suave); }
+  /* Caixas de marcar viram chaves liga/desliga */
+  input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; position: relative; flex: 0 0 30px; width: 30px; height: 18px; min-height: 0; margin: 0; padding: 0;
+    border-radius: 999px; border: 1px solid var(--ks-linha); background: var(--ks-superficie-2); cursor: pointer; transition: background-color .15s;
+  }
+  input[type=checkbox]::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--ext-color-bg); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s;
+  }
+  input[type=checkbox]:checked { background: var(--ext-color-primary); border-color: var(--ext-color-primary); }
+  input[type=checkbox]:checked::after { transform: translateX(12px); }
+  input[type=checkbox]:focus { box-shadow: 0 0 0 3px var(--ks-suave); }
 
-  .selo { display: inline-flex; align-items: center; gap: 6px; font-size: .8em; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #eee; color: #444; }
-  .selo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .selo.navegando { background: #fff4e0; color: #a35f00; }
-  .selo.navegando::before { animation: piscar 1.2s infinite; }
-  .selo.finalizado, .selo.pedido_criado { background: #e6f9ef; color: #04784a; }
-  .selo.expirado { background: #f3f3f3; color: #777; }
-  @keyframes piscar { 50% { opacity: .25; } }
-
-  .etapas { display: flex; gap: 4px; margin: 6px 0 2px; }
-  .etapas span { flex: 1; height: 4px; border-radius: 2px; background: var(--ext-color-border); }
-  .etapas span.feita { background: var(--ext-color-success); }
-  .etapas span.atual { background: var(--ext-color-primary); }
-
-  .itens { list-style: none; margin: 0; padding: 0; }
-  .itens li { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--ext-color-border); }
-  .itens li:last-child { border-bottom: 0; }
-  .itens img { width: 36px; height: 36px; border-radius: var(--ext-radius); flex: 0 0 36px; object-fit: cover; background: #eee; }
-  .itens .cresce { flex: 1; min-width: 0; }
-  .itens .nome { font-weight: 600; font-size: .92em; line-height: 1.25; }
-  .itens .valor { font-weight: 600; white-space: nowrap; }
-  .itens li.novo { animation: destaque 2s ease; }
-  @keyframes destaque { from { background: var(--ext-color-primary-soft); } }
-
-  .totais { margin-top: 6px; }
-  .totais div { display: flex; justify-content: space-between; font-size: .92em; }
-  .totais .total { font-size: 1.1em; font-weight: 700; margin-top: 4px; }
-
-  .handoff { margin-top: 4px; padding: 8px 10px; border-radius: var(--ext-radius); background: #f2fbf6; border: 1px solid #b7e8cd; }
-  .handoff dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: .92em; }
-  .handoff dt { color: var(--ext-color-text-muted); }
-  .handoff dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-
-  .eventos { list-style: none; margin: 0; padding: 0; font-size: .85em; }
-  .eventos li { display: flex; gap: 8px; padding: 2px 0; }
-  .eventos time { color: var(--ext-color-text-muted); flex: 0 0 38px; }
+  .aviso {
+    display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 9px 11px; font-size: .9em;
+    color: var(--ks-erro-texto); background: var(--ks-erro-suave); border: 1px solid color-mix(in srgb, var(--ext-color-error) 28%, transparent); border-radius: var(--ks-r-p);
+  }
+  .aviso::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 1px; background: currentColor; -webkit-mask: var(--ks-ic-alerta) center / contain no-repeat; mask: var(--ks-ic-alerta) center / contain no-repeat; }
+  .aviso.info { color: var(--ext-color-text); background: var(--ks-suave); border-color: transparent; }
+  .aviso.info::before { color: var(--ks-primaria-texto); }
   textarea.copiar { position: fixed; left: -9999px; top: 0; }
 
-  details.secao > summary { cursor: pointer; }
-  select { font: inherit; padding: 4px 6px; border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius); background: var(--ext-color-bg); color: var(--ext-color-text); max-width: 100%; }
-  .resultados, .pedidos { list-style: none; margin: 6px 0 0; padding: 0; }
-  .resultados li, .pedidos li { padding: 6px 0; border-bottom: 1px dashed var(--ext-color-border); font-size: .92em; }
-  .resultados .linha input { width: 56px; flex: 0 0 56px; }
-  .opcoes-link { margin-top: 10px; display: grid; gap: 4px; font-size: .9em; }
-  .opcoes-link input[type=checkbox] { width: auto; margin-right: 4px; }
-  .aviso.info { background: var(--ext-color-primary-soft); color: var(--ext-color-text); border-color: var(--ext-color-border); }
+  /* ── Situação do link ── */
+  .selo { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: .78em; font-weight: 650; white-space: nowrap; color: var(--ext-color-text-muted); background: var(--ks-superficie-2); }
+  .selo:empty { display: none; }
+  .selo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .selo.link_enviado { color: var(--ks-primaria-texto); background: var(--ks-suave); }
+  .selo.navegando { color: var(--ks-alerta-texto); background: var(--ks-alerta-suave); }
+  .selo.navegando::before { animation: pulso 1.4s ease-out infinite; }
+  .selo.finalizado, .selo.pedido_criado { color: var(--ks-ok-texto); background: var(--ks-ok-suave); }
+  @keyframes pulso { from { box-shadow: 0 0 0 0 currentColor; } to { box-shadow: 0 0 0 5px transparent; } }
+
+  .etapas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
+  .etapas li { position: relative; padding-top: 8px; font-size: .74em; font-weight: 500; color: var(--ext-color-text-muted); }
+  .etapas li::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--ks-linha); }
+  .etapas li.feita::before { background: var(--ext-color-success); }
+  .etapas li.atual { font-weight: 650; color: var(--ext-color-text); }
+  .etapas li.atual::before { background: var(--ext-color-primary); }
+
+  .campo-link { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 3px 3px 3px 10px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); background: var(--ks-superficie); }
+  .campo-link:focus-within { border-color: var(--ext-color-primary); box-shadow: 0 0 0 3px var(--ks-suave); }
+  .campo-link > .ic { color: var(--ext-color-text-muted); }
+  .campo-link input { flex: 1; min-width: 0; min-height: 30px; padding: 0; border: 0; background: none; font-size: .88em; box-shadow: none; }
+  .campo-link button { min-height: 30px; }
+
+  /* ── Pedido para finalizar ── */
+  .cartao.sucesso { border-color: color-mix(in srgb, var(--ext-color-success) 35%, transparent); background: color-mix(in srgb, var(--ext-color-success) 5%, var(--ext-color-bg)); }
+  .cartao.sucesso h2 { color: var(--ks-ok-texto); }
+  .dados { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 12px; margin: 0; font-size: .9em; }
+  .dados dt { color: var(--ext-color-text-muted); }
+  .dados dd { margin: 0; font-weight: 550; overflow-wrap: anywhere; }
+  #carrinho-kentro:not(:empty) { margin-top: 8px; }
+
+  /* ── Carrinho ── */
+  .contagem { padding: 2px 8px; border-radius: 999px; font-size: .78em; font-weight: 650; color: var(--ext-color-text-muted); background: var(--ks-superficie-2); }
+  .contagem:empty { display: none; }
+  .itens { margin: 0; padding: 0; list-style: none; }
+  .itens li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--ks-linha); }
+  .itens li:first-child { padding-top: 0; border-top: 0; }
+  .itens .muted { font-size: .82em; }
+  .miniatura { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; border-radius: var(--ks-r-p); object-fit: cover; color: var(--ext-color-text-muted); background: var(--ks-superficie-2); }
+  .cresce { flex: 1; min-width: 0; }
+  .nome { font-size: .92em; font-weight: 600; line-height: 1.3; }
+  .valor { font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .itens li.novo { animation: destaque 2.4s ease; }
+  @keyframes destaque { from { background: var(--ks-suave); box-shadow: -14px 0 0 var(--ks-suave), 14px 0 0 var(--ks-suave); } }
+
+  .totais { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ks-linha); font-variant-numeric: tabular-nums; }
+  .totais div { display: flex; justify-content: space-between; padding: 1px 0; font-size: .9em; color: var(--ext-color-text-muted); }
+  .totais .total { margin-top: 4px; font-size: 1.15em; font-weight: 700; color: var(--ext-color-text); }
+
+  /* ── Atividade (linha do tempo, a mais recente em cima) ── */
+  .eventos { margin: 0; padding: 0; list-style: none; font-size: .86em; }
+  .eventos:empty::before { content: "Nenhuma atividade ainda."; color: var(--ext-color-text-muted); }
+  .eventos li { display: flex; gap: 6px; }
+  .eventos time { flex: 0 0 38px; padding-top: 3px; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
+  .eventos span { position: relative; flex: 1; padding: 3px 0 9px 18px; }
+  .eventos span::before { content: ""; position: absolute; left: 1px; top: 7px; width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--ks-linha); background: var(--ext-color-bg); }
+  .eventos li:first-child span::before { border-color: var(--ext-color-primary); background: var(--ext-color-primary); }
+  .eventos li:not(:last-child) span::after { content: ""; position: absolute; left: 5px; top: 19px; bottom: -2px; width: 1px; background: var(--ks-linha); }
+
+  /* ── Ferramentas ── */
+  .pedidos { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .pedidos li { padding: 10px 11px; border-radius: var(--ks-r-p); background: var(--ks-superficie); font-size: .9em; }
+  .pedidos li .muted { margin-bottom: 2px; font-size: .85em; }
+  .pedidos li button.link { margin-top: 6px; }
+
+  details.dobravel { padding: 0; }
+  details.dobravel > summary { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; list-style: none; }
+  details.dobravel > summary::-webkit-details-marker { display: none; }
+  details.dobravel > summary .bolha { width: 34px; height: 34px; flex: none; }
+  details.dobravel > summary .bolha .ic { width: 17px; height: 17px; }
+  details.dobravel > summary strong { display: block; font-size: .95em; }
+  details.dobravel > summary small { display: block; font-size: .82em; color: var(--ext-color-text-muted); }
+  .seta { margin-left: auto; color: var(--ext-color-text-muted); transition: transform .2s; }
+  details[open] .seta { transform: rotate(180deg); }
+  .dobravel-corpo { padding: 12px 14px 14px; border-top: 1px solid var(--ks-linha); }
+
+  .busca { display: flex; align-items: center; gap: 6px; }
+  .busca-campo { position: relative; flex: 1; min-width: 0; }
+  .busca-campo .ic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ext-color-text-muted); pointer-events: none; }
+  .busca-campo input { padding-left: 32px; }
+  .resultados { margin: 8px 0 0; padding: 0; list-style: none; }
+  .resultados li { padding: 9px 0; border-top: 1px solid var(--ks-linha); font-size: .9em; }
+  .resultados li:first-child { border-top: 0; }
+  .resultados .linha { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .resultados .linha select { flex: 1; min-width: 0; }
+  .resultados .linha input { flex: 0 0 58px; width: 58px; text-align: center; }
+  .resultados .linha button { margin-left: auto; }
+  .itens.compacta li { padding: 6px 0; }
+
+  .opcoes-link { display: grid; gap: 2px; }
+  .opcoes-link label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; font-size: .9em; cursor: pointer; }
+  .opcoes-link select { min-height: 30px; margin-left: 40px; }
+  #montar-aviso { margin: 10px 0 0; }
 </style>
 
-<p id="carregando" class="carregando">Conectando ao Kentro Shop…</p>
-<div id="aviso" class="aviso" hidden></div>
-<p id="status" class="conexao" hidden></p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-sacola" viewBox="0 0 24 24"><path d="M5.5 8h13l-1 12h-11z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></symbol>
+    <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.7 2.7L16 9.6"/></symbol>
+    <symbol id="i-carrinho" viewBox="0 0 24 24"><path d="M3 4h2.3l2.3 10.6a1 1 0 0 0 1 .8h8.7a1 1 0 0 0 1-.8L20 7.5H6"/><circle cx="9.5" cy="19.5" r="1.2"/><circle cx="17" cy="19.5" r="1.2"/></symbol>
+    <symbol id="i-recarregar" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4.5 19.5 5.6 16A8 8 0 1 1 8.5 18.6z"/><path d="M9 11h.01M12 11h.01M15 11h.01"/></symbol>
+    <symbol id="i-busca" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+    <symbol id="i-montar" viewBox="0 0 24 24"><path d="M12 3.5 19.5 7.5v9L12 20.5 4.5 16.5v-9z"/><path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9"/></symbol>
+    <symbol id="i-seta" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></symbol>
+  </defs>
+</svg>
 
-<div id="sem-chat" class="secao" hidden>
+<header class="cabeca">
+  <span class="marca"><svg class="ic"><use href="#i-sacola"/></svg></span>
+  <div>
+    <strong>Kentro Shop</strong>
+    <p id="status" class="conexao" hidden></p>
+  </div>
+</header>
+<p id="carregando" class="carregando"><span class="giro"></span>Conectando ao Kentro Shop…</p>
+<div id="aviso" class="aviso" role="alert" hidden></div>
+
+<div id="sem-chat" class="vazio" hidden>
+  <span class="bolha"><svg class="ic"><use href="#i-chat"/></svg></span>
+  <strong>Nenhum atendimento aberto</strong>
   <p class="muted">Abra um atendimento para acompanhar o carrinho do cliente.</p>
 </div>
 
 <!-- Ainda não há link para este atendimento -->
-<div id="sem-sessao" class="secao" hidden>
+<section id="sem-sessao" class="cartao convite" hidden>
+  <span class="bolha"><svg class="ic"><use href="#i-link"/></svg></span>
   <h2>Catálogo do cliente</h2>
   <p class="muted">Nenhum link de catálogo foi gerado neste atendimento. Gere o link e mande para o cliente.</p>
-  <button type="button" class="principal largo" id="btn-gerar">Gerar link do catálogo</button>
-</div>
+  <button type="button" class="principal largo" id="btn-gerar"><svg class="ic"><use href="#i-link"/></svg>Gerar link do catálogo</button>
+</section>
 
 <div id="com-sessao" hidden>
-  <div class="secao">
-    <h2>Catálogo do cliente <span id="status-sessao" class="selo"></span></h2>
-    <div class="etapas" aria-hidden="true"><span id="etapa-1"></span><span id="etapa-2"></span><span id="etapa-3"></span><span id="etapa-4"></span></div>
+  <section class="cartao">
+    <div class="titulo"><h2>Catálogo do cliente</h2><span id="status-sessao" class="selo"></span></div>
+    <ol class="etapas" aria-hidden="true">
+      <li id="etapa-1">Enviado</li><li id="etapa-2">Aberto</li><li id="etapa-3">Carrinho</li><li id="etapa-4">Pedido</li>
+    </ol>
     <p class="muted" id="status-texto"></p>
-    <div class="linha" style="margin-top:6px">
-      <input class="cresce" id="link" readonly aria-label="Link do catálogo">
-      <button type="button" id="btn-copiar-link">Copiar</button>
+    <div class="campo-link">
+      <svg class="ic"><use href="#i-link"/></svg>
+      <input id="link" readonly aria-label="Link do catálogo">
+      <button type="button" class="suave" id="btn-copiar-link"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
     </div>
-    <button type="button" class="principal largo" id="btn-novo-link" hidden>Gerar novo link</button>
-  </div>
+    <button type="button" class="principal largo" id="btn-novo-link" hidden><svg class="ic"><use href="#i-recarregar"/></svg>Gerar novo link</button>
+  </section>
 
   <!-- Resumo do handoff (pedido finalizado) -->
-  <div class="secao" id="secao-handoff" hidden>
-    <h2>Pedido para finalizar</h2>
-    <div class="handoff"><dl id="handoff"></dl></div>
-    <button type="button" class="principal largo" id="btn-copiar-resumo">Copiar resumo do atendimento</button>
-    <button type="button" class="largo" id="btn-carrinho-kentro" hidden>Enviar ao carrinho da Kentro</button>
+  <section class="cartao sucesso" id="secao-handoff" hidden>
+    <div class="titulo"><h2><svg class="ic"><use href="#i-check"/></svg>Pedido para finalizar</h2></div>
+    <dl class="dados" id="handoff"></dl>
+    <button type="button" class="principal largo" id="btn-copiar-resumo"><svg class="ic"><use href="#i-copiar"/></svg>Copiar resumo do atendimento</button>
+    <button type="button" class="largo" id="btn-carrinho-kentro" hidden><svg class="ic"><use href="#i-carrinho"/></svg>Enviar ao carrinho da Kentro</button>
     <p class="muted" id="carrinho-kentro"></p>
-  </div>
+  </section>
 
-  <div class="secao">
-    <h2>Carrinho <span class="muted" id="carrinho-qtd"></span></h2>
+  <section class="cartao">
+    <div class="titulo"><h2>Carrinho</h2><span class="contagem" id="carrinho-qtd"></span></div>
     <ul class="itens" id="itens"></ul>
-    <p class="muted" id="carrinho-vazio">O cliente ainda não adicionou produtos.</p>
+    <p class="vazio-linha" id="carrinho-vazio">O cliente ainda não adicionou produtos.</p>
     <div class="totais" id="totais" hidden></div>
-  </div>
+  </section>
 
-  <div class="secao">
-    <h2>Atividade <button type="button" class="link" id="btn-atualizar">Atualizar</button></h2>
+  <section class="cartao">
+    <div class="titulo">
+      <h2>Atividade</h2>
+      <button type="button" class="icone" id="btn-atualizar" aria-label="Atualizar" title="Atualizar"><svg class="ic"><use href="#i-recarregar"/></svg></button>
+    </div>
     <ul class="eventos" id="eventos"></ul>
-  </div>
+  </section>
 </div>
 
 <!-- Ferramentas do atendimento: pedidos anteriores e link montado (carrinho pronto ou filtro) -->
 <div id="ferramentas" hidden>
-  <div class="secao" id="secao-historico" hidden>
-    <h2>Pedidos anteriores</h2>
+  <section class="cartao" id="secao-historico" hidden>
+    <div class="titulo"><h2>Pedidos anteriores</h2></div>
     <ul class="pedidos" id="historico-lista"></ul>
-  </div>
+  </section>
 
-  <details class="secao" id="montar">
-    <summary><strong>Montar carrinho ou link com filtro</strong></summary>
-    <div class="linha" style="margin-top:8px">
-      <input class="cresce" id="montar-busca" placeholder="Buscar produto" aria-label="Buscar produto" autocomplete="off">
-      <button type="button" id="btn-buscar">Buscar</button>
+  <details class="cartao dobravel" id="montar">
+    <summary>
+      <span class="bolha"><svg class="ic"><use href="#i-montar"/></svg></span>
+      <span><strong>Montar carrinho ou link com filtro</strong><small>Escolha os produtos antes de mandar o link</small></span>
+      <svg class="ic seta"><use href="#i-seta"/></svg>
+    </summary>
+    <div class="dobravel-corpo">
+      <div class="busca">
+        <div class="busca-campo">
+          <svg class="ic"><use href="#i-busca"/></svg>
+          <input id="montar-busca" placeholder="Buscar produto" aria-label="Buscar produto" autocomplete="off">
+        </div>
+        <button type="button" class="suave" id="btn-buscar">Buscar</button>
+      </div>
+      <ul class="resultados" id="montar-resultados"></ul>
+
+      <p class="subtitulo">Itens escolhidos</p>
+      <ul class="itens compacta" id="montar-itens"></ul>
+      <p class="vazio-linha" id="montar-vazio">Nenhum item escolhido.</p>
+
+      <p class="subtitulo">Opções do link</p>
+      <div class="opcoes-link">
+        <label><input type="checkbox" id="op-carrinho" checked> Colocar os itens no carrinho do cliente</label>
+        <label><input type="checkbox" id="op-selecao"> Mostrar ao cliente só os itens escolhidos</label>
+        <label><input type="checkbox" id="op-categoria"> Mostrar só a categoria
+          <select id="montar-categoria" aria-label="Categoria"><option value="">—</option></select></label>
+        <label><input type="checkbox" id="op-catalogo-todo"> Deixar o cliente ver o catálogo todo</label>
+        <label><input type="checkbox" id="op-sem-preco"> Esconder os preços</label>
+      </div>
+      <div id="montar-aviso" class="aviso" hidden></div>
+      <button type="button" class="principal largo" id="btn-gerar-montado"><svg class="ic"><use href="#i-link"/></svg>Gerar link montado</button>
     </div>
-    <ul class="resultados" id="montar-resultados"></ul>
-
-    <h2 style="margin-top:10px">Itens escolhidos</h2>
-    <ul class="itens" id="montar-itens"></ul>
-    <p class="muted" id="montar-vazio">Nenhum item escolhido.</p>
-
-    <div class="opcoes-link">
-      <label><input type="checkbox" id="op-carrinho" checked> Colocar os itens no carrinho do cliente</label>
-      <label><input type="checkbox" id="op-selecao"> Mostrar ao cliente só os itens escolhidos</label>
-      <label><input type="checkbox" id="op-categoria"> Mostrar só a categoria
-        <select id="montar-categoria" aria-label="Categoria"><option value="">—</option></select></label>
-      <label><input type="checkbox" id="op-catalogo-todo"> Deixar o cliente ver o catálogo todo</label>
-      <label><input type="checkbox" id="op-sem-preco"> Esconder os preços</label>
-    </div>
-    <div id="montar-aviso" class="aviso" hidden></div>
-    <button type="button" class="principal largo" id="btn-gerar-montado">Gerar link montado</button>
   </details>
 </div>
 
@@ -266,6 +428,17 @@
     return e;
   }
   function limpar(no) { while (no.firstChild) no.removeChild(no.firstChild); }
+  /** Ícone do conjunto definido no topo da tela (<symbol id="i-…">). */
+  function icone(nome) {
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'ic');
+    svg.setAttribute('aria-hidden', 'true');
+    var uso = document.createElementNS(NS, 'use');
+    uso.setAttribute('href', '#' + nome);
+    svg.appendChild(uso);
+    return svg;
+  }
   function brl(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function num(v) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 }); }
   function hora(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
@@ -364,9 +537,11 @@
       var detalhe = i.quantidade + ' ' + unidade(i.unidade, i.quantidade) + ' × ' + brl(i.precoUnitario) + (i.m2 ? ' · ' + num(i.m2) + ' m²' : '');
       var filhos = [];
       if (i.imagem) {
-        var miniatura = el('img', { src: i.imagem, alt: '' });
+        var miniatura = el('img', { className: 'miniatura', src: i.imagem, alt: '' });
         miniatura.addEventListener('error', function () { miniatura.style.visibility = 'hidden'; });
         filhos.push(miniatura);
+      } else {
+        filhos.push(el('span', { className: 'miniatura', 'aria-hidden': 'true' }, [icone('i-montar')]));
       }
       filhos.push(el('div', { className: 'cresce' }, [
         el('div', { className: 'nome', text: i.nome + (i.variacaoNome ? ' — ' + i.variacaoNome : '') }),
@@ -621,7 +796,7 @@
           linha.appendChild(sel);
         }
         linha.appendChild(el('input', { type: 'number', min: '1', max: '999', value: '1', 'data-quantidade': p.id, 'aria-label': 'Quantidade de ' + p.nome }));
-        var botao = el('button', { type: 'button', 'data-adicionar': p.id, text: 'Adicionar' });
+        var botao = el('button', { type: 'button', className: 'suave', 'data-adicionar': p.id, text: 'Adicionar' });
         if (!p.disponivel || (variacoes.length && !vendaveis.length)) botao.disabled = true;
         linha.appendChild(botao);
         ul.appendChild(el('li', null, [

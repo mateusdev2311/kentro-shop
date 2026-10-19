@@ -14,203 +14,476 @@
     --ext-font-size: 14px;
     --ext-spacing: 8px;
   }
+  /* Tons derivados dos tokens da Kentro: acompanham a cor da marca e o modo escuro. */
+  :root {
+    --ks-r: max(12px, calc(var(--ext-radius) * 3));
+    --ks-r-p: max(8px, calc(var(--ext-radius) * 2));
+    --ks-fundo: color-mix(in srgb, var(--ext-color-text) 3%, var(--ext-color-bg));
+    --ks-superficie: color-mix(in srgb, var(--ext-color-text) 3.5%, var(--ext-color-bg));
+    --ks-superficie-2: color-mix(in srgb, var(--ext-color-text) 7%, var(--ext-color-bg));
+    --ks-linha: color-mix(in srgb, var(--ext-color-text) 11%, var(--ext-color-bg));
+    --ks-suave: color-mix(in srgb, var(--ext-color-primary) 10%, var(--ext-color-bg));
+    --ks-suave-forte: color-mix(in srgb, var(--ext-color-primary) 17%, var(--ext-color-bg));
+    --ks-primaria-texto: color-mix(in srgb, var(--ext-color-primary) 82%, var(--ext-color-text));
+    --ks-ok-suave: color-mix(in srgb, var(--ext-color-success) 13%, var(--ext-color-bg));
+    --ks-ok-texto: color-mix(in srgb, var(--ext-color-success) 58%, var(--ext-color-text));
+    --ks-erro-suave: color-mix(in srgb, var(--ext-color-error) 9%, var(--ext-color-bg));
+    --ks-erro-texto: color-mix(in srgb, var(--ext-color-error) 68%, var(--ext-color-text));
+    --ks-alerta: #e09100;
+    --ks-alerta-suave: color-mix(in srgb, #e09100 14%, var(--ext-color-bg));
+    --ks-alerta-texto: color-mix(in srgb, #e09100 55%, var(--ext-color-text));
+    --ks-sombra: 0 1px 2px color-mix(in srgb, var(--ext-color-text) 6%, transparent), 0 8px 24px -16px color-mix(in srgb, var(--ext-color-text) 25%, transparent);
+    --ks-ic-alerta: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5v.01'/%3E%3C/svg%3E");
+    --ks-ic-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5.5 12.5 4.2 4.2L18.5 8'/%3E%3C/svg%3E");
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: calc(var(--ext-spacing) * 2) calc(var(--ext-spacing) * 3);
-    font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.5;
-    color: var(--ext-color-text); background: var(--ext-color-bg);
+    margin: 0; font-family: var(--ext-font-family); font-size: var(--ext-font-size); line-height: 1.5;
+    color: var(--ext-color-text); background: var(--ks-fundo); -webkit-font-smoothing: antialiased;
   }
   [hidden] { display: none !important; }
-  h1 { font-size: 1.3em; margin: 0 0 12px; }
-  h2 { font-size: 1.05em; margin: 16px 0 8px; }
+  p { margin: 0; }
+  h1 { margin: 0; font-size: 1.4em; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; }
+  h2 { margin: 0; font-size: 1.12em; font-weight: 650; letter-spacing: -.01em; }
+  h3 { margin: 22px 0 8px; font-size: .95em; font-weight: 650; }
   .muted { color: var(--ext-color-text-muted); }
-  label { display: block; font-weight: 600; font-size: .9em; margin: 10px 0 4px; }
-  input, select { width: 100%; max-width: 460px; font: inherit; padding: 6px 8px; color: var(--ext-color-text);
-    background: var(--ext-color-bg); border: 1px solid var(--ext-color-border); border-radius: var(--ext-radius); }
-  .ajuda { display: block; font-size: .8em; color: var(--ext-color-text-muted); margin-top: 2px; }
-  button { font: inherit; cursor: pointer; padding: 6px 14px; border-radius: var(--ext-radius);
-    border: 1px solid var(--ext-color-primary); background: var(--ext-color-bg); color: var(--ext-color-primary); }
-  button.principal { background: var(--ext-color-primary); color: var(--ext-color-on-primary); }
+  .ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .pagina { max-width: 1040px; margin: 0 auto; padding: 24px 28px 48px; }
+  @media (max-width: 640px) { .pagina { padding: 16px; } }
+
+  /* ── Cabeçalho ── */
+  .cabeca { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; margin-bottom: 20px; }
+  .marca {
+    width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: var(--ks-r-p);
+    color: var(--ext-color-on-primary); background: var(--ext-color-primary); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .14);
+  }
+  .marca .ic { width: 22px; height: 22px; }
+  .cabeca .sub { margin-top: 2px; font-size: .92em; color: var(--ext-color-text-muted); }
+  .status-loja {
+    display: inline-flex; align-items: center; gap: 8px; margin-left: auto; padding: 6px 12px; border-radius: 999px;
+    font-size: .88em; font-weight: 550; background: var(--ext-color-bg); border: 1px solid var(--ks-linha);
+  }
+  .status-loja::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ext-color-text-muted); }
+  .status-loja.ok::before { background: var(--ext-color-success); box-shadow: 0 0 0 3px var(--ks-ok-suave); }
+  .status-loja.pendente::before { background: var(--ks-alerta); box-shadow: 0 0 0 3px var(--ks-alerta-suave); }
+  .status-loja.erro::before, .status-loja.falha::before { background: var(--ext-color-error); box-shadow: 0 0 0 3px var(--ks-erro-suave); }
+  .carregando { display: flex; align-items: center; gap: 10px; padding: 12px 0; color: var(--ext-color-text-muted); }
+  .giro { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--ks-linha); border-top-color: var(--ext-color-primary); animation: girar .8s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  /* ── Cartões ── */
+  .cartao { padding: 24px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r); background: var(--ext-color-bg); box-shadow: var(--ks-sombra); }
+  @media (max-width: 640px) { .cartao { padding: 18px; } }
+  .cartao-cabeca { margin-bottom: 18px; }
+  .cartao-cabeca p { margin-top: 3px; color: var(--ext-color-text-muted); }
+  .bolha { width: 48px; height: 48px; display: inline-grid; place-items: center; border-radius: 50%; color: var(--ks-primaria-texto); background: var(--ks-suave); }
+  .bolha .ic { width: 22px; height: 22px; }
+
+  /* ── Campos e botões ── */
+  .formulario { max-width: 560px; }
+  label { display: block; margin: 16px 0 6px; font-size: .9em; font-weight: 600; }
+  .formulario > label:first-child, .formulario > div:first-child > label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; min-height: 40px; padding: 0 12px; font: inherit; color: var(--ext-color-text);
+    background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input::placeholder { color: color-mix(in srgb, var(--ext-color-text-muted) 75%, var(--ext-color-bg)); }
+  input:focus, select:focus { outline: none; border-color: var(--ext-color-primary); box-shadow: 0 0 0 3px var(--ks-suave); }
+  input[type=file] { min-height: 0; padding: 6px; font-size: .9em; color: var(--ext-color-text-muted); }
+  input[type=file]::file-selector-button {
+    margin-right: 10px; padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer;
+    color: var(--ks-primaria-texto); background: var(--ks-suave); border: 0; border-radius: calc(var(--ks-r-p) - 2px);
+  }
+  .ajuda { display: block; margin-top: 5px; font-size: .84em; color: var(--ext-color-text-muted); }
+  button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 16px;
+    font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer;
+    color: var(--ext-color-text); background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
+    transition: background-color .15s, border-color .15s, transform .06s;
+  }
+  button:hover:not(:disabled) { background: var(--ks-superficie); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.principal { color: var(--ext-color-on-primary); background: var(--ext-color-primary); border-color: var(--ext-color-primary); }
+  button.principal:hover:not(:disabled) { background: color-mix(in srgb, var(--ext-color-primary) 86%, #000); }
+  button.suave { color: var(--ks-primaria-texto); background: var(--ks-suave); border-color: transparent; }
+  button.suave:hover:not(:disabled) { background: var(--ks-suave-forte); }
+  button.perigo { min-height: 32px; padding: 0 10px; color: var(--ks-erro-texto); background: none; border-color: transparent; font-size: .9em; }
+  button.perigo:hover:not(:disabled) { background: var(--ks-erro-suave); }
   button:disabled { opacity: .5; cursor: default; }
-  .acoes { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
-  .aviso { padding: 8px 10px; border-radius: var(--ext-radius); margin: 8px 0; }
-  .aviso.erro { background: #fff0f0; color: #b00020; border: 1px solid var(--ext-color-error); }
-  .aviso.destaque { background: #fff8e1; color: #6d4c00; border: 1px solid #f0c040; font-weight: 600; }
-  .chave { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-  .chave .rotulo { width: 160px; font-weight: 600; }
-  .chave code { flex: 1; min-width: 200px; padding: 6px 8px; background: #f5f5f5; border-radius: var(--ext-radius);
-    word-break: break-all; font-size: .85em; }
-  ol { padding-left: 20px; }
-  ol li { margin: 4px 0; }
+  :focus-visible { outline: 2px solid var(--ext-color-primary); outline-offset: 2px; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .cartao > .acoes { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--ks-linha); }
+
+  /* Caixas de marcar viram chaves liga/desliga */
+  input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; position: relative; flex: 0 0 36px; width: 36px; height: 21px; min-height: 0; margin: 1px 0 0; padding: 0;
+    border-radius: 999px; border: 1px solid var(--ks-linha); background: var(--ks-superficie-2); cursor: pointer; transition: background-color .15s;
+  }
+  input[type=checkbox]::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%;
+    background: var(--ext-color-bg); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s;
+  }
+  input[type=checkbox]:checked { background: var(--ext-color-primary); border-color: var(--ext-color-primary); }
+  input[type=checkbox]:checked::after { transform: translateX(15px); }
+  label.interruptor { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 14px 0; font-weight: 400; cursor: pointer; border-bottom: 1px solid var(--ks-linha); }
+  label.interruptor:last-of-type { border-bottom: 0; }
+  label.interruptor strong { display: block; font-size: 1em; font-weight: 600; }
+  label.interruptor small { display: block; margin-top: 1px; font-size: .88em; color: var(--ext-color-text-muted); }
+  .grupo-interruptores { padding: 0 16px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+
+  .aviso {
+    display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: var(--ks-r-p);
+  }
+  .aviso::before { content: ""; flex: none; width: 18px; height: 18px; margin-top: 1px; background: currentColor; -webkit-mask: var(--ks-ic-alerta) center / contain no-repeat; mask: var(--ks-ic-alerta) center / contain no-repeat; }
+  .aviso.erro { color: var(--ks-erro-texto); background: var(--ks-erro-suave); border: 1px solid color-mix(in srgb, var(--ext-color-error) 28%, transparent); }
+  .aviso.destaque { color: var(--ks-alerta-texto); background: var(--ks-alerta-suave); border: 1px solid color-mix(in srgb, var(--ks-alerta) 35%, transparent); font-weight: 600; }
+  .resultado { margin-top: 14px; padding: 10px 14px; border-radius: var(--ks-r-p); background: var(--ks-superficie); font-weight: 550; }
+  .resultado:empty { display: none; }
   .copiar { position: fixed; left: -9999px; }
-  .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--ext-color-border); margin: 12px 0 4px; }
-  .abas button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--ext-color-text-muted); background: none; }
-  .abas button.ativa { border-bottom-color: var(--ext-color-primary); color: var(--ext-color-primary); font-weight: 600; }
-  .resultado { margin-top: 12px; font-weight: 600; }
-  .etiquetas { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .etiquetas li { padding: 2px 10px; border-radius: 999px; background: #eef7f1; color: #046c3e; font-size: .85em; }
-  .previa { padding-left: 18px; margin: 4px 0; }
-  .duas-colunas { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
-  @media (max-width: 720px) { .duas-colunas { grid-template-columns: minmax(0, 1fr); } }
-  input.cor { width: 64px; height: 34px; padding: 2px; }
-  label.em-linha { display: flex; align-items: center; gap: 6px; font-weight: 400; }
-  label.em-linha input { width: auto; }
-  .logo-atual { display: block; max-width: 120px; max-height: 60px; margin: 4px 0; }
-  .previa-tema { border: 1px solid var(--ext-color-border); border-radius: 12px; overflow: hidden; width: 240px; }
-  .previa-topo { padding: 14px 12px; color: #fff; font-weight: 700; }
-  .previa-corpo { padding: 12px; background: #f7f5f2; }
-  .previa-cartao { height: 70px; border-radius: 10px; background: #fff; margin-bottom: 10px; }
-  .previa-botao { width: 100%; border: 0; color: #fff; padding: 8px; border-radius: 10px; }
-  .loja-retirada { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--ext-color-border); max-width: 640px; }
-  .loja-retirada input { max-width: none; }
-  .lista-simples { list-style: none; padding: 0; }
-  .lista-simples label { font-weight: 400; display: flex; gap: 6px; align-items: center; }
-  .lista-simples input { width: auto; }
+
+  /* ── Início e chaves ── */
+  .boas-vindas { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 32px; }
+  @media (max-width: 760px) { .boas-vindas { grid-template-columns: minmax(0, 1fr); } }
+  .boas-vindas h2 { margin: 14px 0 6px; font-size: 1.3em; }
+  .boas-vindas .formulario { margin-top: 18px; }
+  .dica { margin-top: 18px; padding: 14px 16px; border-radius: var(--ks-r-p); background: var(--ks-suave); }
+  .dica h3 { margin: 0 0 4px; }
+  .passos { margin: 0; padding: 20px; list-style: none; counter-reset: passo; border-radius: var(--ks-r-p); background: var(--ks-superficie); align-self: start; }
+  .passos ol { margin: 0; padding: 0; list-style: none; }
+  .passos > strong { display: block; margin-bottom: 12px; font-size: .9em; color: var(--ext-color-text-muted); }
+  .passos li { position: relative; padding: 0 0 16px 38px; counter-increment: passo; }
+  .passos li:last-child { padding-bottom: 0; }
+  .passos li::before {
+    content: counter(passo); position: absolute; left: 0; top: 0; width: 26px; height: 26px; display: grid; place-items: center;
+    border-radius: 50%; font-size: .85em; font-weight: 700; color: var(--ks-primaria-texto); background: var(--ext-color-bg); border: 1px solid var(--ks-linha);
+  }
+  .passos li:not(:last-child)::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 4px; width: 1px; background: var(--ks-linha); }
+  .passos li strong { display: block; font-size: .95em; }
+  .passos li span { font-size: .88em; color: var(--ext-color-text-muted); }
+
+  .chaves-lista { border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+  .chave { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px; border-top: 1px solid var(--ks-linha); }
+  .chave:first-child { border-top: 0; }
+  .chave .rotulo { flex: 0 0 200px; }
+  .chave .rotulo strong { display: block; font-size: .95em; }
+  .chave .rotulo small { color: var(--ext-color-text-muted); font-size: .84em; }
+  .chave code {
+    flex: 1; min-width: 220px; padding: 8px 10px; border-radius: var(--ks-r-p); background: var(--ks-superficie-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .84em; word-break: break-all;
+  }
+  #chaves .passos { margin-top: 10px; padding: 20px; }
+
+  /* ── Abas ── */
+  .abas { display: flex; gap: 4px; margin-bottom: 16px; padding: 4px; overflow-x: auto; border-radius: calc(var(--ks-r-p) + 4px); background: var(--ks-superficie-2); scrollbar-width: none; }
+  .abas::-webkit-scrollbar { display: none; }
+  .abas button { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border: 0; color: var(--ext-color-text-muted); background: none; font-weight: 550; }
+  .abas button:hover:not(:disabled) { color: var(--ext-color-text); background: color-mix(in srgb, var(--ext-color-bg) 55%, transparent); }
+  .abas button.ativa { color: var(--ext-color-text); background: var(--ext-color-bg); font-weight: 650; box-shadow: 0 1px 2px color-mix(in srgb, var(--ext-color-text) 14%, transparent); }
+  .abas button.ativa .ic { color: var(--ext-color-primary); }
+
+  /* ── Integração ── */
+  .etiquetas { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .etiquetas li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 9px; border-radius: 999px; font-size: .88em; font-weight: 550; color: var(--ks-ok-texto); background: var(--ks-ok-suave); }
+  .etiquetas li::before { content: ""; width: 13px; height: 13px; background: currentColor; -webkit-mask: var(--ks-ic-check) center / contain no-repeat; mask: var(--ks-ic-check) center / contain no-repeat; }
+  .previa { margin: 0; padding: 0; list-style: none; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+  .previa li { padding: 10px 14px; border-top: 1px solid var(--ks-linha); font-size: .92em; }
+  .previa li:first-child { border-top: 0; }
+  .duas-metades { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 28px; margin-top: 8px; }
+
+  /* ── Aparência ── */
+  .duas-colunas { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 36px; }
+  @media (max-width: 820px) { .duas-colunas { grid-template-columns: minmax(0, 1fr); } }
+  .cores { display: flex; flex-wrap: wrap; gap: 0 20px; }
+  input.cor { width: 56px; height: 40px; padding: 3px; cursor: pointer; }
+  .logo-caixa { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .logo-atual { display: block; max-width: 160px; max-height: 56px; padding: 6px 10px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); background: #fff; object-fit: contain; }
+  .logo-caixa input[type=file] { flex: 1; min-width: 220px; }
+  .previa-coluna > strong { display: block; margin-bottom: 10px; font-size: .9em; color: var(--ext-color-text-muted); }
+  /* Celular com a cara do catálogo de verdade (topo, faixa, vitrine e botão). */
+  .previa-tema { width: 260px; overflow: hidden; border: 8px solid #1d1e20; border-radius: 30px; background: #f5f2ec; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .45); }
+  .previa-topo { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 18px 12px 12px; color: #fff; font-weight: 700; font-size: .95em; }
+  .previa-logo { flex: none; display: grid; place-items: center; height: 28px; padding: 3px 6px; border-radius: 6px; background: #fff; }
+  .previa-logo img { height: 100%; max-width: 70px; object-fit: contain; }
+  .previa-corpo { padding: 12px; }
+  .previa-faixa { margin-bottom: 12px; }
+  .previa-faixa i { display: block; height: 9px; border-radius: 3px; background: #2b2722; }
+  .previa-faixa i + i { width: 62%; margin-top: 5px; }
+  .previa-faixa b { display: block; width: 85%; height: 5px; margin-top: 8px; border-radius: 3px; background: #cfc8bd; }
+  .previa-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .previa-cartao i { display: block; aspect-ratio: 1; border-radius: 8px; background: #e6ddcf; }
+  .previa-cartao:nth-child(2) i { background: #d9dee2; }
+  .previa-cartao:nth-child(3) i { background: #dce3d5; }
+  .previa-cartao:nth-child(4) i { background: #ecd7cb; }
+  .previa-cartao b { display: block; height: 5px; margin-top: 6px; border-radius: 3px; background: #cfc8bd; }
+  .previa-cartao b + b { width: 55%; background: #2b2722; }
+  .previa-tema.lista .previa-grade { grid-template-columns: 1fr; gap: 8px; }
+  .previa-tema.lista .previa-cartao { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-content: center; }
+  .previa-tema.lista .previa-cartao i { grid-row: span 2; }
+  .previa-tema.lista .previa-cartao b { align-self: end; }
+  .previa-tema.lista .previa-cartao b + b { align-self: start; }
+  .previa-botao { width: 100%; padding: 9px; border: 0; border-radius: 10px; color: #fff; font-weight: 700; pointer-events: none; }
+
+  /* ── Entrega, pedidos e catálogo ── */
+  .lojas-lista { display: grid; gap: 10px; margin-bottom: 10px; }
+  .loja-retirada { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: var(--ks-r-p); background: var(--ks-superficie); }
+  .loja-retirada button { grid-column: 1 / -1; justify-self: end; }
+  @media (max-width: 560px) { .loja-retirada { grid-template-columns: minmax(0, 1fr); } }
+  .linha-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 14px; }
+  input.curto { max-width: 140px; }
+  .lista-simples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .lista-simples label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-weight: 400; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); cursor: pointer; }
+  .lista-simples label:has(input:checked) { background: var(--ks-superficie); color: var(--ext-color-text-muted); }
+  .lista-simples li.muted { grid-column: 1 / -1; }
 </style>
 
-<h1>Kentro Shop</h1>
-<p id="carregando" class="muted">Carregando…</p>
-<div id="aviso" class="aviso erro" hidden></div>
-<p id="status" hidden></p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-sacola" viewBox="0 0 24 24"><path d="M5.5 8h13l-1 12h-11z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3.5v4M15 3.5v4"/><path d="M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0z"/><path d="M12 16v4.5"/></symbol>
+    <symbol id="i-pincel" viewBox="0 0 24 24"><circle cx="8" cy="9" r="1.2"/><circle cx="12" cy="6.5" r="1.2"/><circle cx="16" cy="9" r="1.2"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.4 0 2-1 1.6-2.2-.5-1.3.3-2.8 1.8-2.8h1.6a4 4 0 0 0 4-4A8.3 8.3 0 0 0 12 3.5z"/></symbol>
+    <symbol id="i-caminhao" viewBox="0 0 24 24"><path d="M3 6.5h11v9H3zM14 9.5h3.5l3 3v3H14"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></symbol>
+    <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-2.5-1.5-2 1.5-1.5-1.5-1.5 1.5-2-1.5L6 20.5z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/></symbol>
+    <symbol id="i-grade" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+    <symbol id="i-chave" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/></symbol>
+    <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </defs>
+</svg>
 
-<!-- Loja ainda não configurada nesta instalação -->
-<section id="inicio" hidden>
-  <p>Para começar, crie a sua loja no Kentro Shop. Você vai receber as chaves para colar na configuração das extensões.</p>
-  <label for="nome-loja">Nome da loja (opcional)</label>
-  <input id="nome-loja" maxlength="120" autocomplete="off" placeholder="Ex.: Shopping dos Pisos">
-  <div class="acoes">
-    <button type="button" class="principal" id="btn-criar">Criar minha loja no Kentro Shop</button>
-    <button type="button" id="btn-ja-tenho">Já tenho uma chave</button>
-  </div>
-  <div id="ajuda-chave" hidden>
-    <h2>Onde colar a chave de admin</h2>
-    <p>Abra Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar, cole a chave no campo <strong>Chave de admin</strong> e salve. Depois feche e abra esta tela de novo.</p>
-  </div>
-</section>
-
-<!-- Chaves recém-geradas: aparecem uma vez e ficam guardadas até serem coladas -->
-<section id="chaves" hidden>
-  <div class="aviso destaque">Estas chaves aparecem só agora. Copie antes de fechar.</div>
-  <div class="chave"><span class="rotulo">Chave de admin</span><code id="valor-chave-admin"></code>
-    <button type="button" data-copiar="valor-chave-admin">Copiar</button></div>
-  <div class="chave"><span class="rotulo">Chave de atendimento</span><code id="valor-chave-atendimento"></code>
-    <button type="button" data-copiar="valor-chave-atendimento">Copiar</button></div>
-  <div class="chave"><span class="rotulo">Token MCP</span><code id="valor-token-mcp"></code>
-    <button type="button" data-copiar="valor-token-mcp">Copiar</button></div>
-  <h2>Próximos passos</h2>
-  <ol>
-    <li>Copie a Chave de admin e cole em Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar &gt; Chave de admin &gt; Salvar.</li>
-    <li>Instale o Kentro Shop — Atendimento e cole a Chave de atendimento no campo Chave de atendimento.</li>
-    <li>Guarde o Token MCP: ele será usado na configuração da IA.</li>
-    <li>Depois de salvar, feche e abra esta tela de novo.</li>
-  </ol>
-</section>
-
-<!-- Loja configurada: abas de configuração -->
-<section id="loja" hidden>
-  <nav class="abas">
-    <button type="button" class="ativa" id="botao-aba-integracao" data-aba="integracao">Integração</button>
-    <button type="button" id="botao-aba-aparencia" data-aba="aparencia">Aparência</button>
-    <button type="button" id="botao-aba-entrega" data-aba="entrega">Entrega e frete</button>
-    <button type="button" id="botao-aba-pedidos" data-aba="pedidos">Pedidos</button>
-    <button type="button" id="botao-aba-catalogo" data-aba="catalogo">Catálogo</button>
-  </nav>
-
-  <section id="aba-integracao">
-    <p class="muted">Conecte a plataforma de e-commerce da loja. Os produtos são lidos ao vivo, nada é copiado.</p>
-    <label for="plataforma">Plataforma</label>
-    <select id="plataforma"></select>
-    <div id="campos"></div>
-    <div class="acoes">
-      <button type="button" class="principal" id="btn-salvar-integracao">Salvar</button>
-      <button type="button" id="btn-testar">Testar conexão</button>
+<div class="pagina">
+  <header class="cabeca">
+    <span class="marca"><svg class="ic"><use href="#i-sacola"/></svg></span>
+    <div>
+      <h1>Kentro Shop</h1>
+      <p class="sub">Catálogo de e-commerce no atendimento</p>
     </div>
-    <p id="resultado-teste" class="resultado"></p>
-    <div id="bloco-capacidades" hidden>
-      <h2>O que esta plataforma oferece</h2>
-      <ul id="capacidades" class="etiquetas"></ul>
-      <h2>Prévia do catálogo</h2>
-      <ul id="previa" class="previa"></ul>
+    <p id="status" class="status-loja" hidden></p>
+  </header>
+  <p id="carregando" class="carregando"><span class="giro"></span>Carregando…</p>
+  <div id="aviso" class="aviso erro" role="alert" hidden></div>
+
+  <!-- Loja ainda não configurada nesta instalação -->
+  <section id="inicio" class="cartao boas-vindas" hidden>
+    <div>
+      <span class="bolha"><svg class="ic"><use href="#i-sacola"/></svg></span>
+      <h2>Crie a sua loja</h2>
+      <p class="muted">Para começar, crie a sua loja no Kentro Shop. Você vai receber as chaves para colar na configuração das extensões.</p>
+      <div class="formulario">
+        <label for="nome-loja">Nome da loja (opcional)</label>
+        <input id="nome-loja" maxlength="120" autocomplete="off" placeholder="Ex.: Shopping dos Pisos">
+      </div>
+      <div class="acoes">
+        <button type="button" class="principal" id="btn-criar">Criar minha loja no Kentro Shop</button>
+        <button type="button" id="btn-ja-tenho">Já tenho uma chave</button>
+      </div>
+      <div id="ajuda-chave" class="dica" hidden>
+        <h3>Onde colar a chave de admin</h3>
+        <p>Abra Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar, cole a chave no campo <strong>Chave de admin</strong> e salve. Depois feche e abra esta tela de novo.</p>
+      </div>
+    </div>
+    <div class="passos">
+      <strong>Como funciona</strong>
+      <ol>
+        <li><strong>Crie a loja</strong><span>Você recebe as chaves de admin e de atendimento.</span></li>
+        <li><strong>Cole as chaves</strong><span>Uma em cada extensão: Admin e Atendimento.</span></li>
+        <li><strong>Conecte o e-commerce</strong><span>Os produtos são lidos ao vivo, sem copiar nada.</span></li>
+      </ol>
     </div>
   </section>
 
-  <section id="aba-aparencia" hidden>
-    <p class="muted">Como o catálogo aparece para o cliente no celular.</p>
-    <div class="duas-colunas">
-      <div>
-        <label for="ap-nome">Nome exibido</label>
-        <input id="ap-nome" maxlength="60">
-        <label>Logo (PNG, JPG ou WebP, até 300 KB)</label>
-        <img id="ap-logo-atual" class="logo-atual" alt="Logo atual" hidden>
-        <input id="ap-logo" type="file" accept="image/png,image/jpeg,image/webp">
-        <button type="button" id="btn-remover-logo" hidden>Remover logo</button>
-        <label for="ap-cor">Cor principal (botões e destaques)</label>
-        <input id="ap-cor" type="color" class="cor">
-        <label for="ap-cor-topo">Cor do topo</label>
-        <input id="ap-cor-topo" type="color" class="cor">
-        <label for="ap-layout">Vitrine</label>
-        <select id="ap-layout">
-          <option value="grade">Grade (2 produtos por linha)</option>
-          <option value="lista">Lista (1 produto por linha, com foto ao lado)</option>
-        </select>
-        <label class="em-linha"><input type="checkbox" id="ap-destaque"> Mostrar a faixa de boas-vindas</label>
-        <label for="ap-boas-vindas">Texto de boas-vindas</label>
-        <input id="ap-boas-vindas" maxlength="200" placeholder="Escolha os produtos, ajuste as quantidades e finalize.">
+  <!-- Chaves recém-geradas: aparecem uma vez e ficam guardadas até serem coladas -->
+  <section id="chaves" class="cartao" hidden>
+    <div class="aviso destaque">Estas chaves aparecem só agora. Copie antes de fechar.</div>
+    <div class="chaves-lista">
+      <div class="chave">
+        <span class="rotulo"><strong>Chave de admin</strong><small>Kentro Shop — Admin</small></span>
+        <code id="valor-chave-admin"></code>
+        <button type="button" class="suave" data-copiar="valor-chave-admin"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
       </div>
-      <div>
-        <label>Prévia</label>
-        <div id="ap-previa" class="previa-tema">
-          <div id="ap-previa-topo" class="previa-topo"><span id="ap-previa-nome"></span></div>
-          <div class="previa-corpo">
-            <div class="previa-cartao"></div>
-            <button type="button" id="ap-previa-botao" class="previa-botao" tabindex="-1">Adicionar</button>
+      <div class="chave">
+        <span class="rotulo"><strong>Chave de atendimento</strong><small>Kentro Shop — Atendimento</small></span>
+        <code id="valor-chave-atendimento"></code>
+        <button type="button" class="suave" data-copiar="valor-chave-atendimento"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+      </div>
+      <div class="chave">
+        <span class="rotulo"><strong>Token MCP</strong><small>Configuração da IA</small></span>
+        <code id="valor-token-mcp"></code>
+        <button type="button" class="suave" data-copiar="valor-token-mcp"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+      </div>
+    </div>
+    <h3>Próximos passos</h3>
+    <ol class="passos">
+      <li>Copie a Chave de admin e cole em Gestão &gt; Extensões instaladas &gt; Kentro Shop — Admin &gt; Configurar &gt; Chave de admin &gt; Salvar.</li>
+      <li>Instale o Kentro Shop — Atendimento e cole a Chave de atendimento no campo Chave de atendimento.</li>
+      <li>Guarde o Token MCP: ele será usado na configuração da IA.</li>
+      <li>Depois de salvar, feche e abra esta tela de novo.</li>
+    </ol>
+  </section>
+
+  <!-- Loja configurada: abas de configuração -->
+  <section id="loja" hidden>
+    <nav class="abas" aria-label="Configurações">
+      <button type="button" class="ativa" id="botao-aba-integracao" data-aba="integracao"><svg class="ic"><use href="#i-plug"/></svg>Integração</button>
+      <button type="button" id="botao-aba-aparencia" data-aba="aparencia"><svg class="ic"><use href="#i-pincel"/></svg>Aparência</button>
+      <button type="button" id="botao-aba-entrega" data-aba="entrega"><svg class="ic"><use href="#i-caminhao"/></svg>Entrega e frete</button>
+      <button type="button" id="botao-aba-pedidos" data-aba="pedidos"><svg class="ic"><use href="#i-recibo"/></svg>Pedidos</button>
+      <button type="button" id="botao-aba-catalogo" data-aba="catalogo"><svg class="ic"><use href="#i-grade"/></svg>Catálogo</button>
+    </nav>
+
+    <section id="aba-integracao" class="cartao">
+      <div class="cartao-cabeca">
+        <h2>Integração</h2>
+        <p>Conecte a plataforma de e-commerce da loja. Os produtos são lidos ao vivo, nada é copiado.</p>
+      </div>
+      <div class="formulario">
+        <label for="plataforma">Plataforma</label>
+        <select id="plataforma"></select>
+        <div id="campos"></div>
+      </div>
+      <p id="resultado-teste" class="resultado"></p>
+      <div id="bloco-capacidades" hidden>
+        <div class="duas-metades">
+          <div>
+            <h3>O que esta plataforma oferece</h3>
+            <ul id="capacidades" class="etiquetas"></ul>
+          </div>
+          <div>
+            <h3>Prévia do catálogo</h3>
+            <ul id="previa" class="previa"></ul>
           </div>
         </div>
       </div>
-    </div>
-    <div class="acoes"><button type="button" class="principal" id="btn-salvar-aparencia">Salvar aparência</button></div>
-    <p id="resultado-aparencia" class="resultado"></p>
-  </section>
+      <div class="acoes">
+        <button type="button" class="principal" id="btn-salvar-integracao">Salvar</button>
+        <button type="button" id="btn-testar"><svg class="ic"><use href="#i-plug"/></svg>Testar conexão</button>
+      </div>
+    </section>
 
-  <section id="aba-entrega" hidden>
-    <label class="em-linha"><input type="checkbox" id="ent-entrega"> Fazemos entrega</label>
-    <label class="em-linha"><input type="checkbox" id="ent-retirada"> O cliente pode retirar na loja</label>
-    <div id="bloco-lojas">
-      <h2>Lojas para retirada</h2>
-      <div id="lojas-retirada"></div>
-      <button type="button" id="btn-add-loja">Adicionar loja</button>
-    </div>
-    <h2>Frete</h2>
-    <label for="fr-regra">Como cobrar o frete</label>
-    <select id="fr-regra">
-      <option value="a_combinar">A combinar com o atendente</option>
-      <option value="fixo">Valor fixo</option>
-      <option value="gratis_acima_de">Valor fixo, grátis acima de um valor</option>
-    </select>
-    <div id="bloco-valor"><label for="fr-valor">Valor do frete (R$)</label><input id="fr-valor" inputmode="decimal"></div>
-    <div id="bloco-minimo"><label for="fr-minimo">Grátis para pedidos a partir de (R$)</label><input id="fr-minimo" inputmode="decimal"></div>
-    <label for="fr-prazo">Prazo (opcional)</label>
-    <input id="fr-prazo" maxlength="80" placeholder="Ex.: até 3 dias úteis">
-    <div class="acoes"><button type="button" class="principal" id="btn-salvar-entrega">Salvar entrega e frete</button></div>
-    <p id="resultado-entrega" class="resultado"></p>
-  </section>
+    <section id="aba-aparencia" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Aparência</h2>
+        <p>Como o catálogo aparece para o cliente no celular.</p>
+      </div>
+      <div class="duas-colunas">
+        <div class="formulario">
+          <label for="ap-nome">Nome exibido</label>
+          <input id="ap-nome" maxlength="60">
+          <label>Logo (PNG, JPG ou WebP, até 300 KB)</label>
+          <div class="logo-caixa">
+            <img id="ap-logo-atual" class="logo-atual" alt="Logo atual" hidden>
+            <input id="ap-logo" type="file" accept="image/png,image/jpeg,image/webp">
+            <button type="button" class="perigo" id="btn-remover-logo" hidden>Remover logo</button>
+          </div>
+          <div class="cores">
+            <div>
+              <label for="ap-cor">Cor principal</label>
+              <input id="ap-cor" type="color" class="cor">
+            </div>
+            <div>
+              <label for="ap-cor-topo">Cor do topo</label>
+              <input id="ap-cor-topo" type="color" class="cor">
+            </div>
+          </div>
+          <span class="ajuda">A cor principal vai nos botões e destaques.</span>
+          <label for="ap-layout">Vitrine</label>
+          <select id="ap-layout">
+            <option value="grade">Grade (2 produtos por linha)</option>
+            <option value="lista">Lista (1 produto por linha, com foto ao lado)</option>
+          </select>
+          <label for="ap-boas-vindas">Texto de boas-vindas</label>
+          <input id="ap-boas-vindas" maxlength="200" placeholder="Escolha os produtos, ajuste as quantidades e finalize.">
+          <div class="grupo-interruptores" style="margin-top:16px">
+            <label class="interruptor"><input type="checkbox" id="ap-destaque"><span><strong>Mostrar a faixa de boas-vindas</strong><small>O título e o texto acima dos produtos.</small></span></label>
+          </div>
+        </div>
+        <div class="previa-coluna">
+          <strong>Prévia</strong>
+          <div id="ap-previa" class="previa-tema">
+            <div id="ap-previa-topo" class="previa-topo">
+              <span class="previa-logo" id="ap-previa-logo" hidden><img id="ap-previa-logo-img" alt=""></span>
+              <span id="ap-previa-nome"></span>
+            </div>
+            <div class="previa-corpo">
+              <div class="previa-faixa" id="ap-previa-faixa"><i></i><i></i><b></b></div>
+              <div class="previa-grade">
+                <div class="previa-cartao"><i></i><b></b><b></b></div>
+                <div class="previa-cartao"><i></i><b></b><b></b></div>
+                <div class="previa-cartao"><i></i><b></b><b></b></div>
+                <div class="previa-cartao"><i></i><b></b><b></b></div>
+              </div>
+              <button type="button" id="ap-previa-botao" class="previa-botao" tabindex="-1">Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p id="resultado-aparencia" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-salvar-aparencia">Salvar aparência</button></div>
+    </section>
 
-  <section id="aba-pedidos" hidden>
-    <label class="em-linha"><input type="checkbox" id="pd-precos"> Mostrar os preços no catálogo</label>
-    <span class="ajuda">Desligado, o cliente monta a lista sem ver valores e envia um pedido de orçamento. O atendente pode mudar isso em cada link.</span>
-    <label for="pd-validade">Validade do link (dias)</label>
-    <input id="pd-validade" type="number" min="1" max="60">
-    <div class="acoes"><button type="button" class="principal" id="btn-salvar-pedidos">Salvar pedidos</button></div>
-    <p id="resultado-pedidos" class="resultado"></p>
-  </section>
+    <section id="aba-entrega" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Entrega e frete</h2>
+        <p>Como o cliente recebe o pedido.</p>
+      </div>
+      <div class="formulario">
+        <div class="grupo-interruptores">
+          <label class="interruptor"><input type="checkbox" id="ent-entrega"><span><strong>Fazemos entrega</strong><small>O cliente informa o endereço ao finalizar.</small></span></label>
+          <label class="interruptor"><input type="checkbox" id="ent-retirada"><span><strong>O cliente pode retirar na loja</strong><small>Ele escolhe uma das lojas abaixo.</small></span></label>
+        </div>
+      </div>
+      <div id="bloco-lojas">
+        <h3>Lojas para retirada</h3>
+        <div id="lojas-retirada" class="lojas-lista"></div>
+        <button type="button" class="suave" id="btn-add-loja"><svg class="ic"><use href="#i-mais"/></svg>Adicionar loja</button>
+      </div>
+      <h3>Frete</h3>
+      <div class="formulario">
+        <label for="fr-regra">Como cobrar o frete</label>
+        <select id="fr-regra">
+          <option value="a_combinar">A combinar com o atendente</option>
+          <option value="fixo">Valor fixo</option>
+          <option value="gratis_acima_de">Valor fixo, grátis acima de um valor</option>
+        </select>
+        <div class="linha-campos">
+          <div id="bloco-valor"><label for="fr-valor">Valor do frete (R$)</label><input id="fr-valor" inputmode="decimal"></div>
+          <div id="bloco-minimo"><label for="fr-minimo">Grátis para pedidos a partir de (R$)</label><input id="fr-minimo" inputmode="decimal"></div>
+        </div>
+        <label for="fr-prazo">Prazo (opcional)</label>
+        <input id="fr-prazo" maxlength="80" placeholder="Ex.: até 3 dias úteis">
+      </div>
+      <p id="resultado-entrega" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-salvar-entrega">Salvar entrega e frete</button></div>
+    </section>
 
-  <section id="aba-catalogo" hidden>
-    <p class="muted">Categorias marcadas ficam escondidas do cliente (os produtos só delas também).</p>
-    <ul id="lista-categorias" class="lista-simples"></ul>
-    <div class="acoes"><button type="button" class="principal" id="btn-salvar-catalogo">Salvar catálogo</button></div>
-    <p id="resultado-catalogo" class="resultado"></p>
+    <section id="aba-pedidos" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Pedidos</h2>
+        <p>Preços e validade dos links enviados aos clientes.</p>
+      </div>
+      <div class="formulario">
+        <div class="grupo-interruptores">
+          <label class="interruptor"><input type="checkbox" id="pd-precos"><span><strong>Mostrar os preços no catálogo</strong>
+            <small class="ajuda">Desligado, o cliente monta a lista sem ver valores e envia um pedido de orçamento. O atendente pode mudar isso em cada link.</small></span></label>
+        </div>
+        <label for="pd-validade">Validade do link (dias)</label>
+        <input id="pd-validade" class="curto" type="number" min="1" max="60">
+      </div>
+      <p id="resultado-pedidos" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-salvar-pedidos">Salvar pedidos</button></div>
+    </section>
+
+    <section id="aba-catalogo" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Catálogo</h2>
+        <p>Categorias marcadas ficam escondidas do cliente (os produtos só delas também).</p>
+      </div>
+      <ul id="lista-categorias" class="lista-simples"></ul>
+      <p id="resultado-catalogo" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-salvar-catalogo">Salvar catálogo</button></div>
+    </section>
   </section>
-</section>
+</div>
 
 <script>
 (function () {
@@ -387,6 +660,7 @@
   // ── Aba Integração ───────────────────────────────────────────────────────
   function atualizarStatus() {
     $('status').textContent = 'Loja ' + (estado.loja.nome || 'sem nome') + ' · Integração: ' + ESTADOS[estado.situacao];
+    $('status').className = 'status-loja ' + estado.situacao;
     $('status').hidden = false;
   }
 
@@ -643,14 +917,23 @@
     $('ap-previa-topo').style.background = $('ap-cor-topo').value;
     $('ap-previa-botao').style.background = $('ap-cor').value;
     $('ap-previa-nome').textContent = $('ap-nome').value || 'Sua loja';
+    $('ap-previa').className = 'previa-tema' + ($('ap-layout').value === 'lista' ? ' lista' : '');
+    $('ap-previa-faixa').hidden = !$('ap-destaque').checked;
   }
   ['ap-cor', 'ap-cor-topo', 'ap-nome'].forEach(function (id) { $(id).addEventListener('input', atualizarPrevia); });
+  ['ap-layout', 'ap-destaque'].forEach(function (id) { $(id).addEventListener('change', atualizarPrevia); });
 
   function mostrarLogo(url) {
     $('ap-logo-atual').hidden = !url;
     $('btn-remover-logo').hidden = !url;
-    if (url) $('ap-logo-atual').src = url;
-    else $('ap-logo-atual').removeAttribute('src');
+    $('ap-previa-logo').hidden = !url;
+    if (url) {
+      $('ap-logo-atual').src = url;
+      $('ap-previa-logo-img').src = url;
+    } else {
+      $('ap-logo-atual').removeAttribute('src');
+      $('ap-previa-logo-img').removeAttribute('src');
+    }
   }
 
   $('ap-logo').addEventListener('change', function () {
@@ -706,7 +989,7 @@
       campo.value = loja[c[0]] || '';
       linha.appendChild(campo);
     });
-    var remover = el('button', 'Remover');
+    var remover = el('button', 'Remover loja', 'perigo');
     remover.type = 'button';
     remover.addEventListener('click', function () { linha.parentNode.removeChild(linha); });
     linha.appendChild(remover);
