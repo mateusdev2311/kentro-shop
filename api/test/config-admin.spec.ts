@@ -19,7 +19,7 @@ describe('Configurações do admin (Fase 0)', () => {
     expect(tela.visivel('ajuda-chave')).toBe(true);
   });
 
-  it('criar a loja registra, mostra as três chaves e guarda até serem coladas', async () => {
+  it('criar a loja registra, mostra as duas chaves e guarda até serem coladas', async () => {
     const tela = await montarTela('admin/config.html', {
       config: semChave,
       respostas: { 'POST /v1/lojas/registrar': { status: 201, body: registro } },
@@ -35,9 +35,11 @@ describe('Configurações do admin (Fase 0)', () => {
     expect(tela.visivel('chaves')).toBe(true);
     expect(tela.texto('valor-chave-admin')).toBe('ksa_1');
     expect(tela.texto('valor-chave-atendimento')).toBe('ksk_1');
-    expect(tela.texto('valor-token-mcp')).toBe('ksm_1');
     expect(tela.texto('chaves')).toContain('Estas chaves aparecem só agora. Copie antes de fechar.');
-    expect(tela.storage.chaves_pendentes).toMatchObject({ chaveAdmin: 'ksa_1', chaveAtendimento: 'ksk_1', tokenMcp: 'ksm_1' });
+    // O token MCP só tem uso quando existir o servidor /mcp: até lá não aparece nem fica guardado.
+    expect(tela.texto('chaves')).not.toContain('ksm_1');
+    expect(tela.storage.chaves_pendentes).toMatchObject({ chaveAdmin: 'ksa_1', chaveAtendimento: 'ksk_1' });
+    expect(tela.storage.chaves_pendentes).not.toHaveProperty('tokenMcp');
   });
 
   it('nome vazio não é enviado', async () => {
