@@ -46,18 +46,23 @@ describe('aba Integração: Nuvemshop (OAuth)', () => {
     expect(t.visivel('btn-salvar-integracao')).toBe(true);
   });
 
-  it('Conectar mostra o link de reserva e, quando a autorização volta, mostra a conexão funcionando', async () => {
+  it('Conectar copia o link (sem abrir aba pelo iframe) e, quando a autorização volta, mostra a conexão funcionando', async () => {
     t = await tela({ 'GET /v1/loja/integracao': semIntegracao });
     escolher(t, 'nuvemshop');
+    const abertas: unknown[] = [];
+    t.document.defaultView!.open = (...a: unknown[]) => (abertas.push(a), null);
     await t.clicar('btn-conectar');
     const pedido = t.chamadas.find((c) => c.url.endsWith('/v1/loja/integracao/oauth/iniciar'))!;
     expect(JSON.parse(pedido.body!)).toEqual({ plataforma: 'nuvemshop' });
+    expect(t.copiados).toEqual([link.body.url]);
+    // A aba aberta pelo iframe da Kentro herdaria o sandbox, e o login da Nuvemshop não carrega nela.
+    expect(abertas).toHaveLength(0);
+    expect(t.document.querySelector('#bloco-oauth a[href]')).toBeNull();
     expect(t.visivel('oauth-link-caixa')).toBe(true);
-    expect((t.document.getElementById('oauth-link') as HTMLAnchorElement).href).toBe(link.body.url);
     expect(t.texto('oauth-estado')).toBe('Aguardando a autorização na Nuvemshop…');
 
     await t.clicar('btn-copiar-oauth');
-    expect(t.copiados).toEqual([link.body.url]);
+    expect(t.copiados).toEqual([link.body.url, link.body.url]);
 
     // O lojista autoriza na Nuvemshop: o retorno grava e testa; a tela percebe na próxima conferência.
     t.respostas['GET /v1/loja/integracao'] = conectada;

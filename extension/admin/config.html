@@ -198,6 +198,8 @@
   .sincronizar .bolha .ic { width: 19px; height: 19px; }
   .sincronizar p { margin-top: 1px; }
   .sincronizar.trabalhando .bolha .ic { animation: girar 1.1s linear infinite; }
+  .oauth-passos { margin-top: 10px; padding: 12px 14px; border-radius: var(--ks-r-p); background: var(--ext-color-bg); border: 1px solid var(--ks-linha); }
+  .oauth-passos .ajuda { margin: 6px 0 10px; }
   .duas-metades { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 28px; margin-top: 8px; }
 
   /* ── Aparência ── */
@@ -359,8 +361,11 @@
         <div>
           <strong id="oauth-titulo"></strong>
           <p id="oauth-estado" class="muted"></p>
-          <p id="oauth-link-caixa" class="ajuda" hidden>Se a página não abriu, <a id="oauth-link" href="#" target="_blank" rel="noopener">abra a autorização</a>
-            ou <button type="button" class="link" id="btn-copiar-oauth">copie o link</button> e cole no navegador. O link vale por 30 minutos.</p>
+          <div id="oauth-link-caixa" class="oauth-passos" hidden>
+            <p>O link foi copiado. Abra uma <strong>aba nova</strong> no navegador (Ctrl+T), cole na barra de endereço (Ctrl+V) e aceite na Nuvemshop.</p>
+            <span class="ajuda">Não abra pela Kentro: a aba aberta a partir dela herda as restrições do quadro da extensão e o login da Nuvemshop não carrega. O link vale por 30 minutos.</span>
+            <button type="button" class="suave" id="btn-copiar-oauth"><svg class="ic"><use href="#i-copiar"/></svg>Copiar o link de novo</button>
+          </div>
         </div>
         <button type="button" class="principal" id="btn-conectar"></button>
       </div>
@@ -828,7 +833,7 @@
     $('oauth-titulo').textContent = conector.nome;
     $('oauth-estado').textContent = conectada
       ? 'Loja conectada. Se trocar de loja ou o acesso parar de funcionar, conecte de novo.'
-      : 'Clique em Conectar: abre a página da ' + conector.nome + ', você entra na sua loja e aceita. Depois é só voltar para esta tela.';
+      : 'Clique em Conectar para copiar o link de autorização. Cole numa aba nova do navegador, entre na sua loja da ' + conector.nome + ' e aceite. Depois é só voltar para esta tela.';
     $('btn-conectar').textContent = conectada ? 'Conectar de novo' : 'Conectar ' + conector.nome;
     $('oauth-link-caixa').hidden = true;
   }
@@ -869,11 +874,11 @@
     api('/v1/loja/integracao/oauth/iniciar', { method: 'POST', body: { plataforma: conector.id } }).then(function (r) {
       urlOAuth = r.url;
       mostrarEstadoOAuth(conector);
-      $('oauth-link').href = r.url;
       $('oauth-link-caixa').hidden = false;
       $('oauth-estado').textContent = 'Aguardando a autorização na ' + conector.nome + '…';
-      // A Kentro pode bloquear a nova aba: o link e o "copiar" ficam como reserva.
-      try { window.open(r.url, '_blank', 'noopener'); } catch (e) { /* sem nova aba */ }
+      // Sem window.open nem link clicável: a aba aberta pelo iframe da Kentro herda o sandbox e o login da
+      // plataforma (cookies, reCAPTCHA) não funciona nela. O lojista cola o link numa aba nova.
+      copiar(r.url, 'Link copiado. Cole numa aba nova do navegador.');
       aguardarAutorizacao(conector, estado.integracao ? estado.integracao.ultimoTesteEm : null, esperaOAuth, 0);
     }, function (erro) {
       mostrarResultado(mensagemDeErro(erro));
