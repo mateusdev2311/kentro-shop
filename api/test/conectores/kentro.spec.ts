@@ -1,116 +1,70 @@
-import { criarClienteHttp } from '../../src/conectores/nucleo/cliente-http';
-import { CtxConector } from '../../src/conectores/nucleo/conector';
-import { CredencialInvalida, RecusadoPelaPlataforma } from '../../src/conectores/nucleo/erros';
-import { conectorKentro, enderecoMcp } from '../../src/conectores/kentro/kentro.conector';
-import { ChamadaMcp, criarFetchKentro, KENTRO_CREDENCIAIS, OpcoesMcpFalso } from './fixtures-kentro';
+import { CatalogoLocal, CtxConector } from '../../src/conectores/nucleo/conector';
+import { RecusadoPelaPlataforma } from '../../src/conectores/nucleo/erros';
+import { conectorKentro, produtoDoSdk } from '../../src/conectores/kentro/kentro.conector';
+import { catalogoEmMemoria, PRODUTOS_SDK } from './catalogo-memoria';
 
-let seq = 0;
+const ctx = (catalogoLocal?: CatalogoLocal): CtxConector => ({
+  lojaId: 'ktr',
+  credenciais: {},
+  http: { requisitar: () => Promise.reject(new Error('o conector da Kentro não faz HTTP')) },
+  salvarCredenciais: async () => undefined,
+  ...(catalogoLocal ? { catalogoLocal } : {}),
+});
 
-function ctx(opcoes: OpcoesMcpFalso = {}, credenciais: Record<string, string> = KENTRO_CREDENCIAIS): CtxConector {
-  seq += 1;
-  return {
-    lojaId: `ktr-${seq}`,
-    credenciais,
-    http: criarClienteHttp({
-      lojaId: `ktr-${seq}`,
-      plataforma: 'kentro',
-      ritmo: { porSegundo: 1000, rajada: 1000 },
-      fetch: criarFetchKentro(opcoes),
-      esperar: async () => undefined,
-      registrar: async () => undefined,
-    }),
-    salvarCredenciais: async () => undefined,
-  };
-}
-
-describe('conector Kentro (catálogo interno pelo MCP da instância)', () => {
-  it('campos: endereço da Kentro (url) e token do MCP (segredo)', () => {
-    expect(conectorKentro.camposDeCredencial.map((c) => [c.chave, c.tipo, c.obrigatorio])).toEqual([
-      ['url_kentro', 'url', true],
-      ['token_mcp', 'segredo', true],
-    ]);
+describe('conector Kentro (cópia sincronizada pela extensão)', () => {
+  it('não pede nada na integração: nem endereço nem token', () => {
+    expect(conectorKentro.camposDeCredencial).toEqual([]);
   });
 
-  it('endereço do MCP: aceita o domínio da Kentro ou o /mcp completo', () => {
-    expect(enderecoMcp('https://kentro.teste')).toBe('https://kentro.teste/mcp');
-    expect(enderecoMcp('https://kentro.teste/')).toBe('https://kentro.teste/mcp');
-    expect(enderecoMcp('https://kentro.teste:443/mcp')).toBe('https://kentro.teste/mcp');
-    expect(() => enderecoMcp('http://kentro.teste')).toThrow(RecusadoPelaPlataforma);
-  });
-
-  it('abre a sessão uma vez (initialize + initialized) e reaproveita nas chamadas seguintes', async () => {
-    const chamadas: ChamadaMcp[] = [];
-    const c = ctx({ chamadas });
-    await conectorKentro.listarCategorias(c);
-    await conectorKentro.obterProduto(c, '1');
-    expect(chamadas.map((x) => x.metodo)).toEqual(['initialize', 'notifications/initialized', 'tools/call', 'tools/call']);
-    expect(chamadas[0].autorizacao).toBe('Bearer mcp-certo');
-    expect(chamadas[2].sessao).toMatch(/^sessao-\d+$/);
-    expect(chamadas[3].sessao).toBe(chamadas[2].sessao);
-  });
-
-  it('sessão expirada no servidor: abre outra e repete a chamada', async () => {
-    const chamadas: ChamadaMcp[] = [];
-    const expirar = { agora: false };
-    const c = ctx({ chamadas, expirar });
-    await conectorKentro.listarCategorias(c);
-    expirar.agora = true;
-    const cats = await conectorKentro.listarCategorias(c);
-    expect(cats).toHaveLength(2);
-    expect(chamadas.filter((x) => x.metodo === 'initialize')).toHaveLength(2);
-  });
-
-  it('entende resposta em SSE (text/event-stream)', async () => {
-    const p = await conectorKentro.obterProduto(ctx({ sse: true }), '6');
-    expect(p).toMatchObject({ id: '6', nome: 'Argamassa AC3', preco: 39.9 });
-  });
-
-  it('normaliza o produto: centavos, promoção, unidade, foto, grupo e texto puro', async () => {
-    const p = await conectorKentro.obterProduto(ctx(), '1');
-    expect(p).toEqual({
+  it('normaliza o produto do SDK: preço na unidade da moeda, descrição sem HTML, foto em https', () => {
+    expect(produtoDoSdk(PRODUTOS_SDK[0])).toEqual({
       id: '1',
       sku: 'PRC-1',
       nome: 'Porcelanato Bege',
       descricao: 'Caixa com 1,44 m²',
       imagens: ['https://cdn.kentro.teste/p1.jpg'],
-      preco: 99.9,
-      precoDe: 119.9,
+      preco: 119.9,
       unidade: 'CX',
-      estoque: 10,
+      estoque: null,
       disponivel: true,
       categoriaIds: ['1'],
       variacoes: [],
     });
-    const tinta = await conectorKentro.obterProduto(ctx(), '2');
-    expect(tinta).toMatchObject({ sku: '2', preco: 80, estoque: null, categoriaIds: ['2'], imagens: ['https://cdn.kentro.teste/t.jpg'] });
-    expect(tinta!.precoDe).toBeUndefined();
-    expect((await conectorKentro.obterProduto(ctx(), '5'))!.disponivel).toBe(false);
+    const tinta = produtoDoSdk(PRODUTOS_SDK[1])!;
+    expect(tinta.sku).toBe('2'); // sem código interno, o SKU é o id
+    expect(tinta.unidade).toBe('UN');
+    expect(tinta.imagens).toEqual(['https://inseguro.teste/t.jpg']); // http vira https, como nos outros conectores
+    expect(produtoDoSdk(PRODUTOS_SDK[2])!.disponivel).toBe(false);
   });
 
-  it('arquivado, oculto para clientes e inexistente não existem para o cliente', async () => {
-    expect(await conectorKentro.obterProduto(ctx(), '3')).toBeNull();
-    expect(await conectorKentro.obterProduto(ctx(), '4')).toBeNull();
-    expect(await conectorKentro.obterProduto(ctx(), '999')).toBeNull();
+  it('descarta o oculto para clientes e o que não tem id numérico ou nome', () => {
+    expect(produtoDoSdk(PRODUTOS_SDK[4])).toBeNull();
+    expect(produtoDoSdk({ id: 'abc', name: 'X', price: 1 })).toBeNull();
+    expect(produtoDoSdk({ id: 7, name: '  ', price: 1 })).toBeNull();
   });
 
-  it('acha pelo código interno (SKU)', async () => {
-    expect((await conectorKentro.obterProduto(ctx(), 'ARG'))!.id).toBe('6');
-    expect(await conectorKentro.obterProduto(ctx(), 'NAO-EXISTE')).toBeNull();
+  it('sem preço continua no catálogo com preço 0 (o catálogo sem preço vira lista de orçamento)', () => {
+    expect(produtoDoSdk({ id: 8, name: 'Sob consulta', available: true })).toMatchObject({ preco: 0, disponivel: true });
   });
 
-  it('lista com busca e por grupo (categoria), sem arquivados e ocultos', async () => {
-    const chamadas: ChamadaMcp[] = [];
-    const pisos = await conectorKentro.listarProdutos(ctx({ chamadas }), { categoriaId: '1', pagina: 1, porPagina: 24 });
-    expect(pisos.itens.map((p) => p.id)).toEqual(['1', '5', '6']);
-    expect(chamadas.find((c) => c.ferramenta === 'products_list')!.argumentos).toEqual({ limit: 24, offset: 0, groupId: 1 });
-    const busca = await conectorKentro.listarProdutos(ctx(), { busca: 'tinta', pagina: 1, porPagina: 24 });
-    expect(busca.itens.map((p) => p.id)).toEqual(['2']);
-    const todos = await conectorKentro.listarProdutos(ctx(), { pagina: 1, porPagina: 24 });
-    expect(todos.itens.map((p) => p.id)).toEqual(['1', '2', '5', '6']);
+  it('teste de conexão: pede a primeira sincronização e avisa catálogo vazio', async () => {
+    expect(await conectorKentro.testarConexao(ctx(catalogoEmMemoria([], [], null)))).toEqual({
+      ok: false,
+      mensagem: 'O catálogo da Kentro ainda não foi sincronizado. Clique em "Sincronizar agora".',
+    });
+    expect((await conectorKentro.testarConexao(ctx(catalogoEmMemoria([], [])))).ok).toBe(false);
+    expect(await conectorKentro.testarConexao(ctx(catalogoEmMemoria()))).toEqual({ ok: true, nomeLoja: 'Catálogo da Kentro (4 produtos)' });
   });
 
-  it('token recusado vira CredencialInvalida; teste de conexão funciona com o token certo', async () => {
-    await expect(conectorKentro.listarCategorias(ctx({}, { ...KENTRO_CREDENCIAIS, token_mcp: 'errado' }))).rejects.toBeInstanceOf(CredencialInvalida);
-    expect(await conectorKentro.testarConexao(ctx())).toEqual({ ok: true });
+  it('busca sem acento, filtra por grupo e acha o produto pelo id ou pelo SKU', async () => {
+    const c = ctx(catalogoEmMemoria());
+    expect((await conectorKentro.listarProdutos(c, { busca: 'acrilica', pagina: 1, porPagina: 10 })).itens.map((p) => p.nome)).toEqual(['Tinta Acrílica']);
+    expect((await conectorKentro.listarProdutos(c, { categoriaId: '1', pagina: 1, porPagina: 10 })).itens.map((p) => p.id)).toEqual(['6', '1', '5']);
+    expect((await conectorKentro.obterProduto(c, 'ARG'))!.id).toBe('6');
+    expect(await conectorKentro.obterProduto(c, '4')).toBeNull(); // oculto não entrou na cópia
+  });
+
+  it('sem a cópia no contexto, recusa em vez de quebrar', async () => {
+    await expect(conectorKentro.listarCategorias(ctx())).rejects.toBeInstanceOf(RecusadoPelaPlataforma);
   });
 });

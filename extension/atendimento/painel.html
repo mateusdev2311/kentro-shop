@@ -919,6 +919,70 @@
     }).then(function () { botao.disabled = false; });
   });
 
+  // ── Catálogo da Kentro: mantém atualizada a cópia que o Kentro Shop usa ─
+  // A Kentro não deixa um servidor ler os produtos sem token; a extensão lê com a sessão de quem está logado.
+  // Quem estiver com o painel aberto atualiza a cópia quando ela passa de 1 hora.
+  var PRODUTOS_POR_PARTE = 250;
+  var CATALOGO_VELHO_MS = 60 * 60 * 1000;
+  var CONFERIR_CATALOGO_MS = 15 * 60 * 1000;
+  // A API REST da instância (omni.data.request) não documenta o nome do recurso de grupos: tenta os prováveis.
+  var RECURSOS_GRUPOS = ['productgroups', 'product-groups', 'products/groups', 'productGroups'];
+
+  function esperar(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function lerGruposDaKentro() {
+    if (!omni.data || !omni.data.request) return Promise.resolve(null);
+    var i = 0;
+    function tentar() {
+      if (i >= RECURSOS_GRUPOS.length) return null;
+      return Promise.resolve(omni.data.request(RECURSOS_GRUPOS[i++], 'GET')).then(function (r) {
+        var lista = Array.isArray(r) ? r : r && (r.groups || r.data || r.items || r.rows);
+        if (!Array.isArray(lista)) return tentar();
+        return lista
+          .map(function (g) { return { id: g && g.id, nome: g && (g.name || g.nome) }; })
+          .filter(function (g) { return g.id != null && g.nome; });
+      }, tentar);
+    }
+    return Promise.resolve(tentar()).catch(function () { return null; });
+  }
+
+  function enviarCatalogoKentro() {
+    return Promise.all([Promise.resolve(omni.products.list()), lerGruposDaKentro()]).then(function (r) {
+      var produtos = (r[0] || []).map(function (p) {
+        return {
+          id: p.id, name: p.name, description: String(p.description || '').slice(0, 600), internalCode: p.internalCode,
+          price: p.price != null ? p.price : p.value, measurementUnit: p.measurementUnit, groupIds: p.groupIds,
+          available: p.available, hiddenFromClients: p.hiddenFromClients, imageUrl: p.imageUrl
+        };
+      });
+      var grupos = r[1];
+      var partes = [];
+      for (var i = 0; i < produtos.length; i += PRODUTOS_POR_PARTE) partes.push(produtos.slice(i, i + PRODUTOS_POR_PARTE));
+      if (!partes.length) partes.push([]);
+      var lote = 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      // O omni.http.request aceita 30 chamadas por minuto, e o painel já consulta o carrinho a cada 5 s.
+      return partes.reduce(function (anterior, daParte, n) {
+        return anterior.then(function () {
+          var corpo = { lote: lote, parte: n, ultima: n === partes.length - 1, produtos: daParte };
+          if (corpo.ultima && grupos) corpo.grupos = grupos;
+          return esperar(n ? 4000 : 0).then(function () { return api('/v1/loja/catalogo-kentro/lotes', { method: 'POST', body: corpo }); });
+        });
+      }, Promise.resolve(null));
+    });
+  }
+
+  var conferindoCatalogo = false;
+  function manterCatalogoKentro() {
+    if (plataforma !== 'kentro' || conferindoCatalogo || document.hidden || !omni.products || !omni.products.list) return;
+    conferindoCatalogo = true;
+    api('/v1/loja/catalogo-kentro').then(function (e) {
+      var idade = e.sincronizadoEm ? Date.now() - new Date(e.sincronizadoEm).getTime() : Infinity;
+      if (!e.sincronizando && idade >= CATALOGO_VELHO_MS) return enviarCatalogoKentro();
+    }).catch(function () {
+      // Silencioso: a próxima conferência tenta de novo, e o admin sincroniza pela tela de Configurações.
+    }).then(function () { conferindoCatalogo = false; });
+  }
+
   // ── Atendimento aberto na Kentro ────────────────────────────────────────
   function carregarChat(c) {
     var id = c && c.id != null ? String(c.id) : null;
@@ -973,6 +1037,10 @@
         return;
       }
       plataforma = loja.plataforma || null;
+      if (plataforma === 'kentro') {
+        manterCatalogoKentro();
+        setInterval(manterCatalogoKentro, CONFERIR_CATALOGO_MS);
+      }
       $('status').textContent = 'Conectado à loja ' + (loja.nome || 'sem nome') + '.';
       $('status').hidden = false;
       omni.on('omniChatSelected', carregarChat);

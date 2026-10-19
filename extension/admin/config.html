@@ -189,6 +189,12 @@
   .previa { margin: 0; padding: 0; list-style: none; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
   .previa li { padding: 10px 14px; border-top: 1px solid var(--ks-linha); font-size: .92em; }
   .previa li:first-child { border-top: 0; }
+  .sincronizar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; max-width: 760px; margin-top: 18px; padding: 16px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); background: var(--ks-superficie); }
+  .sincronizar > div { flex: 1; min-width: 240px; }
+  .sincronizar .bolha { width: 40px; height: 40px; flex: none; }
+  .sincronizar .bolha .ic { width: 19px; height: 19px; }
+  .sincronizar p { margin-top: 1px; }
+  .sincronizar.trabalhando .bolha .ic { animation: girar 1.1s linear infinite; }
   .duas-metades { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 28px; margin-top: 8px; }
 
   /* ── Aparência ── */
@@ -203,8 +209,8 @@
   /* Celular com a cara do catálogo de verdade (topo, faixa, vitrine e botão). */
   .previa-tema { width: 260px; overflow: hidden; border: 8px solid #1d1e20; border-radius: 30px; background: #f5f2ec; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .45); }
   .previa-topo { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 18px 12px 12px; color: #fff; font-weight: 700; font-size: .95em; }
-  .previa-logo { flex: none; display: grid; place-items: center; height: 28px; padding: 3px 6px; border-radius: 6px; background: #fff; }
-  .previa-logo img { height: 100%; max-width: 70px; object-fit: contain; }
+  .previa-logo { flex: none; display: flex; align-items: center; padding: 3px 6px; border-radius: 6px; background: #fff; }
+  .previa-logo img { display: block; height: 22px; width: auto; max-width: 70px; object-fit: contain; }
   .previa-corpo { padding: 12px; }
   .previa-faixa { margin-bottom: 12px; }
   .previa-faixa i { display: block; height: 9px; border-radius: 3px; background: #2b2722; }
@@ -248,6 +254,7 @@
     <symbol id="i-chave" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/></symbol>
     <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
     <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-sincronizar" viewBox="0 0 24 24"><path d="M19.5 9A7.5 7.5 0 0 0 6 6.5L4.5 8"/><path d="M4.5 4v4h4"/><path d="M4.5 15A7.5 7.5 0 0 0 18 17.5l1.5-1.5"/><path d="M19.5 20v-4h-4"/></symbol>
   </defs>
 </svg>
 
@@ -335,6 +342,15 @@
         <select id="plataforma"></select>
         <div id="campos"></div>
       </div>
+      <div id="bloco-kentro" class="sincronizar" hidden>
+        <span class="bolha"><svg class="ic"><use href="#i-sincronizar"/></svg></span>
+        <div>
+          <strong>Produtos da Kentro</strong>
+          <p id="kentro-estado" class="muted">Ainda não sincronizado.</p>
+          <span class="ajuda">Os produtos, preços e grupos vêm do cadastro da Kentro, sem token. A cópia é atualizada ao abrir esta tela e, a cada hora, pelo painel do atendimento.</span>
+        </div>
+        <button type="button" class="suave" id="btn-sincronizar"><svg class="ic"><use href="#i-sincronizar"/></svg>Sincronizar agora</button>
+      </div>
       <p id="resultado-teste" class="resultado"></p>
       <div id="bloco-capacidades" hidden>
         <div class="duas-metades">
@@ -369,6 +385,7 @@
             <input id="ap-logo" type="file" accept="image/png,image/jpeg,image/webp">
             <button type="button" class="perigo" id="btn-remover-logo" hidden>Remover logo</button>
           </div>
+          <span class="ajuda">Ideal: PNG com fundo transparente, recortado sem margem. Horizontal até 4:1 (ex.: 600 × 150 px) ou quadrado (ex.: 300 × 300 px). No catálogo ele aparece com 48 px de altura.</span>
           <div class="cores">
             <div>
               <label for="ap-cor">Cor principal</label>
@@ -669,7 +686,9 @@
     var alvo = $('campos');
     limpar(alvo);
     estado.alterado = false;
+    $('bloco-kentro').hidden = !conector || conector.id !== 'kentro';
     if (!conector) return;
+    if (conector.id === 'kentro') mostrarEstadoKentro();
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
       rotulo.setAttribute('for', 'campo-' + campo.chave);
@@ -767,9 +786,126 @@
     botao.disabled = true;
     mostrarResultado('');
     salvar().then(function (ok) {
-      if (ok) mostrarResultado('Integração salva. Agora clique em Testar conexão.');
+      botao.disabled = false;
+      if (!ok) return;
+      if (!integracaoKentroSalva()) { mostrarResultado('Integração salva. Agora clique em Testar conexão.'); return; }
+      mostrarResultado('Integração salva. Buscando os produtos da Kentro…');
+      return sincronizarKentro();
+    });
+  });
+
+  // ── Catálogo da Kentro: a extensão lê os produtos e envia uma cópia ao Kentro Shop ──
+  // A Kentro não deixa um servidor ler os produtos sem token; a extensão lê com a sessão de quem está logado.
+  var PRODUTOS_POR_PARTE = 250;
+  // A API REST da instância (omni.data.request) não documenta o nome do recurso de grupos: tenta os prováveis.
+  var RECURSOS_GRUPOS = ['productgroups', 'product-groups', 'products/groups', 'productGroups'];
+
+  function esperar(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /** Nomes dos grupos de produtos ([{ id, nome }]), ou null se a Kentro não os der à extensão. */
+  function lerGruposDaKentro() {
+    if (!omni.data || !omni.data.request) return Promise.resolve(null);
+    var i = 0;
+    function tentar() {
+      if (i >= RECURSOS_GRUPOS.length) return null;
+      return Promise.resolve(omni.data.request(RECURSOS_GRUPOS[i++], 'GET')).then(function (r) {
+        var lista = Array.isArray(r) ? r : r && (r.groups || r.data || r.items || r.rows);
+        if (!Array.isArray(lista)) return tentar();
+        return lista
+          .map(function (g) { return { id: g && g.id, nome: g && (g.name || g.nome) }; })
+          .filter(function (g) { return g.id != null && g.nome; });
+      }, tentar);
+    }
+    return Promise.resolve(tentar()).catch(function () { return null; });
+  }
+
+  /** Lê o catálogo pelo SDK e envia em partes; resolve com { total, sincronizadoEm } da última parte. */
+  function enviarCatalogoKentro() {
+    if (!omni.products || !omni.products.list) {
+      return Promise.reject({ status: 0, codigo: 'SEM_SDK', mensagem: 'Esta versão da Kentro não deixa a extensão ler os produtos.' });
+    }
+    return Promise.all([Promise.resolve(omni.products.list()), lerGruposDaKentro()]).then(function (r) {
+      var produtos = (r[0] || []).map(function (p) {
+        return {
+          id: p.id, name: p.name, description: String(p.description || '').slice(0, 600), internalCode: p.internalCode,
+          price: p.price != null ? p.price : p.value, measurementUnit: p.measurementUnit, groupIds: p.groupIds,
+          available: p.available, hiddenFromClients: p.hiddenFromClients, imageUrl: p.imageUrl
+        };
+      });
+      var grupos = r[1];
+      var partes = [];
+      for (var i = 0; i < produtos.length; i += PRODUTOS_POR_PARTE) partes.push(produtos.slice(i, i + PRODUTOS_POR_PARTE));
+      if (!partes.length) partes.push([]);
+      var lote = 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      // O omni.http.request aceita 30 chamadas por minuto: catálogo grande vai mais devagar.
+      var pausa = partes.length > 25 ? 2100 : 0;
+      return partes.reduce(function (anterior, daParte, n) {
+        return anterior.then(function () {
+          var corpo = { lote: lote, parte: n, ultima: n === partes.length - 1, produtos: daParte };
+          if (corpo.ultima && grupos) corpo.grupos = grupos;
+          return esperar(n ? pausa : 0).then(function () { return api('/v1/loja/catalogo-kentro/lotes', { method: 'POST', body: corpo }); });
+        });
+      }, Promise.resolve(null));
+    });
+  }
+
+  function textoEstadoKentro(e) {
+    if (e.sincronizando) return 'Sincronizando…';
+    if (!e.sincronizadoEm) return 'Ainda não sincronizado.';
+    var d = new Date(e.sincronizadoEm);
+    var hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    var quando = d.toDateString() === new Date().toDateString() ? 'hoje às ' + hora : 'em ' + d.toLocaleDateString('pt-BR') + ' às ' + hora;
+    var categorias = e.categorias ? e.categorias + (e.categorias === 1 ? ' categoria' : ' categorias') : 'sem categorias';
+    return e.total + (e.total === 1 ? ' produto' : ' produtos') + ' · ' + categorias + ' · sincronizado ' + quando;
+  }
+
+  function integracaoKentroSalva() { return !!(estado.integracao && estado.integracao.plataforma === 'kentro'); }
+
+  // Uma sincronização que começa invalida as consultas de estado ainda pendentes (não sobrescrevem o andamento nem o erro).
+  var versaoEstadoKentro = 0;
+  function mostrarEstadoKentro() {
+    if (!integracaoKentroSalva()) {
+      $('kentro-estado').textContent = 'Salve a integração para buscar os produtos da Kentro.';
+      return Promise.resolve();
+    }
+    var versao = versaoEstadoKentro;
+    return api('/v1/loja/catalogo-kentro').then(function (e) {
+      if (versao === versaoEstadoKentro) $('kentro-estado').textContent = textoEstadoKentro(e);
+    }, function () {});
+  }
+
+  function mensagemDaSincronizacao(erro) {
+    // Atrás do proxy da Kentro o corpo do 409 pode não chegar.
+    if (erro.status === 409 && !erro.mensagem) return 'Não foi possível sincronizar agora: já há uma sincronização em andamento. Tente de novo em instantes.';
+    return mensagemDeErro(erro);
+  }
+
+  /** Sincroniza mostrando o andamento. Com produtos e a integração ainda não testada, testa (o que ativa a loja). */
+  function sincronizarKentro() {
+    var bloco = $('bloco-kentro');
+    var botao = $('btn-sincronizar');
+    bloco.className = 'sincronizar trabalhando';
+    botao.disabled = true;
+    versaoEstadoKentro++;
+    $('kentro-estado').textContent = 'Lendo os produtos da Kentro…';
+    return enviarCatalogoKentro().then(function (r) {
+      return mostrarEstadoKentro().then(function () {
+        if (!r || !r.total) return;
+        if (estado.situacao !== 'ok') $('btn-testar').click();
+        else if (!$('bloco-capacidades').hidden) carregarPrevia();
+      });
+    }, function (erro) {
+      versaoEstadoKentro++;
+      $('kentro-estado').textContent = mensagemDaSincronizacao(erro);
+    }).then(function () {
+      bloco.className = 'sincronizar';
       botao.disabled = false;
     });
+  }
+
+  $('btn-sincronizar').addEventListener('click', function () {
+    var pronto = integracaoKentroSalva() && !estado.alterado ? Promise.resolve(true) : salvar();
+    pronto.then(function (ok) { if (ok) sincronizarKentro(); });
   });
 
   $('btn-testar').addEventListener('click', function () {
@@ -824,6 +960,8 @@
       });
       if (r[1]) select.value = r[1].plataforma;
       desenharCampos(r[1] ? r[1].credenciais : null);
+      // Abrir a tela atualiza a cópia do catálogo da Kentro (em segundo plano).
+      if (integracaoKentroSalva()) sincronizarKentro();
       if (estado.situacao === 'ok') {
         mostrarCapacidades();
         return carregarPrevia();

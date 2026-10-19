@@ -31,8 +31,45 @@ model Loja {
   config     ConfigLoja?
   sessoes    Sessao[]
   clientes   ClienteLoja[]
+  catalogoKentro CatalogoKentro?
+  produtosKentro ProdutoKentro[]
 
   @@map("lojas")
+}
+
+/// Cópia do catálogo da Kentro enviada pela extensão (omni.products.list). Uma sincronização por vez.
+model CatalogoKentro {
+  lojaId          String    @id @map("loja_id") @db.Uuid
+  /// Grupos com produto na última sincronização: [{ id, nome }] (vazio se a Kentro não deu os nomes).
+  grupos          Json      @default("[]")
+  total           Int       @default(0)
+  sincronizadoEm  DateTime? @map("sincronizado_em")
+  /// Sincronização em andamento (trava): o lote e a última parte recebida.
+  loteAtual       String?   @map("lote_atual")
+  loteAtividadeEm DateTime? @map("lote_atividade_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@map("catalogos_kentro")
+}
+
+/// Produto do catálogo da Kentro, já no formato do contrato (dados). busca = nome e SKU sem acento, em minúsculas.
+model ProdutoKentro {
+  lojaId String   @map("loja_id") @db.Uuid
+  id     String
+  nome   String
+  sku    String
+  busca  String
+  grupos String[] @default([])
+  dados  Json
+  lote   String
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@id([lojaId, id])
+  @@index([lojaId, sku])
+  @@index([lojaId, nome])
+  @@map("produtos_kentro")
 }
 
 enum StatusIntegracao {

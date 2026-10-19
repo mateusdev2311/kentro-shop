@@ -32,6 +32,10 @@ export interface OpcoesTela {
   intervaloMs?: number;
   /** Carrinho nativo do atendimento (omni.cart). Ausente = SDK sem carrinho. */
   carrinho?: { disponivel?: boolean; linhas?: { productId: number; qty: number }[]; recusar?: Record<number, string> };
+  /** Catálogo da Kentro (omni.products.list). Ausente = SDK sem products. */
+  produtos?: Record<string, unknown>[];
+  /** API REST da instância (omni.data.request) por recurso; recurso sem resposta é recusado (bad_args). */
+  dados?: Record<string, unknown>;
 }
 
 export interface Tela {
@@ -99,6 +103,11 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
       (ouvintes[evento] ??= []).push(cb);
     },
     chats: { getSelected: () => Promise.resolve(opcoes.chat ?? null) },
+    ...(opcoes.produtos ? { products: { list: () => Promise.resolve(opcoes.produtos!.map((p) => ({ ...p }))) } } : {}),
+    data: {
+      request: (recurso: string) =>
+        opcoes.dados && recurso in opcoes.dados ? Promise.resolve(opcoes.dados[recurso]) : Promise.reject({ code: 'bad_args', message: 'recurso desconhecido' }),
+    },
     contacts: { get: (id: number) => Promise.resolve(opcoes.contatos?.[String(id)] ?? null) },
     ...(opcoes.carrinho
       ? {

@@ -25,7 +25,10 @@ function aplicar(produto: Produto, regra: RegraPublica | undefined, compreJunto?
   };
 }
 
-/** Catálogo = conector ao vivo + regras da loja por cima (spec 7.4). Nada do catálogo é gravado. */
+/**
+ * Catálogo = conector + regras da loja por cima (spec 7.4). Os conectores leem a plataforma ao vivo; a exceção é
+ * o catálogo da Kentro, lido da cópia que a extensão sincroniza (catalogo-kentro).
+ */
 @Injectable()
 export class CatalogoService {
   constructor(

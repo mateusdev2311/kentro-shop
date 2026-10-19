@@ -1,5 +1,5 @@
 import { criarClienteHttp } from '../../src/conectores/nucleo/cliente-http';
-import { Conector, CtxConector } from '../../src/conectores/nucleo/conector';
+import { CatalogoLocal, Conector, CtxConector } from '../../src/conectores/nucleo/conector';
 import { CredencialInvalida } from '../../src/conectores/nucleo/erros';
 import { Produto } from '../../src/contratos/modelo';
 
@@ -8,9 +8,12 @@ import { Produto } from '../../src/contratos/modelo';
 export interface CenarioContrato {
   conector: Conector;
   credenciaisValidas: Record<string, string>;
-  credenciaisInvalidas: Record<string, string>;
+  /** Ausente = conector sem credenciais (ex.: catálogo da Kentro, que lê a cópia sincronizada). */
+  credenciaisInvalidas?: Record<string, string>;
   /** fetch que responde com as respostas gravadas. Ausente = conector que não usa HTTP. */
   fetchDeFixtures?: typeof fetch;
+  /** Cópia do catálogo, para o conector que não lê a plataforma ao vivo. */
+  catalogoLocal?: () => CatalogoLocal;
   idSimples: string;
   idComVariacao: string;
   idInexistente: string;
@@ -34,6 +37,7 @@ function contexto(c: CenarioContrato, credenciais: Record<string, string>, fetch
       registrar: async () => undefined,
     }),
     salvarCredenciais: async () => undefined,
+    ...(c.catalogoLocal ? { catalogoLocal: c.catalogoLocal() } : {}),
   };
 }
 
@@ -74,7 +78,8 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
       expect(typeof conector.criarPedido === 'function').toBe(capacidades.criarPedido);
       expect(typeof conector.urlDeAutorizacao === 'function').toBe(capacidades.oauth);
       expect(typeof conector.historicoDoCliente === 'function').toBe(capacidades.historicoCliente);
-      expect(conector.camposDeCredencial.length).toBeGreaterThan(0);
+      // Conector com credencial declara os campos; o sem credencial não declara nenhum.
+      expect(conector.camposDeCredencial.length > 0).toBe(!!c.credenciaisInvalidas);
     });
 
     it('lista categorias normalizadas', async () => {
@@ -119,11 +124,12 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
       expect(await c.conector.obterProduto(ctx(), c.idInexistente)).toBeNull();
     });
 
-    it('credencial inválida vira CredencialInvalida', async () => {
-      await expect(
-        c.conector.listarProdutos(contexto(c, c.credenciaisInvalidas), { pagina: 1, porPagina: c.porPagina }),
-      ).rejects.toBeInstanceOf(CredencialInvalida);
-    });
+    if (c.credenciaisInvalidas) {
+      const invalidas = c.credenciaisInvalidas;
+      it('credencial inválida vira CredencialInvalida', async () => {
+        await expect(c.conector.listarProdutos(contexto(c, invalidas), { pagina: 1, porPagina: c.porPagina })).rejects.toBeInstanceOf(CredencialInvalida);
+      });
+    }
 
     if (c.fetchDeFixtures) {
       it('limite da plataforma (429) é repetido e depois atendido', async () => {

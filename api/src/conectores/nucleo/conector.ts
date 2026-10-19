@@ -44,11 +44,22 @@ export interface ClienteHttpConector {
   requisitar(req: RequisicaoConector): Promise<RespostaConector>;
 }
 
+/** Cópia do catálogo guardada na API (ex.: catálogo da Kentro, enviado pela extensão). */
+export interface CatalogoLocal {
+  estado(): Promise<{ sincronizadoEm: Date | null; total: number }>;
+  categorias(): Promise<Categoria[]>;
+  produtos(filtro: FiltroProdutos): Promise<Pagina<Produto>>;
+  /** Pelo id ou pelo SKU. */
+  produto(id: string): Promise<Produto | null>;
+}
+
 export interface CtxConector {
   lojaId: string;
   credenciais: Record<string, string>; // já decifradas, só durante a chamada
   http: ClienteHttpConector; // nunca usar fetch direto
   salvarCredenciais(novas: Record<string, string>): Promise<void>; // renovação de token
+  /** Só para conectores que leem uma cópia sincronizada em vez da plataforma ao vivo. */
+  catalogoLocal?: CatalogoLocal;
 }
 
 export interface ItemCotacao {

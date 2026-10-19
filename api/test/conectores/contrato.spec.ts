@@ -2,7 +2,7 @@ import { conectorDemonstracao } from '../../src/conectores/demonstracao/demonstr
 import { conectorEcommercenet } from '../../src/conectores/ecommercenet/ecommercenet.conector';
 import { conectorKentro } from '../../src/conectores/kentro/kentro.conector';
 import { conectorShopify } from '../../src/conectores/shopify/shopify.conector';
-import { criarFetchKentro, KENTRO_CREDENCIAIS } from './fixtures-kentro';
+import { catalogoEmMemoria } from './catalogo-memoria';
 import { conectorFalso } from './conector-falso';
 import { criarFetchShopify, SHOPIFY_CREDENCIAIS } from './fixtures-shopify';
 import { rodarContrato } from './contrato';
@@ -43,11 +43,10 @@ rodarContrato('Shopify (respostas sintéticas)', () => ({
   porPagina: 2,
 }));
 
-rodarContrato('Kentro (MCP simulado)', () => ({
+rodarContrato('Kentro (cópia sincronizada em memória)', () => ({
   conector: conectorKentro,
-  credenciaisValidas: KENTRO_CREDENCIAIS,
-  credenciaisInvalidas: { ...KENTRO_CREDENCIAIS, token_mcp: 'errado' },
-  fetchDeFixtures: criarFetchKentro(),
+  credenciaisValidas: {},
+  catalogoLocal: () => catalogoEmMemoria(),
   idSimples: '1',
   idComVariacao: '1',
   idInexistente: '999',

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { CatalogoKentroService } from '../catalogo-kentro/catalogo-kentro.service';
 import { ConfigApp, CONFIG_APP } from '../comum/config';
 import { cifrar, decifrar } from '../comum/cripto';
 import { ErroApi } from '../comum/erros';
@@ -37,6 +38,7 @@ export class IntegracoesService {
     private readonly prisma: PrismaService,
     private readonly registro: RegistroConectores,
     @Inject(CONFIG_APP) private readonly config: ConfigApp,
+    private readonly catalogoKentro: CatalogoKentroService,
   ) {}
 
   async salvar(lojaId: string, plataforma: string, recebidas: Record<string, unknown>): Promise<void> {
@@ -148,6 +150,8 @@ export class IntegracoesService {
         const { cifrado, iv } = cifrar(JSON.stringify({ ...ctx.credenciais, ...novas }), this.config.chaveMestra);
         await this.prisma.integracao.update({ where: { lojaId }, data: { credenciaisCifradas: paraBytes(cifrado), iv: paraBytes(iv) } });
       },
+      // O catálogo da Kentro é uma cópia enviada pela extensão (não há leitura ao vivo sem token).
+      ...(conector.id === 'kentro' ? { catalogoLocal: this.catalogoKentro.leitor(lojaId) } : {}),
     };
     return { conector, ctx };
   }

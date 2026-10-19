@@ -51,10 +51,11 @@ h1, h2 { font-family: var(--fonte-titulo); font-weight: 600; letter-spacing: -.0
 .marca small { display: block; margin-top: 2px; color: rgba(255, 255, 255, .66); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Logo em proporção natural (horizontal ou quadrado) sobre uma placa clara: legível em qualquer cor de topo. */
 .marca-logo {
-  flex: none; display: grid; place-items: center; height: 54px; padding: 7px 12px;
+  flex: none; display: flex; align-items: center; justify-content: center; padding: 7px 12px;
   border-radius: 12px; background: #fff; box-shadow: 0 1px 0 rgba(0, 0, 0, .12);
 }
-img.marca-icone { height: 100%; width: auto; max-width: 136px; object-fit: contain; }
+/* Altura fixa em px (porcentagem não vale dentro da placa): quadrado fica 40×40, horizontal até 136×40. */
+img.marca-icone { height: 40px; width: auto; max-width: 136px; object-fit: contain; }
 span.marca-icone {
   width: 50px; height: 50px; flex: 0 0 50px; border-radius: 12px;
   background: var(--cor-primaria); color: #fff; display: grid; place-items: center;
@@ -62,8 +63,8 @@ span.marca-icone {
 }
 @media (min-width: 720px) {
   .marca-faixa { padding-top: 22px; }
-  .marca-logo { height: 64px; padding: 8px 14px; }
-  img.marca-icone { max-width: 200px; }
+  .marca-logo { padding: 8px 14px; }
+  img.marca-icone { height: 48px; max-width: 200px; }
   .marca strong { font-size: 24px; }
 }
 .botao-carrinho {
