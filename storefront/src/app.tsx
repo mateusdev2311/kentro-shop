@@ -236,7 +236,9 @@ export function App({ api, buscarCep, documento }: Dependencias) {
       <header class="marca-faixa">
         <div class="marca">
           {abertura.tema.logoUrl ? (
-            <img class="marca-icone" src={abertura.tema.logoUrl} alt="" />
+            <span class="marca-logo">
+              <img class="marca-icone" src={abertura.tema.logoUrl} alt="" />
+            </span>
           ) : (
             <span class="marca-icone" aria-hidden="true">
               {iniciais(abertura.tema.nome).slice(0, 1)}
@@ -309,10 +311,45 @@ export function App({ api, buscarCep, documento }: Dependencias) {
         {!busca && !categoria && !emSelecao && abertura.tema.destaque !== false && (
           <section class="destaque">
             <div>
-              <p class="destaque-rotulo">Atendimento pelo WhatsApp</p>
-              <h1>Monte seu pedido com calma.</h1>
-              <p>{abertura.tema.boasVindas || 'Escolha os produtos, ajuste as quantidades e finalize. Um atendente confirma tudo com você na conversa.'}</p>
+              <p class="destaque-rotulo">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M4 19.5 5.2 16A8 8 0 1 1 8 18.8L4 19.5Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                Atendimento pelo WhatsApp
+              </p>
+              <h1>
+                Monte seu pedido <em>com calma.</em>
+              </h1>
+              <p class="destaque-texto">
+                {abertura.tema.boasVindas || 'Escolha os produtos, ajuste as quantidades e finalize. Um atendente confirma tudo com você na conversa.'}
+              </p>
             </div>
+            <ol class="passos">
+              <li>
+                <span>1</span>
+                <p>
+                  <strong>Escolha</strong> os produtos e as quantidades
+                </p>
+              </li>
+              <li>
+                <span>2</span>
+                <p>
+                  <strong>Envie</strong> {precos.visiveis() ? 'o pedido' : 'o pedido de orçamento'} por aqui mesmo
+                </p>
+              </li>
+              <li>
+                <span>3</span>
+                <p>
+                  <strong>Confirme</strong> os detalhes com o atendente na conversa
+                </p>
+              </li>
+            </ol>
           </section>
         )}
         {!busca && !categoria && !finalizado && ultimoPedido && (
@@ -336,11 +373,13 @@ export function App({ api, buscarCep, documento }: Dependencias) {
           </section>
         )}
         {produtos.length > 0 && (
-          <p class="resultado">
-            {quantos} produto{quantos === 1 ? '' : 's'}
-            {catAtual ? ` em ${catAtual.nome}` : ''}
-            {busca ? ` para "${busca}"` : ''}
-          </p>
+          <div class="resultado">
+            {!emSelecao && <h2>{busca ? `“${busca}”` : (catAtual?.nome ?? 'Todos os produtos')}</h2>}
+            <span>
+              {quantos} produto{quantos === 1 ? '' : 's'}
+              {busca && catAtual && !emSelecao ? ` em ${catAtual.nome}` : ''}
+            </span>
+          </div>
         )}
         <Vitrine
           produtos={produtos}
@@ -356,7 +395,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
 
       {totalItens > 0 && !finalizado && !painel && !detalhe && (
         <div class="barra-carrinho">
-          <div>
+          <div class="barra-resumo">
             <small>
               {totalItens} {totalItens === 1 ? 'item' : 'itens'} no carrinho
             </small>

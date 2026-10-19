@@ -3,12 +3,21 @@ import { iniciais } from '../formato';
 import { precos } from '../precos';
 import type { Produto, Variacao } from '../tipos';
 
+const TONS = 6;
+
+/** Tom fixo por nome: sem foto, a vitrine não vira um mar de quadrados iguais. */
+function tomDoNome(nome: string): number {
+  let soma = 0;
+  for (const c of String(nome || '')) soma = (soma * 31 + c.charCodeAt(0)) >>> 0;
+  return soma % TONS;
+}
+
 /** Imagem do produto; sem imagem (ou se falhar) mostra as iniciais do nome. */
 export function Imagem({ src, nome, carregarDepois = true }: { src?: string | null; nome: string; carregarDepois?: boolean }) {
   const [falhou, setFalhou] = useState(false);
   if (!src || falhou) {
     return (
-      <div class="marcador" aria-hidden="true">
+      <div class={`marcador tom-${tomDoNome(nome)}`} aria-hidden="true">
         {iniciais(nome)}
       </div>
     );
