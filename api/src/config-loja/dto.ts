@@ -64,6 +64,8 @@ export class AtualizarConfigDto {
   @IsOptional() @IsInt() @Min(1) @Max(60) expiracaoLinkDias?: number;
   @IsOptional() @IsBoolean() mostrarPrecos?: boolean;
   @IsOptional() @IsIn(['handoff', 'criar_pedido']) modoPedido?: 'handoff' | 'criar_pedido';
+  /** Captura de webhook da Kentro que recebe o aviso de pedido finalizado. Vazio = desligado. */
+  @IsOptional() @IsString() @MaxLength(300) urlCapturaKentro?: string;
 
   @IsOptional()
   @IsArray()

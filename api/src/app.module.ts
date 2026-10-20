@@ -14,11 +14,14 @@ import { IntegracoesModule } from './integracoes/integracoes.module';
 import { LojasModule } from './lojas/lojas.module';
 import { McpModule } from './mcp/mcp.module';
 import { SaudeController } from './saude/saude.controller';
+import { ENVIO_AVISO, EnvioAviso, enviarAvisoHttp } from './sessoes/aviso-kentro';
 import { SessoesModule } from './sessoes/sessoes.module';
 
 export interface OpcoesApp {
   /** Substitui os conectores de produção (usado nos testes). */
   conectores?: Conector[];
+  /** Substitui o envio do aviso de pedido finalizado à Kentro (usado nos testes). */
+  envioAviso?: EnvioAviso;
 }
 
 @Module({})
@@ -34,8 +37,8 @@ export class AppModule {
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
         ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule],
-      providers: [{ provide: CONFIG_APP, useValue: config }, PrismaService],
-      exports: [CONFIG_APP, PrismaService],
+      providers: [{ provide: CONFIG_APP, useValue: config }, { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp }, PrismaService],
+      exports: [CONFIG_APP, ENVIO_AVISO, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
     };
   }

@@ -184,6 +184,18 @@ describe('abas de configuração do Admin', () => {
     expect(t.chamadas.filter((c) => c.method === 'POST').map((c) => c.url)).toEqual(['https://api.teste/v1/loja/token-mcp/rotacionar']);
   });
 
+  it('IA: salva e testa o endereço da captura do aviso de pedido finalizado', async () => {
+    t = await abrir({ 'POST /v1/loja/ia/testar-evento': { status: 200, body: { ok: true, status: 200 } } });
+    await t.clicar('botao-aba-ia');
+    expect(t.valor('ia-captura')).toBe('');
+    t.preencher('ia-captura', ' https://x.atenderbem.com/webhookcapture/capture/abc12345 ');
+    await t.clicar('btn-salvar-captura');
+    expect(patches(t)).toEqual([{ urlCapturaKentro: 'https://x.atenderbem.com/webhookcapture/capture/abc12345' }]);
+    await t.clicar('btn-testar-captura');
+    await t.esperar(5);
+    expect(t.texto('resultado-captura')).toBe('A Kentro recebeu o aviso de teste.');
+  });
+
   it('IA: cancelar a confirmação não troca o token', async () => {
     t = await montarTela('admin/config.html', {
       config,

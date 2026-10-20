@@ -542,6 +542,18 @@
       </ol>
       <p id="resultado-ia" class="resultado"></p>
       <div class="acoes"><button type="button" class="principal" id="btn-gerar-token"><svg class="ic"><use href="#i-chave"/></svg>Gerar token MCP</button></div>
+
+      <h3>Aviso de pedido finalizado</h3>
+      <div class="formulario">
+        <label for="ia-captura">Endereço da captura de webhook da Kentro</label>
+        <input id="ia-captura" maxlength="300" autocomplete="off" placeholder="https://suainstancia.atenderbem.com/webhookcapture/capture/…">
+        <span class="ajuda">Quando o cliente finaliza o pedido no link, o Kentro Shop avisa a Kentro neste endereço e a assistente confirma o pedido e transfere sozinha, sem o cliente precisar escrever. Vazio desliga o aviso.</span>
+      </div>
+      <p id="resultado-captura" class="resultado"></p>
+      <div class="acoes">
+        <button type="button" class="principal" id="btn-salvar-captura">Salvar aviso</button>
+        <button type="button" id="btn-testar-captura"><svg class="ic"><use href="#i-plug"/></svg>Testar</button>
+      </div>
     </section>
   </section>
 </div>
@@ -1112,8 +1124,28 @@
       $('botao-aba-' + a).className = a === nome ? 'ativa' : '';
     });
     if (nome === 'catalogo') carregarCategoriasOcultas();
-    if (nome === 'ia') $('ia-url').textContent = cfg.apiUrl + '/mcp';
+    if (nome === 'ia') {
+      $('ia-url').textContent = cfg.apiUrl + '/mcp';
+      if (configuracoes) $('ia-captura').value = configuracoes.urlCapturaKentro || '';
+    }
   }
+
+  $('btn-salvar-captura').addEventListener('click', function () {
+    salvarConfig({ urlCapturaKentro: $('ia-captura').value.trim() }, this, 'resultado-captura', 'Aviso salvo.');
+  });
+
+  $('btn-testar-captura').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    $('resultado-captura').textContent = 'Enviando um aviso de teste…';
+    api('/v1/loja/ia/testar-evento', { method: 'POST' }).then(function (r) {
+      $('resultado-captura').textContent = r.ok
+        ? 'A Kentro recebeu o aviso de teste.'
+        : 'A Kentro não aceitou o aviso (HTTP ' + (r.status || 'sem resposta') + '). Confira o endereço da captura.';
+    }, function (erro) {
+      $('resultado-captura').textContent = mensagemDeErro(erro);
+    }).then(function () { botao.disabled = false; });
+  });
   ABAS.forEach(function (a) {
     $('botao-aba-' + a).addEventListener('click', function () { abrirAba(a); });
   });

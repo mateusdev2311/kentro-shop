@@ -97,10 +97,10 @@ export class CarrinhoService {
     private readonly integracoes: IntegracoesService,
   ) {}
 
-  /** Ações depois da finalização (na 1.4: aviso para a Kentro). Falha numa delas não desfaz o pedido. */
-  private readonly aoFinalizar: Array<(sessao: SessaoCompleta) => Promise<void>> = [];
+  /** Ações depois da finalização (ex.: aviso para a Kentro). Falha numa delas não desfaz o pedido. */
+  private readonly aoFinalizar: Array<(sessao: SessaoCompleta, lojaId: string) => Promise<void>> = [];
 
-  registrarAoFinalizar(acao: (sessao: SessaoCompleta) => Promise<void>): void {
+  registrarAoFinalizar(acao: (sessao: SessaoCompleta, lojaId: string) => Promise<void>): void {
     this.aoFinalizar.push(acao);
   }
 
@@ -354,7 +354,7 @@ export class CarrinhoService {
     // Histórico pelo telefone original (o da Kentro); o do checkout só se não houver.
     await this.clientes.registrarFinalizacao(sessao.lojaId, clienteAntes.telefone, completa).catch(() => undefined);
     if (pedidoNaLoja) completa = await this.criarNaPlataforma(sessao.lojaId, completa);
-    for (const acao of this.aoFinalizar) await acao(completa).catch(() => undefined);
+    for (const acao of this.aoFinalizar) await acao(completa, sessao.lojaId).catch(() => undefined);
     const { eventos: _eventos, resumo: _resumo, ...publica } = completa;
     return publica;
   }

@@ -138,6 +138,11 @@ export class SessoesService {
     return sessao ? this.completa(sessao.id) : null;
   }
 
+  async chatDaSessao(sessaoId: string): Promise<string | null> {
+    const s = await this.prisma.sessao.findUnique({ where: { id: sessaoId }, select: { chatId: true } });
+    return s?.chatId ?? null;
+  }
+
   /** O cliente abriu a página do catálogo. */
   async abrir(token: string): Promise<SessaoPublica> {
     const sessao = await this.porToken(token);

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { ConfigApp, CONFIG_APP } from '../comum/config';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
+import { enderecoPublicoHttps } from '../conectores/nucleo/destino';
 
 export interface LojaRetirada {
   id: string;
@@ -58,6 +59,14 @@ export interface MudancaConfig {
   categoriasOcultas?: string[];
   /** criar_pedido: ao finalizar, o pedido é criado na plataforma (ex.: rascunho com link de pagamento na Nuvemshop). */
   modoPedido?: 'handoff' | 'criar_pedido';
+  /** Vazio desliga o aviso de pedido finalizado. */
+  urlCapturaKentro?: string;
+}
+
+/** Endereço de captura de webhook da Kentro: https público, no caminho das capturas. */
+export function capturaKentroValida(url: string): boolean {
+  if (!enderecoPublicoHttps(url)) return false;
+  return /^\/webhookcapture\/capture\/[A-Za-z0-9_-]{8,}\/?$/.test(new URL(url).pathname);
 }
 
 const COR_PADRAO = '#7C3AED';
@@ -165,6 +174,14 @@ export class ConfigLojaService {
       }
     }
 
+    let urlCapturaKentro: string | null | undefined;
+    if (mudanca.urlCapturaKentro !== undefined) {
+      urlCapturaKentro = mudanca.urlCapturaKentro.trim() || null;
+      if (urlCapturaKentro && !capturaKentroValida(urlCapturaKentro)) {
+        throw invalido('Cole o endereço da captura de webhook da Kentro (https://…/webhookcapture/capture/…).');
+      }
+    }
+
     const lojasRetirada = mudanca.lojasRetirada?.map((l) => ({
       id: l.id?.trim() || `loja-${randomBytes(4).toString('hex')}`,
       nome: l.nome.trim(),
@@ -187,6 +204,7 @@ export class ConfigLojaService {
       ...(mudanca.expiracaoLinkDias !== undefined ? { expiracaoLinkDias: mudanca.expiracaoLinkDias } : {}),
       ...(mudanca.mostrarPrecos !== undefined ? { mostrarPrecos: mudanca.mostrarPrecos } : {}),
       ...(mudanca.modoPedido ? { modoPedido: mudanca.modoPedido } : {}),
+      ...(urlCapturaKentro !== undefined ? { urlCapturaKentro } : {}),
       ...(mudanca.categoriasOcultas ? { categoriasOcultas: [...new Set(mudanca.categoriasOcultas.map((c) => c.trim()).filter(Boolean))] } : {}),
     };
     await this.prisma.configLoja.upsert({
