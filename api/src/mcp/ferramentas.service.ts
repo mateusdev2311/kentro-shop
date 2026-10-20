@@ -103,11 +103,12 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
     title: 'Buscar produtos',
     description:
       'Busca produtos no catálogo da loja, ao vivo (preço, promoção, estoque e variações de agora). Use SEMPRE antes de citar ' +
-      'preço, estoque ou disponibilidade. Sem busca e sem categoria, lista o catálogo. Devolve 24 por página.',
+      'preço, estoque ou disponibilidade. A busca olha só o NOME do produto: cor e tamanho ficam nas opções de cada produto, ' +
+      'não no nome. Sem busca e sem categoria, lista o catálogo. Devolve 24 por página.',
     inputSchema: {
       type: 'object',
       properties: {
-        busca: { type: 'string', description: 'Palavras do nome do produto (ex.: "camiseta preta").' },
+        busca: { type: 'string', description: 'Tipo de peça, modelo ou marca, sem cor e sem tamanho (ex.: "polo", "bermuda sarja", "BSS").' },
         categoria_id: { type: 'string', description: 'id de listar_categorias.' },
         pagina: { type: 'integer', minimum: 1, description: 'Padrão 1.' },
       },
@@ -399,7 +400,10 @@ export class FerramentasMcpService {
     const lista = await this.catalogo.listarProdutos(lojaId, { busca, categoriaId, pagina });
     const itens = lista.itens.filter(this.visivel(config));
     if (!itens.length) {
-      return pagina > 1 ? 'Não há mais produtos nesta busca.' : 'Nenhum produto encontrado. Tente outras palavras (mais curtas ou sinônimos) ou listar_categorias.';
+      return pagina > 1
+        ? 'Não há mais produtos nesta busca.'
+        : 'Nenhum produto encontrado. A busca olha só o nome do produto: tire cor e tamanho e busque só o tipo de peça ou o modelo ' +
+            '(ex.: "polo"), depois confira a cor nas opções. Também vale tentar sinônimos ou listar_categorias.';
     }
     const total = lista.total !== undefined ? ` de ${lista.total}` : '';
     const cabeca = `Página ${pagina}: ${itens.length}${total} produto(s).${lista.temMais ? ` Há mais: peça pagina ${pagina + 1}.` : ''}`;
