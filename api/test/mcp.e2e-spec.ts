@@ -71,10 +71,17 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
   it('busca e ficha com preço, promoção, variações e estoque ao vivo', async () => {
     const busca = await chamar('buscar_produtos', {});
     expect(busca.erro).toBe(false);
-    expect(busca.texto).toContain('produto_id id-A1 · SKU A1 · R$ 129,90 (de R$ 149,90) por unidade · estoque 5');
-    expect(busca.texto).toContain('variacao_id v1 · Azul · R$ 20,00 · estoque 3');
-    expect(busca.texto).toContain('variacao_id v2 · Verde · R$ 20,00 · esgotado');
+    expect(busca.texto).toContain('produto_id id-A1 · R$ 129,90 (de R$ 149,90) por unidade · estoque 5');
+    // Variações sem id (a IA escolhe pelo nome) e com o preço uma vez só, quando é igual para todas.
+    expect(busca.texto).toContain('produto_id id-C3 · R$ 20,00 por unidade');
+    expect(busca.texto).toContain('informe variacao com cor e tamanho (ex.: "Azul")');
+    expect(busca.texto).toContain('- Azul · estoque 3');
+    expect(busca.texto).toContain('- Verde · esgotada');
+    expect(busca.texto).not.toContain('variacao_id');
     expect((await chamar('buscar_produtos', { busca: 'nada-disso' })).texto).toContain('Nenhum produto encontrado');
+    const categoriaInventada = await chamar('buscar_produtos', { busca: 'produto', categoria_id: '1234' });
+    expect(categoriaInventada).toMatchObject({ erro: true });
+    expect(categoriaInventada.texto).toContain('listar_categorias');
     const ficha = await chamar('detalhes_produto', { produto_id: 'id-A1' });
     expect(ficha.texto).toContain('Descrição A1');
     expect(ficha.texto).toContain('https://img.teste/A1.jpg');
@@ -104,8 +111,9 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
       nome: 'Ana',
       telefone: '5538988887777',
       produto_ids: ['id-A1', 'id-C3'],
-      itens: [{ produto_id: 'id-A1', quantidade: 2 }, { produto_id: 'id-C3', variacao_id: 'v1', quantidade: 1 }, { produto_id: 'id-C3', quantidade: 1 }],
+      itens: [{ produto_id: 'id-A1', quantidade: 2 }, { produto_id: 'id-C3', variacao: 'azul', quantidade: 1 }, { produto_id: 'id-C3', quantidade: 1 }],
     });
+    expect(r.texto).toContain('confira item por item');
     expect(r.erro).toBe(false);
     expect(r.texto).toContain('Link novo gerado.');
     expect(r.texto).toContain('Escolha a opção de Produto C3.');
@@ -146,6 +154,24 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
     const novo = await chamar('gerar_link_catalogo', { chat_id: '50', categoria_id: '2', substituir_link_aberto: true });
     expect(novo.erro).toBe(false);
     expect(novo.texto).not.toContain(url);
+  });
+
+  it('variação pelo nome: só a opção exata entra; nome errado volta com as opções', async () => {
+    const errado = await chamar('gerar_link_catalogo', { chat_id: '60', itens: [{ produto_id: 'id-C3', variacao: 'Amarelo', quantidade: 1 }] });
+    expect(errado).toMatchObject({ erro: true });
+    expect(errado.texto).toBe('"Amarelo" não é uma opção de Produto C3. Opções: Azul; Verde (esgotada).');
+    // Nada foi criado com o pedido recusado.
+    expect(await prisma.sessao.count({ where: { chatId: '60' } })).toBe(0);
+
+    await chamar('gerar_link_catalogo', { chat_id: '60', itens: [{ produto_id: 'id-C3', variacao: 'Azul', quantidade: 1 }] });
+    // O id antigo (de pedidos anteriores) continua aceito.
+    await chamar('adicionar_ao_carrinho', { chat_id: '60', itens: [{ produto_id: 'id-C3', variacao_id: 'v1', quantidade: 1 }] });
+    const alterado = await chamar('alterar_item_carrinho', { chat_id: '60', produto_id: 'id-C3', variacao: ' AZUL ', quantidade: 3 });
+    expect(alterado.erro).toBe(false);
+    expect(alterado.texto).toContain('3 unidades de Produto C3 (Azul)');
+    const outra = await chamar('alterar_item_carrinho', { chat_id: '60', produto_id: 'id-C3', variacao: 'Verde', quantidade: 1 });
+    expect(outra).toMatchObject({ erro: true });
+    expect(outra.texto).toContain('No carrinho, este produto está em: Azul.');
   });
 
   it('link finalizado não aceita mudança; sem link, consultar e adicionar explicam o que fazer', async () => {

@@ -4,7 +4,7 @@ import { CatalogoService } from '../catalogo/catalogo.service';
 import { ErroApi } from '../comum/erros';
 import { ConfigEfetiva, ConfigLojaService } from '../config-loja/config-loja.service';
 import { ErroConector } from '../conectores/nucleo/erros';
-import { Categoria, Produto, Variacao } from '../contratos/modelo';
+import { Categoria, Produto } from '../contratos/modelo';
 import { IntegracoesService } from '../integracoes/integracoes.service';
 import { moeda, telefoneBr, unidade } from '../sessoes/calculo';
 import { CarrinhoService, MAX_QUANTIDADE } from '../sessoes/carrinho.service';
@@ -14,6 +14,7 @@ import { precosVisiveis } from '../sessoes/sem-preco';
 import { SessoesService } from '../sessoes/sessoes.service';
 import { FiltroLink, SessaoCompleta } from '../sessoes/tipos';
 import { DefinicaoFerramenta, ResultadoFerramenta } from './protocolo';
+import { encontrarVariacao, linhasDeVariacoes, mesmaVariacao, opcoesDe, precoUnico } from './variacoes';
 
 // Ferramentas que a assistente de IA da Kentro usa pelo servidor MCP (spec 11.1). A saída é texto enxuto,
 // uma linha por fato, para o modelo recomendar sem inventar preço, estoque ou prazo.
@@ -48,10 +49,18 @@ function listaDeTextos(v: unknown, max: number): string[] {
   return lista;
 }
 
+/** Item como a IA pediu: a variação vem pelo nome ("Preto / G") ou, de um pedido anterior, pelo id. */
+interface ItemPedido {
+  produtoId: string;
+  variacaoNome?: string;
+  variacaoId?: string;
+  quantidade: number;
+}
+
 /** Itens do carrinho pedidos pela IA. minimo = 0 aceita quantidade zero (remover). */
-function itensDe(v: unknown, minimo: 0 | 1): ItemPedidoDto[] {
+function itensDe(v: unknown, minimo: 0 | 1): ItemPedido[] {
   if (v === undefined || v === null) return [];
-  if (!Array.isArray(v)) throw new Recusa('itens precisa ser uma lista de { produto_id, variacao_id?, quantidade }.');
+  if (!Array.isArray(v)) throw new Recusa('itens precisa ser uma lista de { produto_id, variacao, quantidade }.');
   if (v.length > MAX_ITENS_POR_CHAMADA) throw new Recusa(`No máximo ${MAX_ITENS_POR_CHAMADA} itens por chamada.`);
   return v.map((bruto, i) => {
     const item = bruto && typeof bruto === 'object' ? (bruto as Record<string, unknown>) : {};
@@ -61,8 +70,9 @@ function itensDe(v: unknown, minimo: 0 | 1): ItemPedidoDto[] {
     if (!Number.isInteger(quantidade) || quantidade < minimo || quantidade > MAX_QUANTIDADE) {
       throw new Recusa(`Item ${i + 1}: quantidade precisa ser um número inteiro entre ${minimo} e ${MAX_QUANTIDADE}.`);
     }
+    const variacaoNome = texto(item.variacao, 100);
     const variacaoId = texto(item.variacao_id, 100);
-    return { produtoId, quantidade, ...(variacaoId ? { variacaoId } : {}) };
+    return { produtoId, quantidade, ...(variacaoNome ? { variacaoNome } : {}), ...(variacaoId ? { variacaoId } : {}) };
   });
 }
 
@@ -73,7 +83,11 @@ const ESQUEMA_ITENS = {
     type: 'object',
     properties: {
       produto_id: { type: 'string', description: 'produto_id de buscar_produtos.' },
-      variacao_id: { type: 'string', description: 'Obrigatório quando o produto tem variações (cor, tamanho...).' },
+      variacao: {
+        type: 'string',
+        description: 'Obrigatório quando o produto tem variações: o nome da opção, com cor e tamanho, ex.: "Preto / G". Confira com o cliente antes.',
+      },
+      variacao_id: { type: 'string', description: 'Só para repetir um item de pedidos_anteriores. Nos demais casos, use variacao.' },
       quantidade: { type: 'integer', minimum: 1, maximum: MAX_QUANTIDADE },
     },
     required: ['produto_id', 'quantidade'],
@@ -174,7 +188,7 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
       properties: {
         chat_id: CHAT_ID,
         produto_id: { type: 'string' },
-        variacao_id: { type: 'string', description: 'A variação do item, se ele tiver.' },
+        variacao: { type: 'string', description: 'A opção do item no carrinho, se ele tiver, ex.: "Preto / G".' },
         quantidade: { type: 'integer', minimum: 0, maximum: MAX_QUANTIDADE, description: 'Quantidade nova; 0 remove.' },
       },
       required: ['chat_id', 'produto_id', 'quantidade'],
@@ -220,24 +234,35 @@ function estoque(p: { estoque: number | null; disponivel: boolean }): string {
   return p.estoque === null ? 'disponível' : `estoque ${p.estoque}`;
 }
 
-function linhaVariacao(v: Variacao, mostrar: boolean): string {
-  return ['  - variacao_id ' + v.id, v.nome, preco(v, mostrar), estoque(v)].filter(Boolean).join(' · ');
+/** Preço do produto: o das variações quando é um só para todas; variando, cada variação mostra o seu. */
+function precoDoProduto(p: Produto, mostrar: boolean): string {
+  if (!mostrar) return '';
+  if (!p.variacoes.length) return preco(p, mostrar);
+  const unico = precoUnico(p);
+  return unico ? preco(unico, mostrar) : 'preço varia por opção';
+}
+
+/** Como a IA deve nomear a variação no carrinho. */
+function comoNomear(p: Produto): string {
+  const exemplo = p.variacoes.find((v) => v.disponivel && v.estoque !== 0) ?? p.variacoes[0];
+  return `ao montar o carrinho, informe variacao com cor e tamanho (ex.: "${exemplo.nome}")`;
+}
+
+function blocoDeVariacoes(p: Produto, mostrar: boolean, recuo: string, max: number): string[] {
+  const atributos = p.atributosVariacao?.length ? ` (${p.atributosVariacao.join(', ')})` : '';
+  return [`${recuo}Opções${atributos} e estoque — ${comoNomear(p)}:`, ...linhasDeVariacoes(p, mostrar, max).map((l) => recuo + l)];
 }
 
 function resumoDoProduto(p: Produto, mostrar: boolean, n: number): string {
   const selo = p.regras?.selo ? ` [${p.regras.selo}]` : '';
   const linhas = [`${n}. ${p.nome}${selo}`];
-  const dados = [`produto_id ${p.id}`, `SKU ${p.sku}`, preco(p, mostrar) && `${preco(p, mostrar)} por ${unidade(p.unidade, 1)}`];
+  const valor = precoDoProduto(p, mostrar);
+  const dados = [`produto_id ${p.id}`, valor && `${valor} por ${unidade(p.unidade, 1)}`];
   if (!p.variacoes.length) dados.push(estoque(p));
   linhas.push('   ' + dados.filter(Boolean).join(' · '));
   const curta = (p.descricaoCurta || p.descricao).replace(/\s+/g, ' ').trim();
-  if (curta) linhas.push(`   ${curta.length > 160 ? `${curta.slice(0, 157)}…` : curta}`);
-  if (p.variacoes.length) {
-    const atributos = p.atributosVariacao?.length ? ` (${p.atributosVariacao.join(', ')})` : '';
-    linhas.push(`   Variações${atributos}:`);
-    for (const v of p.variacoes.slice(0, 20)) linhas.push('  ' + linhaVariacao(v, mostrar));
-    if (p.variacoes.length > 20) linhas.push(`     … e mais ${p.variacoes.length - 20} (veja detalhes_produto).`);
-  }
+  if (curta) linhas.push(`   ${curta.length > 140 ? `${curta.slice(0, 137)}…` : curta}`);
+  if (p.variacoes.length) linhas.push(...blocoDeVariacoes(p, mostrar, '   ', 40));
   if (p.regras?.m2PorUnidade) linhas.push(`   ${p.regras.m2PorUnidade} m² por ${unidade(p.unidade, 1)}`);
   return linhas.join('\n');
 }
@@ -274,8 +299,7 @@ function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: 
     for (const i of s.itens) {
       const nome = i.variacaoNome ? `${i.nome} (${i.variacaoNome})` : i.nome;
       const valor = mostrar ? ` — ${moeda(i.subtotal)}` : '';
-      const ids = `produto_id ${i.produtoId}${i.variacaoId ? `, variacao_id ${i.variacaoId}` : ''}`;
-      linhas.push(`- ${i.quantidade} ${unidade(i.unidade, i.quantidade)} de ${nome}${valor} [${ids}]`);
+      linhas.push(`- ${i.quantidade} ${unidade(i.unidade, i.quantidade)} de ${nome}${valor} [produto_id ${i.produtoId}]`);
     }
     if (mostrar) {
       linhas.push(`Subtotal: ${moeda(s.totais.subtotal)}`);
@@ -297,6 +321,10 @@ function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: 
   }
   return [...avisoSemPreco(mostrar), ...linhas].join('\n');
 }
+
+const CONFIRA =
+  'Antes de responder, confira item por item (produto, cor, tamanho e quantidade) se o carrinho abaixo é o que o cliente pediu. ' +
+  'Diga ao cliente só o que está abaixo; se algo não bate, corrija com alterar_item_carrinho.';
 
 function textoDoFrete(c: ConfigEfetiva): string {
   const prazo = c.frete.prazo ? ` Prazo: ${c.frete.prazo}.` : '';
@@ -367,6 +395,7 @@ export class FerramentasMcpService {
     const busca = texto(args.busca, 100) || undefined;
     const categoriaId = texto(args.categoria_id, 50) || undefined;
     if (categoriaId && config.categoriasOcultas.includes(categoriaId)) return 'Esta categoria não está disponível para os clientes.';
+    if (categoriaId) await this.categoriaExiste(lojaId, categoriaId);
     const lista = await this.catalogo.listarProdutos(lojaId, { busca, categoriaId, pagina });
     const itens = lista.itens.filter(this.visivel(config));
     if (!itens.length) {
@@ -384,9 +413,10 @@ export class FerramentasMcpService {
     const mostrar = config.mostrarPrecos;
     const linhas = [...avisoSemPreco(mostrar), `${p.nome}${p.regras?.selo ? ` [${p.regras.selo}]` : ''}`, `produto_id ${p.id} · SKU ${p.sku} · vendido por ${unidade(p.unidade, 1)}`];
     if (!p.variacoes.length) linhas.push([preco(p, mostrar), estoque(p)].filter(Boolean).join(' · '));
-    if (p.variacoes.length) {
-      linhas.push(`Variações${p.atributosVariacao?.length ? ` (${p.atributosVariacao.join(', ')})` : ''} — use o variacao_id no carrinho:`);
-      for (const v of p.variacoes) linhas.push(linhaVariacao(v, mostrar));
+    else {
+      const valor = precoDoProduto(p, mostrar);
+      if (valor) linhas.push(valor);
+      linhas.push(...blocoDeVariacoes(p, mostrar, '', 200));
     }
     if (p.regras?.m2PorUnidade) linhas.push(`Cada ${unidade(p.unidade, 1)} tem ${p.regras.m2PorUnidade} m² (calcule a quantidade pela metragem do cliente + 10% de perda).`);
     if (p.regras?.rendimentoM2) linhas.push(`Rende ${p.regras.rendimentoM2} m² por ${unidade(p.unidade, 1)}.`);
@@ -434,11 +464,13 @@ export class FerramentasMcpService {
   private async gerarLink(lojaId: string, args: Record<string, unknown>): Promise<string> {
     const chatId = obrigatorio(args, 'chat_id', 64);
     const produtoIds = listaDeTextos(args.produto_ids, 50);
-    const categoriaId = texto(args.categoria_id, 50);
-    const busca = texto(args.busca, 100);
+    // Produtos escolhidos já definem a vitrine: categoria e busca junto só confundem o cliente.
+    const categoriaId = produtoIds.length ? '' : texto(args.categoria_id, 50);
+    const busca = produtoIds.length ? '' : texto(args.busca, 100);
     const restrito = booleano(args.restrito);
     const mostrarPrecos = booleano(args.mostrar_precos);
-    const itens = itensDe(args.itens, 1);
+    if (categoriaId) await this.categoriaExiste(lojaId, categoriaId);
+    const itens = await this.resolver(lojaId, itensDe(args.itens, 1));
     const filtro: FiltroLink | undefined =
       produtoIds.length || categoriaId || busca
         ? { ...(produtoIds.length ? { produtoIds } : {}), ...(categoriaId ? { categoriaId } : {}), ...(busca ? { busca } : {}) }
@@ -464,6 +496,7 @@ export class FerramentasMcpService {
     return [
       reaproveitado ? 'Este atendimento já tinha um link aberto: é o mesmo link.' : 'Link novo gerado.',
       ...(avisos.length ? ['Avisos (conte ao cliente o que for relevante):', ...avisos.map((a) => `- ${a}`)] : []),
+      ...(itens.length ? [CONFIRA] : []),
       '',
       textoDaSessao(sessao, precosVisiveis(sessao, config.mostrarPrecos)),
       '',
@@ -484,19 +517,25 @@ export class FerramentasMcpService {
 
   private async adicionar(lojaId: string, args: Record<string, unknown>): Promise<string> {
     const sessao = await this.aberta(lojaId, obrigatorio(args, 'chat_id', 64));
-    const itens = itensDe(args.itens, 1);
-    if (!itens.length) throw new Recusa('Informe os itens.');
+    const pedidos = itensDe(args.itens, 1);
+    if (!pedidos.length) throw new Recusa('Informe os itens.');
+    const itens = await this.resolver(lojaId, pedidos);
     const r = await this.carrinho.adicionarPeloAtendente(lojaId, sessao.id, itens, 'ia');
     return this.respostaDoCarrinho(lojaId, r.sessao, r.avisos);
   }
 
   private async alterarItem(lojaId: string, args: Record<string, unknown>): Promise<string> {
     const sessao = await this.aberta(lojaId, obrigatorio(args, 'chat_id', 64));
-    const [alvo] = itensDe([{ produto_id: args.produto_id, variacao_id: args.variacao_id, quantidade: args.quantidade }], 0);
-    const mesmo = (i: { produtoId: string; variacaoId: string | null }) => i.produtoId === alvo.produtoId && (i.variacaoId ?? '') === (alvo.variacaoId ?? '');
+    const [alvo] = itensDe([{ produto_id: args.produto_id, variacao: args.variacao, variacao_id: args.variacao_id, quantidade: args.quantidade }], 0);
+    // Pelo nome, a variação é procurada entre as linhas do carrinho (o nome gravado é o da plataforma).
+    const mesmo = (i: { produtoId: string; variacaoId: string | null; variacaoNome: string | null }) =>
+      i.produtoId === alvo.produtoId &&
+      (alvo.variacaoNome ? !!i.variacaoNome && mesmaVariacao(alvo.variacaoNome, { nome: i.variacaoNome }) : (i.variacaoId ?? '') === (alvo.variacaoId ?? ''));
     if (!sessao.itens.some(mesmo)) {
-      if (alvo.quantidade === 0) throw new Recusa('Este item não está no carrinho.');
-      throw new Recusa('Este item não está no carrinho. Para incluir, use adicionar_ao_carrinho.');
+      const doProduto = sessao.itens.filter((i) => i.produtoId === alvo.produtoId && i.variacaoNome).map((i) => i.variacaoNome);
+      const opcoes = doProduto.length ? ` No carrinho, este produto está em: ${doProduto.join('; ')}.` : '';
+      if (alvo.quantidade === 0) throw new Recusa(`Este item não está no carrinho.${opcoes}`);
+      throw new Recusa(`Este item não está no carrinho.${opcoes} Para incluir outra opção, use adicionar_ao_carrinho.`);
     }
     const itens: ItemPedidoDto[] = sessao.itens.map((i) => ({
       produtoId: i.produtoId,
@@ -512,9 +551,36 @@ export class FerramentasMcpService {
     return [
       'Carrinho atualizado. O cliente vê a mudança no mesmo link (ao abrir ou voltar para a página).',
       ...(avisos.length ? ['Avisos (conte ao cliente o que for relevante):', ...avisos.map((a) => `- ${a}`)] : []),
+      CONFIRA,
       '',
       textoDaSessao(sessao, precosVisiveis(sessao, config.mostrarPrecos)),
     ].join('\n');
+  }
+
+  /**
+   * Variação pelo nome ("Preto / G") → id, conferida palavra a palavra. Nome que não existe volta como recusa com as
+   * opções válidas, em vez de cair numa variação parecida.
+   */
+  private async resolver(lojaId: string, itens: ItemPedido[]): Promise<ItemPedidoDto[]> {
+    const comNome = itens.filter((i) => i.variacaoNome);
+    const produtos = comNome.length ? await this.catalogo.obterVarios(lojaId, comNome.map((i) => i.produtoId)) : new Map<string, Produto | null>();
+    return itens.map((i) => {
+      const produto = i.variacaoNome ? produtos.get(i.produtoId) : null;
+      // Produto sumido ou sem variações: o carrinho decide (e avisa).
+      if (!i.variacaoNome || !produto || !produto.variacoes.length) {
+        return { produtoId: i.produtoId, quantidade: i.quantidade, ...(i.variacaoId ? { variacaoId: i.variacaoId } : {}) };
+      }
+      const variacao = encontrarVariacao(produto, i.variacaoNome);
+      if (!variacao) throw new Recusa(`"${i.variacaoNome}" não é uma opção de ${produto.nome}. Opções: ${opcoesDe(produto)}.`);
+      return { produtoId: i.produtoId, variacaoId: variacao.id, quantidade: i.quantidade };
+    });
+  }
+
+  private async categoriaExiste(lojaId: string, categoriaId: string): Promise<void> {
+    const todas = await this.catalogo.listarCategorias(lojaId);
+    if (!todas.some((c) => c.id === categoriaId)) {
+      throw new Recusa(`A categoria ${categoriaId} não existe. Use listar_categorias para ver os ids, ou busque só por palavras (sem categoria_id).`);
+    }
   }
 
   private async consultar(lojaId: string, chatId: string): Promise<string> {
