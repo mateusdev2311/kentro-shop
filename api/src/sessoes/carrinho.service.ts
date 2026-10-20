@@ -114,23 +114,36 @@ export class CarrinhoService {
     return { sessao: await this.sessoes.publica(sessao.id), avisos };
   }
 
-  /** Carrinho pronto ou ajuste feito pelo atendente: não marca o link como aberto e não aplica o filtro do link. */
-  async definirPeloAtendente(lojaId: string, sessaoId: string, pedidos: ItemPedidoDto[]): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
+  /**
+   * Carrinho pronto ou ajuste feito pelo atendente (ou pela assistente de IA): não marca o link como aberto e não
+   * aplica o filtro do link.
+   */
+  async definirPeloAtendente(
+    lojaId: string,
+    sessaoId: string,
+    pedidos: ItemPedidoDto[],
+    autor: 'atendente' | 'ia' = 'atendente',
+  ): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
     const sessao = await this.prisma.sessao.findFirst({ where: { id: sessaoId, lojaId } });
     if (!sessao) throw new ErroApi(404, 'SEM_SESSAO', 'Link não encontrado neste atendimento.');
-    const avisos = await this.definirNaSessao(sessao, pedidos, 'atendente');
+    const avisos = await this.definirNaSessao(sessao, pedidos, autor);
     return { sessao: await this.sessoes.completa(sessao.id), avisos };
   }
 
   /** O atendente soma itens ao carrinho do link aberto (o cliente continua com o mesmo link e o que já escolheu). */
-  async adicionarPeloAtendente(lojaId: string, sessaoId: string, novos: ItemPedidoDto[]): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
+  async adicionarPeloAtendente(
+    lojaId: string,
+    sessaoId: string,
+    novos: ItemPedidoDto[],
+    autor: 'atendente' | 'ia' = 'atendente',
+  ): Promise<{ sessao: SessaoCompleta; avisos: string[] }> {
     const existentes = await this.prisma.itemCarrinho.findMany({ where: { sessaoId, sessao: { lojaId } } });
     const atuais: ItemPedidoDto[] = existentes.map((i) => ({ produtoId: i.produtoId, ...(i.variacaoId ? { variacaoId: i.variacaoId } : {}), quantidade: i.quantidade }));
     // definirNaSessao soma as linhas repetidas (mesmo produto e variação), até o máximo por item.
-    return this.definirPeloAtendente(lojaId, sessaoId, [...atuais, ...novos]);
+    return this.definirPeloAtendente(lojaId, sessaoId, [...atuais, ...novos], autor);
   }
 
-  private async definirNaSessao(sessao: SessaoBanco, pedidos: ItemPedidoDto[], autor: 'cliente' | 'atendente'): Promise<string[]> {
+  private async definirNaSessao(sessao: SessaoBanco, pedidos: ItemPedidoDto[], autor: 'cliente' | 'atendente' | 'ia'): Promise<string[]> {
     if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
     // Link restrito: o cliente só põe no carrinho o que está no filtro (o que o atendente já pôs continua).
     const filtro = sessao.restrito ? (sessao.filtro as unknown as FiltroLink | null) : null;
@@ -201,7 +214,7 @@ export class CarrinhoService {
     sessao: { id: string; status: string; abertaEm: Date | null },
     existentes: ItemCarrinho[],
     finais: ItemRevalidado[],
-    autor: 'cliente' | 'atendente' | 'sistema',
+    autor: 'cliente' | 'atendente' | 'ia' | 'sistema',
   ): Promise<void> {
     const porChave = new Map(existentes.map((i) => [chave(i.produtoId, i.variacaoId), i]));
     await this.prisma.$transaction(async (tx) => {
@@ -227,7 +240,8 @@ export class CarrinhoService {
         },
       });
       for (const texto of mudancas(existentes, finais)) {
-        await this.sessoes.registrar(sessao.id, 'carrinho', autor === 'atendente' ? `Atendente — ${texto}` : texto, autor, tx);
+        const prefixo = autor === 'atendente' ? 'Atendente — ' : autor === 'ia' ? 'Assistente de IA — ' : '';
+        await this.sessoes.registrar(sessao.id, 'carrinho', `${prefixo}${texto}`, autor, tx);
       }
     });
   }

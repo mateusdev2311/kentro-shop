@@ -12,6 +12,7 @@ import { Conector } from './conectores/nucleo/conector';
 import { ExtensaoController } from './arquivos-extensao/extensao.controller';
 import { IntegracoesModule } from './integracoes/integracoes.module';
 import { LojasModule } from './lojas/lojas.module';
+import { McpModule } from './mcp/mcp.module';
 import { SaudeController } from './saude/saude.controller';
 import { SessoesModule } from './sessoes/sessoes.module';
 
@@ -32,7 +33,7 @@ export class AppModule {
           { name: 'registro', limit: 5, ttl: 3_600_000 },
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
-        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule],
+        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule],
       providers: [{ provide: CONFIG_APP, useValue: config }, PrismaService],
       exports: [CONFIG_APP, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],

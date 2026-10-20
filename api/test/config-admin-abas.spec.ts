@@ -170,4 +170,36 @@ describe('abas de configuração do Admin', () => {
     await t.clicar('btn-salvar-catalogo');
     expect(patches(t)).toEqual([{ categoriasOcultas: ['1'] }]);
   });
+
+  it('IA: endereço do servidor MCP e token gerado só depois de confirmar', async () => {
+    t = await abrir({ 'POST /v1/loja/token-mcp/rotacionar': { status: 200, body: { chave: 'ksm_novo' } } });
+    await t.clicar('botao-aba-ia');
+    expect(t.visivel('aba-ia')).toBe(true);
+    expect(t.texto('ia-url')).toBe('https://api.teste/mcp');
+    expect(t.visivel('ia-bloco-token')).toBe(false);
+    await t.clicar('btn-gerar-token');
+    await t.esperar(5);
+    expect(t.texto('ia-token')).toBe('ksm_novo');
+    expect(t.visivel('ia-bloco-token')).toBe(true);
+    expect(t.chamadas.filter((c) => c.method === 'POST').map((c) => c.url)).toEqual(['https://api.teste/v1/loja/token-mcp/rotacionar']);
+  });
+
+  it('IA: cancelar a confirmação não troca o token', async () => {
+    t = await montarTela('admin/config.html', {
+      config,
+      confirmar: false,
+      respostas: {
+        'GET /v1/loja': loja,
+        'GET /v1/conectores': { status: 200, body: [] },
+        'GET /v1/loja/integracao': semIntegracao,
+        'GET /v1/loja/configuracoes': configuracoes,
+      },
+    });
+    await t.esperar(5);
+    await t.clicar('botao-aba-ia');
+    await t.clicar('btn-gerar-token');
+    await t.esperar(5);
+    expect(t.chamadas.some((c) => c.method === 'POST')).toBe(false);
+    expect(t.visivel('ia-bloco-token')).toBe(false);
+  });
 });

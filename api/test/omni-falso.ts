@@ -36,6 +36,8 @@ export interface OpcoesTela {
   produtos?: Record<string, unknown>[];
   /** API REST da instância (omni.data.request) por recurso; recurso sem resposta é recusado (bad_args). */
   dados?: Record<string, unknown>;
+  /** Resposta do omni.ui.confirm (padrão: confirma). */
+  confirmar?: boolean;
 }
 
 export interface Tela {
@@ -153,6 +155,7 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
         return Promise.resolve();
       },
       resize: () => Promise.resolve(),
+      confirm: () => Promise.resolve({ confirmed: opcoes.confirmar !== false }),
     },
   };
 

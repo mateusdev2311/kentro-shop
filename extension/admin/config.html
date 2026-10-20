@@ -258,6 +258,7 @@
     <symbol id="i-grade" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
     <symbol id="i-chave" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/></symbol>
     <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-faisca" viewBox="0 0 24 24"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
     <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-sincronizar" viewBox="0 0 24 24"><path d="M19.5 9A7.5 7.5 0 0 0 6 6.5L4.5 8"/><path d="M4.5 4v4h4"/><path d="M4.5 15A7.5 7.5 0 0 0 18 17.5l1.5-1.5"/><path d="M19.5 20v-4h-4"/></symbol>
   </defs>
@@ -335,6 +336,7 @@
       <button type="button" id="botao-aba-entrega" data-aba="entrega"><svg class="ic"><use href="#i-caminhao"/></svg>Entrega e frete</button>
       <button type="button" id="botao-aba-pedidos" data-aba="pedidos"><svg class="ic"><use href="#i-recibo"/></svg>Pedidos</button>
       <button type="button" id="botao-aba-catalogo" data-aba="catalogo"><svg class="ic"><use href="#i-grade"/></svg>Catálogo</button>
+      <button type="button" id="botao-aba-ia" data-aba="ia"><svg class="ic"><use href="#i-faisca"/></svg>IA</button>
     </nav>
 
     <section id="aba-integracao" class="cartao">
@@ -513,6 +515,34 @@
       <p id="resultado-catalogo" class="resultado"></p>
       <div class="acoes"><button type="button" class="principal" id="btn-salvar-catalogo">Salvar catálogo</button></div>
     </section>
+
+    <section id="aba-ia" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Assistente de IA</h2>
+        <p>Ligue a assistente de IA da Kentro ao catálogo: ela busca produtos ao vivo, monta o carrinho e envia o link ao cliente.</p>
+      </div>
+      <div class="chaves-lista">
+        <div class="chave">
+          <span class="rotulo"><strong>Endereço do servidor MCP</strong><small>Transporte: streamable-http</small></span>
+          <code id="ia-url"></code>
+          <button type="button" class="suave" data-copiar="ia-url"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+        </div>
+        <div class="chave" id="ia-bloco-token" hidden>
+          <span class="rotulo"><strong>Token MCP</strong><small>Autenticação: Bearer</small></span>
+          <code id="ia-token"></code>
+          <button type="button" class="suave" data-copiar="ia-token"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+        </div>
+      </div>
+      <div id="ia-aviso-token" class="aviso destaque" hidden>Este token aparece só agora. Copie e cole na assistente antes de sair desta tela.</div>
+      <h3>Como ligar</h3>
+      <ol class="passos">
+        <li><strong>Gere o token</strong><span>O token anterior para de funcionar na hora: atualize as assistentes que já usavam o Kentro Shop.</span></li>
+        <li><strong>Adicione o servidor MCP na assistente</strong><span>Na Kentro, abra a assistente de IA &gt; Servidores MCP, cole o endereço, escolha streamable-http e autenticação Bearer com o token.</span></li>
+        <li><strong>Informe o atendimento no contexto</strong><span>O contexto inicial da assistente precisa ter a linha: ID deste atendimento: {{chat_id}}</span></li>
+      </ol>
+      <p id="resultado-ia" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-gerar-token"><svg class="ic"><use href="#i-chave"/></svg>Gerar token MCP</button></div>
+    </section>
   </section>
 </div>
 
@@ -655,7 +685,7 @@
     botao.disabled = true;
     mostrarAviso('');
     api('/v1/lojas/registrar', { method: 'POST', body: nome ? { nome: nome } : {} }).then(function (r) {
-      // O token MCP (r.tokenMcp) fica de fora até existir o servidor /mcp: a aba IA gera um novo pela rotação.
+      // O token MCP (r.tokenMcp) fica de fora: só quem liga a assistente precisa dele, e a aba IA gera um novo.
       var chaves = { chaveAdmin: r.chaveAdmin, chaveAtendimento: r.chaveAtendimento, em: new Date().toISOString() };
       mostrarChaves(chaves);
       // Guarda no navegador do admin até ele colar a chave, para não se perder se a tela fechar.
@@ -1073,7 +1103,7 @@
   }
 
   // ── Abas ────────────────────────────────────────────────────────────────
-  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo'];
+  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia'];
   var configuracoes = null;
 
   function abrirAba(nome) {
@@ -1082,9 +1112,37 @@
       $('botao-aba-' + a).className = a === nome ? 'ativa' : '';
     });
     if (nome === 'catalogo') carregarCategoriasOcultas();
+    if (nome === 'ia') $('ia-url').textContent = cfg.apiUrl + '/mcp';
   }
   ABAS.forEach(function (a) {
     $('botao-aba-' + a).addEventListener('click', function () { abrirAba(a); });
+  });
+
+  // ── IA: token do servidor MCP ───────────────────────────────────────────
+  // O token só existe como hash na API: gerar um novo é a única forma de vê-lo, e o anterior deixa de valer.
+  $('btn-gerar-token').addEventListener('click', function () {
+    var botao = this;
+    var pergunta = omni.ui.confirm
+      ? Promise.resolve(omni.ui.confirm({
+        title: 'Gerar token MCP',
+        message: 'O token anterior para de funcionar na hora. As assistentes que já usam o Kentro Shop precisam receber o novo token.',
+        okLabel: 'Gerar token',
+        cancelLabel: 'Cancelar'
+      }))
+      : Promise.resolve({ confirmed: true });
+    pergunta.then(function (r) {
+      if (!r || !r.confirmed) return;
+      botao.disabled = true;
+      $('resultado-ia').textContent = 'Gerando…';
+      return api('/v1/loja/token-mcp/rotacionar', { method: 'POST' }).then(function (res) {
+        $('ia-token').textContent = res.chave;
+        $('ia-bloco-token').hidden = false;
+        $('ia-aviso-token').hidden = false;
+        $('resultado-ia').textContent = '';
+      }, function (erro) {
+        $('resultado-ia').textContent = mensagemDeErro(erro);
+      }).then(function () { botao.disabled = false; });
+    }, function () { /* diálogo fechado */ });
   });
 
   /** Salva parte das configurações (PATCH) e mostra o resultado no parágrafo da aba. */

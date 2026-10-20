@@ -42,6 +42,11 @@ export function limparFiltro(f: FiltroLink): FiltroLink | null {
   return Object.keys(limpo).length ? limpo : null;
 }
 
+function textoDoLink(autor: 'atendente' | 'ia', atendente: string): string {
+  if (autor === 'ia') return 'Link do catálogo gerado pela assistente de IA';
+  return atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado';
+}
+
 const CAMPOS_ENDERECO =['cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento'] as const;
 
 /** Campo vazio não apaga o que já se sabe; um endereço novo (com algum campo) substitui o anterior inteiro. */
@@ -78,7 +83,13 @@ export class SessoesService {
    * Link montado (filtro, preços ou carrinho pronto) é sempre novo, e o link aberto anterior deixa de valer:
    * o cliente fica com um carrinho só.
    */
-  async criarOuReaproveitar(lojaId: string, dados: DadosDoContato, atendente = '', montado: OpcoesDoLink | null = null): Promise<SessaoCompleta> {
+  async criarOuReaproveitar(
+    lojaId: string,
+    dados: DadosDoContato,
+    atendente = '',
+    montado: OpcoesDoLink | null = null,
+    autor: 'atendente' | 'ia' = 'atendente',
+  ): Promise<SessaoCompleta> {
     const aberta = await this.prisma.sessao.findFirst({
       where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS }, expiraEm: { gt: new Date() } },
       orderBy: { criadaEm: 'desc' },
@@ -106,7 +117,7 @@ export class SessoesService {
         ...(filtro ? { filtro: filtro as unknown as Prisma.InputJsonValue } : {}),
         restrito: montado?.restrito ?? true,
         mostrarPrecos: montado?.mostrarPrecos ?? null,
-        eventos: { create: { tipo: 'link', texto: atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado', autor: 'atendente' } },
+        eventos: { create: { tipo: 'link', texto: textoDoLink(autor, atendente), autor } },
       },
     });
     return this.completa(criada.id);

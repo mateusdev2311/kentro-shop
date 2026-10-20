@@ -45,6 +45,11 @@ export class LojasService {
     return { loja, papel: loja.chaveAdminHash === hash ? 'admin' : 'atendimento' };
   }
 
+  /** Loja do token MCP (assistente de IA da Kentro). */
+  async buscarPorTokenMcp(token: string): Promise<Loja | null> {
+    return this.prisma.loja.findFirst({ where: { tokenMcpHash: hashSegredo(token) } });
+  }
+
   async rotacionar(lojaId: string, tipo: TipoSegredo): Promise<string> {
     const chave = gerarSegredo(tipo);
     await this.prisma.loja.update({ where: { id: lojaId }, data: { [CAMPO_DO_HASH[tipo]]: hashSegredo(chave) } });
