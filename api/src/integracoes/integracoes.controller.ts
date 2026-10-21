@@ -17,7 +17,9 @@ export class IntegracoesController {
   @Get('conectores')
   @Papel('atendimento')
   conectores() {
-    return this.registro.listar().map(({ id, nome, capacidades, camposDeCredencial }) => ({ id, nome, capacidades, camposDeCredencial }));
+    return this.registro
+      .listar()
+      .map(({ id, nome, capacidades, camposDeCredencial, sincronizacao }) => ({ id, nome, capacidades, camposDeCredencial, ...(sincronizacao ? { sincronizacao } : {}) }));
   }
 
   @Get('loja/integracao')

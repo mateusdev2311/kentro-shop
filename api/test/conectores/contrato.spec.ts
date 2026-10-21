@@ -3,7 +3,10 @@ import { conectorEcommercenet } from '../../src/conectores/ecommercenet/ecommerc
 import { conectorKentro } from '../../src/conectores/kentro/kentro.conector';
 import { conectorShopify } from '../../src/conectores/shopify/shopify.conector';
 import { criarConectorNuvemshop } from '../../src/conectores/nuvemshop/nuvemshop.conector';
-import { catalogoEmMemoria } from './catalogo-memoria';
+import { categoriasDaView, conectorAutomatiza, produtoDaView } from '../../src/conectores/automatiza/automatiza.conector';
+import { ProdutoSincronizado } from '../../src/conectores/nucleo/conector';
+import { bancoEmMemoria, CREDENCIAIS_BANCO, LINHAS_VIEW } from './banco-memoria';
+import { catalogoEmMemoria, copiaEmMemoria } from './catalogo-memoria';
 import { APP_TESTE, criarFetchNuvemshop, NUVEMSHOP_CREDENCIAIS } from './fixtures-nuvemshop';
 import { conectorFalso } from './conector-falso';
 import { criarFetchShopify, SHOPIFY_CREDENCIAIS } from './fixtures-shopify';
@@ -67,6 +70,23 @@ rodarContrato('Kentro (cópia sincronizada em memória)', () => ({
   buscaVazia: 'zzzzzz',
   porPagina: 3,
 }));
+
+rodarContrato('ERP Automatiza (banco e cópia em memória)', () => {
+  const produtos = LINHAS_VIEW.map(produtoDaView).filter((p): p is ProdutoSincronizado => !!p);
+  const categorias = categoriasDaView(LINHAS_VIEW, new Set(produtos.flatMap((p) => p.produto.categoriaIds)));
+  return {
+    conector: conectorAutomatiza,
+    credenciaisValidas: CREDENCIAIS_BANCO,
+    credenciaisInvalidas: { ...CREDENCIAIS_BANCO, senha: 'errada' },
+    catalogoLocal: () => copiaEmMemoria(produtos, categorias),
+    banco: (credenciais) => bancoEmMemoria(credenciais),
+    idSimples: '101',
+    idComVariacao: '101',
+    idInexistente: '201',
+    buscaVazia: 'zzzzzz',
+    porPagina: 3,
+  };
+});
 
 rodarContrato('Demonstração', () => ({
   conector: conectorDemonstracao,

@@ -8,9 +8,11 @@ import { ConfigLojaModule } from './config-loja/config-loja.module';
 import { ConfiguracoesModule } from './config-loja/configuracoes.module';
 import { PrismaService } from './comum/prisma.service';
 import { ConectoresModule, conectoresPadrao } from './conectores/conectores.module';
+import { ABRIR_BANCO, AbrirBanco, abrirBancoPadrao } from './conectores/nucleo/banco';
 import { Conector } from './conectores/nucleo/conector';
 import { ExtensaoController } from './arquivos-extensao/extensao.controller';
 import { IntegracoesModule } from './integracoes/integracoes.module';
+import { OPCOES_SINCRONIZACAO } from './integracoes/sincronizacao.service';
 import { LojasModule } from './lojas/lojas.module';
 import { McpModule } from './mcp/mcp.module';
 import { SaudeController } from './saude/saude.controller';
@@ -22,6 +24,10 @@ export interface OpcoesApp {
   conectores?: Conector[];
   /** Substitui o envio do aviso de pedido finalizado à Kentro (usado nos testes). */
   envioAviso?: EnvioAviso;
+  /** Substitui o acesso aos bancos de dados das lojas (usado nos testes). */
+  abrirBanco?: AbrirBanco;
+  /** false desliga a sincronização periódica dos catálogos (testes). Padrão: ligada. */
+  sincronizacaoAutomatica?: boolean;
 }
 
 @Module({})
@@ -37,8 +43,14 @@ export class AppModule {
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
         ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule],
-      providers: [{ provide: CONFIG_APP, useValue: config }, { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp }, PrismaService],
-      exports: [CONFIG_APP, ENVIO_AVISO, PrismaService],
+      providers: [
+        { provide: CONFIG_APP, useValue: config },
+        { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp },
+        { provide: ABRIR_BANCO, useValue: opcoes.abrirBanco ?? abrirBancoPadrao },
+        { provide: OPCOES_SINCRONIZACAO, useValue: { automatica: opcoes.sincronizacaoAutomatica ?? true } },
+        PrismaService,
+      ],
+      exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, OPCOES_SINCRONIZACAO, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
     };
   }

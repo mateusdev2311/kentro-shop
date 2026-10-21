@@ -1,9 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { produtoDoSdk } from '../conectores/kentro/kentro.conector';
-import { CatalogoLocal } from '../conectores/nucleo/conector';
+import { CatalogoLocal, CatalogoSincronizado } from '../conectores/nucleo/conector';
 import { Categoria, Produto } from '../contratos/modelo';
 import { Papel } from '../lojas/lojas.service';
 import { LoteCatalogoKentroDto } from './dto';
@@ -18,11 +19,17 @@ export const paraBusca = (s: string): string =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
 
+/** Linhas por INSERT na troca da cópia (o Postgres aceita até 65535 parâmetros por comando). */
+const LINHAS_POR_INSERT = 1000;
+
 export interface EstadoCatalogoKentro {
   sincronizadoEm: Date | null;
   total: number;
   categorias: number;
   sincronizando: boolean;
+  /** Só na sincronização feita pela API: por que a última falhou (a cópia anterior continua valendo). */
+  ultimoErro: string | null;
+  ultimoErroEm: Date | null;
 }
 
 const gruposDe = (v: Prisma.JsonValue | undefined): Categoria[] =>
@@ -88,7 +95,104 @@ export class CatalogoKentroService {
       total: c?.total ?? 0,
       categorias: gruposDe(c?.grupos).length,
       sincronizando: !!c?.loteAtual && !!c.loteAtividadeEm && Date.now() - c.loteAtividadeEm.getTime() < TRAVA_MS,
+      ultimoErro: c?.ultimoErro ?? null,
+      ultimoErroEm: c?.ultimoErroEm ?? null,
     };
+  }
+
+  /**
+   * Sincronização feita pela API (ex.: banco de dados do ERP): pega a trava da loja antes de ler a fonte.
+   * A trava é um UPDATE condicional, então duas instâncias da API não leem o banco da loja ao mesmo tempo.
+   */
+  async travar(lojaId: string): Promise<string> {
+    const lote = `b${Date.now().toString(36)}${randomBytes(5).toString('hex')}`;
+    const agora = new Date();
+    await this.prisma.catalogoKentro.upsert({ where: { lojaId }, create: { lojaId }, update: {} });
+    const { count } = await this.prisma.catalogoKentro.updateMany({
+      where: {
+        lojaId,
+        OR: [{ loteAtual: null }, { loteAtividadeEm: null }, { loteAtividadeEm: { lt: new Date(agora.getTime() - TRAVA_MS) } }],
+      },
+      data: { loteAtual: lote, loteAtividadeEm: agora },
+    });
+    if (!count) throw new ErroApi(409, 'SINCRONIZANDO', 'Já há uma sincronização do catálogo em andamento. Tente de novo em instantes.');
+    return lote;
+  }
+
+  /**
+   * Troca a cópia inteira pelo que veio da fonte, numa transação: quem lê o catálogo nunca vê a cópia pela metade.
+   * Nada veio (com produtos antes) é recusado sempre; a automática também recusa perder mais da metade,
+   * que costuma ser falha na fonte e não o catálogo de verdade (a manual aceita: alguém pediu e está olhando).
+   */
+  async trocar(lojaId: string, lote: string, catalogo: CatalogoSincronizado, { automatica }: { automatica: boolean }): Promise<{ total: number; sincronizadoEm: Date }> {
+    const porId = new Map(catalogo.produtos.map((p) => [p.produto.id, p]));
+    const produtos = [...porId.values()];
+    const usados = new Set(produtos.flatMap((p) => p.produto.categoriaIds));
+    const grupos = catalogo.categorias.filter((c) => usados.has(c.id));
+    const agora = new Date();
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const atual = await tx.catalogoKentro.findUnique({ where: { lojaId } });
+        if (atual?.loteAtual !== lote) throw new ErroApi(409, 'LOTE_ENCERRADO', 'A sincronização foi interrompida. Tente de novo.');
+        const anterior = atual.total;
+        if (!produtos.length && anterior > 0) {
+          throw new ErroApi(409, 'CATALOGO_VAZIO', 'A sincronização não trouxe nenhum produto. A cópia anterior foi mantida.');
+        }
+        if (automatica && anterior > 0 && produtos.length < anterior / 2) {
+          throw new ErroApi(
+            409,
+            'CATALOGO_ENCOLHEU',
+            `A sincronização automática trouxe ${produtos.length} produtos (antes eram ${anterior}) e foi ignorada. Se o catálogo diminuiu mesmo, clique em "Sincronizar agora".`,
+          );
+        }
+        await tx.produtoKentro.deleteMany({ where: { lojaId } });
+        for (let i = 0; i < produtos.length; i += LINHAS_POR_INSERT) {
+          await tx.produtoKentro.createMany({
+            data: produtos.slice(i, i + LINHAS_POR_INSERT).map(({ produto: p, termos }) => ({
+              lojaId,
+              id: p.id,
+              nome: p.nome,
+              sku: p.sku,
+              busca: paraBusca(`${p.nome} ${p.sku}${termos ? ` ${termos}` : ''}`),
+              grupos: p.categoriaIds,
+              dados: p as unknown as Prisma.InputJsonValue,
+              lote,
+            })),
+          });
+        }
+        await tx.catalogoKentro.update({
+          where: { lojaId },
+          data: {
+            grupos: grupos as unknown as Prisma.InputJsonValue,
+            total: produtos.length,
+            sincronizadoEm: agora,
+            loteAtual: null,
+            loteAtividadeEm: null,
+            ultimoErro: null,
+            ultimoErroEm: null,
+          },
+        });
+      },
+      { maxWait: 10_000, timeout: 60_000 },
+    );
+    return { total: produtos.length, sincronizadoEm: agora };
+  }
+
+  /** A sincronização da API falhou: solta a trava e guarda o motivo. A cópia anterior continua valendo. */
+  async falhou(lojaId: string, lote: string, mensagem: string): Promise<void> {
+    await this.prisma.catalogoKentro.updateMany({
+      where: { lojaId, loteAtual: lote },
+      data: { loteAtual: null, loteAtividadeEm: null, ultimoErro: mensagem.slice(0, 300), ultimoErroEm: new Date() },
+    });
+  }
+
+  /** A loja trocou de plataforma: a cópia da plataforma anterior não pode aparecer como catálogo da nova. */
+  async apagar(lojaId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.produtoKentro.deleteMany({ where: { lojaId } }),
+      this.prisma.catalogoKentro.deleteMany({ where: { lojaId } }),
+    ]);
   }
 
   async receberLote(

@@ -27,6 +27,12 @@ export function ipPrivado(ip: string): boolean {
   return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
 }
 
+/** Nome ou IP literal que pode ser público (o nome ainda precisa resolver só para IPs públicos). */
+export function hostPublico(host: string): boolean {
+  if (!host || NOMES_INTERNOS.test(host)) return false;
+  return isIP(host) ? !ipPrivado(host) : true;
+}
+
 /** Validação síncrona ao salvar: https, host público e sem IP privado literal. */
 export function enderecoPublicoHttps(url: string): boolean {
   let alvo: URL;
@@ -36,9 +42,7 @@ export function enderecoPublicoHttps(url: string): boolean {
     return false;
   }
   if (alvo.protocol !== 'https:') return false;
-  const host = alvo.hostname.replace(/^\[|\]$/g, '');
-  if (!host || NOMES_INTERNOS.test(host)) return false;
-  return isIP(host) ? !ipPrivado(host) : true;
+  return hostPublico(alvo.hostname.replace(/^\[|\]$/g, ''));
 }
 
 export type Resolvedor = (host: string) => Promise<string[]>;

@@ -1,5 +1,6 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigApp } from '../comum/config';
+import { conectorAutomatiza } from './automatiza/automatiza.conector';
 import { conectorDemonstracao } from './demonstracao/demonstracao.conector';
 import { conectorEcommercenet } from './ecommercenet/ecommercenet.conector';
 import { conectorKentro } from './kentro/kentro.conector';
@@ -9,7 +10,7 @@ import { criarConectorNuvemshop } from './nuvemshop/nuvemshop.conector';
 import { conectorShopify } from './shopify/shopify.conector';
 
 /** Conectores que não dependem de configuração. */
-export const CONECTORES_PADRAO: Conector[] = [conectorEcommercenet, conectorShopify, conectorKentro, conectorDemonstracao];
+export const CONECTORES_PADRAO: Conector[] = [conectorEcommercenet, conectorShopify, conectorKentro, conectorAutomatiza, conectorDemonstracao];
 
 /** Conectores de produção: a Nuvemshop só aparece com o app de parceiro configurado. */
 export function conectoresPadrao(config: Pick<ConfigApp, 'nuvemshop' | 'urlPublica'>): Conector[] {
@@ -19,7 +20,7 @@ export function conectoresPadrao(config: Pick<ConfigApp, 'nuvemshop' | 'urlPubli
     userAgent: `Kentro Shop (${config.urlPublica})`,
     urlWebhooks: `${config.urlPublica}/v1/nuvemshop/webhooks`,
   });
-  return [conectorEcommercenet, conectorShopify, nuvemshop, conectorKentro, conectorDemonstracao];
+  return [conectorEcommercenet, conectorShopify, nuvemshop, conectorKentro, conectorAutomatiza, conectorDemonstracao];
 }
 
 @Module({})

@@ -1,4 +1,5 @@
 import { Categoria, HistoricoCliente, OpcaoFrete, Pagina, PedidoCriado, PedidoParaCriar, Produto } from '../../contratos/modelo';
+import { ClienteBanco, MotorBanco } from './banco';
 
 // Interface única dos conectores (spec 7.1). Adicionar uma plataforma = implementar isto e registrar.
 
@@ -44,7 +45,19 @@ export interface ClienteHttpConector {
   requisitar(req: RequisicaoConector): Promise<RespostaConector>;
 }
 
-/** Cópia do catálogo guardada na API (ex.: catálogo da Kentro, enviado pela extensão). */
+/** Produto lido da fonte para a cópia sincronizada. */
+export interface ProdutoSincronizado {
+  produto: Produto;
+  /** Texto a mais para a busca, além do nome e do SKU (ex.: código de barras). */
+  termos?: string;
+}
+
+export interface CatalogoSincronizado {
+  produtos: ProdutoSincronizado[];
+  categorias: Categoria[];
+}
+
+/** Cópia do catálogo guardada na API (catálogo da Kentro, enviado pela extensão, ou banco de dados do ERP). */
 export interface CatalogoLocal {
   estado(): Promise<{ sincronizadoEm: Date | null; total: number }>;
   categorias(): Promise<Categoria[]>;
@@ -60,6 +73,8 @@ export interface CtxConector {
   salvarCredenciais(novas: Record<string, string>): Promise<void>; // renovação de token
   /** Só para conectores que leem uma cópia sincronizada em vez da plataforma ao vivo. */
   catalogoLocal?: CatalogoLocal;
+  /** Só para conectores de banco de dados: consultas somente leitura no banco da loja. */
+  banco?: ClienteBanco;
 }
 
 export interface ItemCotacao {
@@ -95,6 +110,16 @@ export interface Conector {
    * Ausente = sem cache. A finalização do pedido sempre lê de novo.
    */
   readonly cacheSegundos?: number;
+  /** Conector de banco de dados: o contexto recebe o cliente desse motor (ctx.banco). */
+  readonly banco?: { motor: MotorBanco; bancoPadrao?: string };
+  /**
+   * Catálogo lento demais para ler ao vivo (ex.: view do ERP): a API copia tudo com lerCatalogoCompleto
+   * a cada `minutos` e o conector lê a cópia (ctx.catalogoLocal).
+   */
+  readonly sincronizacao?: { minutos: number };
+
+  /** Conferência ao salvar, além dos campos obrigatórios. Devolve a mensagem do erro, ou null. */
+  validarCredenciais?(credenciais: Record<string, string>): string | null;
 
   /**
    * Para onde os segredos são enviados, quando isso vem de um campo que não é do tipo url (ex.: domínio da loja).
@@ -106,6 +131,8 @@ export interface Conector {
   listarCategorias(ctx: CtxConector): Promise<Categoria[]>;
   listarProdutos(ctx: CtxConector, filtro: FiltroProdutos): Promise<Pagina<Produto>>;
   obterProduto(ctx: CtxConector, produtoId: string): Promise<Produto | null>;
+  /** Com sincronizacao: o catálogo inteiro, direto da fonte, para trocar a cópia. */
+  lerCatalogoCompleto?(ctx: CtxConector): Promise<CatalogoSincronizado>;
   /** Vários produtos numa chamada (conferência do carrinho). Inexistente ou fora de venda: fica de fora do mapa. */
   obterProdutos?(ctx: CtxConector, ids: string[]): Promise<Map<string, Produto>>;
   /** Depois da autorização (OAuth): ex. registrar os webhooks. Falha aqui não desfaz a conexão. */

@@ -364,7 +364,7 @@
     <section id="aba-integracao" class="cartao">
       <div class="cartao-cabeca">
         <h2>Integração</h2>
-        <p>Conecte a plataforma de e-commerce da loja. Os produtos são lidos ao vivo, nada é copiado.</p>
+        <p>Conecte a plataforma de e-commerce ou o banco de dados do ERP da loja.</p>
       </div>
       <div class="formulario">
         <label for="plataforma">Plataforma</label>
@@ -379,6 +379,15 @@
           <span class="ajuda">Os produtos, preços e grupos vêm do cadastro da Kentro, sem token. A cópia é atualizada ao abrir esta tela e, a cada hora, pelo painel do atendimento.</span>
         </div>
         <button type="button" class="suave" id="btn-sincronizar"><svg class="ic"><use href="#i-sincronizar"/></svg>Sincronizar agora</button>
+      </div>
+      <div id="bloco-banco" class="sincronizar" hidden>
+        <span class="bolha"><svg class="ic"><use href="#i-sincronizar"/></svg></span>
+        <div>
+          <strong>Produtos do banco de dados</strong>
+          <p id="banco-estado" class="muted">Ainda não sincronizado.</p>
+          <span class="ajuda" id="banco-ajuda"></span>
+        </div>
+        <button type="button" class="suave" id="btn-sincronizar-banco"><svg class="ic"><use href="#i-sincronizar"/></svg>Sincronizar agora</button>
       </div>
       <div id="bloco-oauth" class="sincronizar" hidden>
         <span class="bolha"><svg class="ic"><use href="#i-plug"/></svg></span>
@@ -826,12 +835,14 @@
     limpar(alvo);
     estado.alterado = false;
     $('bloco-kentro').hidden = !conector || conector.id !== 'kentro';
+    $('bloco-banco').hidden = !conector || !conector.sincronizacao;
     var oauth = !!(conector && conector.capacidades.oauth);
     $('bloco-oauth').hidden = !oauth;
     // Com OAuth não há formulário: "Salvar" apagaria o token.
     $('btn-salvar-integracao').hidden = oauth;
     if (!conector) return;
     if (conector.id === 'kentro') mostrarEstadoKentro();
+    if (conector.sincronizacao) mostrarEstadoBanco(conector);
     if (oauth) mostrarEstadoOAuth(conector);
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
@@ -932,6 +943,10 @@
     salvar().then(function (ok) {
       botao.disabled = false;
       if (!ok) return;
+      if (integracaoBancoSalva()) {
+        mostrarResultado('Integração salva. Lendo os produtos do banco de dados…');
+        return sincronizarBanco();
+      }
       if (!integracaoKentroSalva()) { mostrarResultado('Integração salva. Agora clique em Testar conexão.'); return; }
       mostrarResultado('Integração salva. Buscando os produtos da Kentro…');
       return sincronizarKentro();
@@ -1122,6 +1137,69 @@
   $('btn-sincronizar').addEventListener('click', function () {
     var pronto = integracaoKentroSalva() && !estado.alterado ? Promise.resolve(true) : salvar();
     pronto.then(function (ok) { if (ok) sincronizarKentro(); });
+  });
+
+  // ── Banco de dados do ERP: a própria API lê a fonte e guarda uma cópia, renovada sozinha ──
+  function integracaoBancoSalva() {
+    var conector = conectorAtual();
+    return !!(conector && conector.sincronizacao && estado.integracao && estado.integracao.plataforma === conector.id);
+  }
+
+  function textoEstadoBanco(e) {
+    if (e.sincronizando) return 'Sincronizando…';
+    var texto = e.sincronizadoEm ? textoEstadoKentro(e) : 'Ainda não sincronizado.';
+    if (e.ultimoErro) texto += (e.sincronizadoEm ? ' · a última tentativa falhou: ' : ' A última tentativa falhou: ') + e.ultimoErro;
+    return texto;
+  }
+
+  var versaoEstadoBanco = 0;
+  function mostrarEstadoBanco(conector) {
+    var minutos = conector.sincronizacao.minutos;
+    $('banco-ajuda').textContent = 'O Kentro Shop lê os produtos direto do banco do ERP e guarda uma cópia, atualizada sozinha a cada ' + minutos +
+      ' minutos. Só entram produtos ativos, com estoque e preço; medicamentos controlados ficam de fora.';
+    if (!integracaoBancoSalva()) {
+      $('banco-estado').textContent = 'Salve a integração para buscar os produtos do banco de dados.';
+      return Promise.resolve(null);
+    }
+    var versao = versaoEstadoBanco;
+    return api('/v1/loja/catalogo-sincronizado').then(function (e) {
+      if (versao === versaoEstadoBanco) $('banco-estado').textContent = textoEstadoBanco(e);
+      return e;
+    }, function () { return null; });
+  }
+
+  /** Sincroniza mostrando o andamento. Com produtos e a integração ainda não testada, testa (o que ativa a loja). */
+  function sincronizarBanco() {
+    var conector = conectorAtual();
+    var bloco = $('bloco-banco');
+    var botao = $('btn-sincronizar-banco');
+    bloco.className = 'sincronizar trabalhando';
+    botao.disabled = true;
+    versaoEstadoBanco++;
+    $('banco-estado').textContent = 'Lendo os produtos do banco de dados… pode levar alguns segundos.';
+    return api('/v1/loja/catalogo-sincronizado/sincronizar', { method: 'POST' }).then(function (e) {
+      mostrarResultado('');
+      $('banco-estado').textContent = textoEstadoBanco(e);
+      if (!e.total) return;
+      if (estado.situacao !== 'ok') $('btn-testar').click();
+      else if (!$('bloco-capacidades').hidden) carregarPrevia();
+    }, function (erro) {
+      versaoEstadoBanco++;
+      mostrarResultado('');
+      if (erro.mensagem) { $('banco-estado').textContent = erro.mensagem; return; }
+      // Atrás do proxy da Kentro o corpo do erro pode não chegar: o motivo fica gravado no estado.
+      return mostrarEstadoBanco(conector).then(function (e) {
+        if (!e || !e.ultimoErro) $('banco-estado').textContent = mensagemDaSincronizacao(erro);
+      });
+    }).then(function () {
+      bloco.className = 'sincronizar';
+      botao.disabled = false;
+    });
+  }
+
+  $('btn-sincronizar-banco').addEventListener('click', function () {
+    var pronto = integracaoBancoSalva() && !estado.alterado ? Promise.resolve(true) : salvar();
+    pronto.then(function (ok) { if (ok) sincronizarBanco(); });
   });
 
   $('btn-testar').addEventListener('click', function () {

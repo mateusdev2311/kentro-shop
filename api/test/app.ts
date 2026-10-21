@@ -27,7 +27,7 @@ export function configDeTeste(sobrescrever: Partial<ConfigApp> = {}): ConfigApp 
 export async function criarAppDeTeste(sobrescrever: Partial<ConfigApp> = {}, opcoes: OpcoesApp = {}): Promise<INestApplication> {
   const config = configDeTeste(sobrescrever);
   const modulo = await Test.createTestingModule({
-    imports: [AppModule.com(config, { conectores: [conectorFalso], ...opcoes })],
+    imports: [AppModule.com(config, { conectores: [conectorFalso], sincronizacaoAutomatica: false, ...opcoes })],
   }).compile();
   const app = modulo.createNestApplication<NestExpressApplication>({ rawBody: true });
   configurarApp(app, config);

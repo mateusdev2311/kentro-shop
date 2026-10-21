@@ -1,6 +1,6 @@
 import { paraBusca } from '../../src/catalogo-kentro/catalogo-kentro.service';
 import { produtoDoSdk } from '../../src/conectores/kentro/kentro.conector';
-import { CatalogoLocal } from '../../src/conectores/nucleo/conector';
+import { CatalogoLocal, ProdutoSincronizado } from '../../src/conectores/nucleo/conector';
 import { Categoria, Produto } from '../../src/contratos/modelo';
 
 // Cópia do catálogo em memória, com a mesma regra de busca e paginação da cópia no banco.
@@ -24,17 +24,22 @@ export function catalogoEmMemoria(
   grupos: Categoria[] = GRUPOS_SDK,
   sincronizadoEm: Date | null = new Date('2026-10-19T12:00:00Z'),
 ): CatalogoLocal {
-  const produtos = brutos
-    .map(produtoDoSdk)
-    .filter((p): p is Produto => !!p)
-    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const produtos = brutos.map(produtoDoSdk).filter((p): p is Produto => !!p);
+  return copiaEmMemoria(produtos.map((produto) => ({ produto })), grupos, sincronizadoEm);
+}
+
+/** Cópia com o que a sincronização gravaria (os termos extras também entram na busca). */
+export function copiaEmMemoria(itens: ProdutoSincronizado[], grupos: Categoria[], sincronizadoEm: Date | null = new Date('2026-10-19T12:00:00Z')): CatalogoLocal {
+  const ordenados = [...itens].sort((a, b) => a.produto.nome.localeCompare(b.produto.nome));
+  const produtos = ordenados.map((i) => i.produto);
+  const busca = new Map(ordenados.map(({ produto: p, termos }) => [p.id, paraBusca(`${p.nome} ${p.sku}${termos ? ` ${termos}` : ''}`)]));
   return {
     estado: async () => ({ sincronizadoEm, total: produtos.length }),
     categorias: async () => grupos,
     async produtos(filtro) {
       const termo = paraBusca(filtro.busca?.trim() ?? '');
       const achados = produtos.filter(
-        (p) => (!termo || paraBusca(`${p.nome} ${p.sku}`).includes(termo)) && (!filtro.categoriaId || p.categoriaIds.includes(filtro.categoriaId)),
+        (p) => (!termo || busca.get(p.id)!.includes(termo)) && (!filtro.categoriaId || p.categoriaIds.includes(filtro.categoriaId)),
       );
       const pular = (filtro.pagina - 1) * filtro.porPagina;
       const itens = achados.slice(pular, pular + filtro.porPagina);

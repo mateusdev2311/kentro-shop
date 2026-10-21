@@ -1,3 +1,4 @@
+import { ClienteBanco } from '../../src/conectores/nucleo/banco';
 import { criarClienteHttp } from '../../src/conectores/nucleo/cliente-http';
 import { CatalogoLocal, Conector, CtxConector } from '../../src/conectores/nucleo/conector';
 import { CredencialInvalida } from '../../src/conectores/nucleo/erros';
@@ -14,6 +15,8 @@ export interface CenarioContrato {
   fetchDeFixtures?: typeof fetch;
   /** Cópia do catálogo, para o conector que não lê a plataforma ao vivo. */
   catalogoLocal?: () => CatalogoLocal;
+  /** Banco de dados falso, para o conector de banco (recusa as credenciais inválidas). */
+  banco?: (credenciais: Record<string, string>) => ClienteBanco;
   idSimples: string;
   idComVariacao: string;
   idInexistente: string;
@@ -38,6 +41,7 @@ function contexto(c: CenarioContrato, credenciais: Record<string, string>, fetch
     }),
     salvarCredenciais: async () => undefined,
     ...(c.catalogoLocal ? { catalogoLocal: c.catalogoLocal() } : {}),
+    ...(c.banco ? { banco: c.banco(credenciais) } : {}),
   };
 }
 
@@ -128,7 +132,11 @@ export function rodarContrato(nome: string, montar: () => CenarioContrato): void
     if (c.credenciaisInvalidas) {
       const invalidas = c.credenciaisInvalidas;
       it('credencial inválida vira CredencialInvalida', async () => {
-        await expect(c.conector.listarProdutos(contexto(c, invalidas), { pagina: 1, porPagina: c.porPagina })).rejects.toBeInstanceOf(CredencialInvalida);
+        // Catálogo sincronizado: a listagem lê a cópia; quem vai à fonte é o teste de conexão.
+        const chamada = c.conector.sincronizacao
+          ? c.conector.testarConexao(contexto(c, invalidas))
+          : c.conector.listarProdutos(contexto(c, invalidas), { pagina: 1, porPagina: c.porPagina });
+        await expect(chamada).rejects.toBeInstanceOf(CredencialInvalida);
       });
     }
 

@@ -4,7 +4,8 @@ import { ConfigApp, CONFIG_APP } from '../comum/config';
 import { cifrar, decifrar } from '../comum/cripto';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
-import { criarClienteHttp } from '../conectores/nucleo/cliente-http';
+import { ABRIR_BANCO, AbrirBanco } from '../conectores/nucleo/banco';
+import { ChamadaRegistrada, criarClienteHttp } from '../conectores/nucleo/cliente-http';
 import { Conector, CtxConector } from '../conectores/nucleo/conector';
 import { enderecoPublicoHttps, verificarDestino } from '../conectores/nucleo/destino';
 import { ErroConector, SemIntegracao } from '../conectores/nucleo/erros';
@@ -41,6 +42,7 @@ export class IntegracoesService {
     private readonly registro: RegistroConectores,
     @Inject(CONFIG_APP) private readonly config: ConfigApp,
     private readonly catalogoKentro: CatalogoKentroService,
+    @Inject(ABRIR_BANCO) private readonly abrirBanco: AbrirBanco,
   ) {}
 
   async salvar(lojaId: string, plataforma: string, recebidas: Record<string, unknown>): Promise<void> {
@@ -91,6 +93,8 @@ export class IntegracoesService {
       if (campo.obrigatorio && !valor) throw new ErroApi(400, 'ENTRADA_INVALIDA', `Preencha o campo ${campo.rotulo}.`);
       if (valor) credenciais[campo.chave] = valor;
     }
+    const invalida = conector.validarCredenciais?.(credenciais);
+    if (invalida) throw new ErroApi(400, 'ENTRADA_INVALIDA', invalida);
 
     await this.gravar(lojaId, conector, credenciais);
   }
@@ -110,7 +114,9 @@ export class IntegracoesService {
       ultimoErro: null,
       idExterno: conector.idExterno?.(credenciais) ?? null,
     };
+    const anterior = await this.prisma.integracao.findUnique({ where: { lojaId }, select: { plataforma: true } });
     await this.prisma.integracao.upsert({ where: { lojaId }, create: { lojaId, ...dados }, update: dados });
+    if (anterior && anterior.plataforma !== conector.id) await this.catalogoKentro.apagar(lojaId);
   }
 
   /** A loja cria o pedido na plataforma ao finalizar? (modo "criar pedido" + conector que sabe criar). */
@@ -182,6 +188,9 @@ export class IntegracoesService {
   }
 
   private criarContexto(lojaId: string, conector: Conector, credenciais: Record<string, string>): CtxConector {
+    const registrar = async (c: ChamadaRegistrada) => {
+      await this.prisma.chamadaConector.create({ data: c });
+    };
     const ctx: CtxConector = {
       lojaId,
       credenciais,
@@ -190,16 +199,18 @@ export class IntegracoesService {
         plataforma: conector.id,
         ritmo: conector.ritmo,
         verificarDestino: (url) => verificarDestino(url),
-        registrar: async (c) => {
-          await this.prisma.chamadaConector.create({ data: c });
-        },
+        registrar,
       }),
       salvarCredenciais: async (novas) => {
         const { cifrado, iv } = cifrar(JSON.stringify({ ...ctx.credenciais, ...novas }), this.config.chaveMestra);
         await this.prisma.integracao.update({ where: { lojaId }, data: { credenciaisCifradas: paraBytes(cifrado), iv: paraBytes(iv) } });
       },
-      // O catálogo da Kentro é uma cópia enviada pela extensão (não há leitura ao vivo sem token).
-      ...(conector.id === 'kentro' ? { catalogoLocal: this.catalogoKentro.leitor(lojaId) } : {}),
+      // Catálogo da Kentro (enviado pela extensão, não há leitura ao vivo sem token) e o de banco de dados
+      // (lento demais ao vivo): o conector lê a cópia.
+      ...(conector.id === 'kentro' || conector.sincronizacao ? { catalogoLocal: this.catalogoKentro.leitor(lojaId) } : {}),
+      ...(conector.banco
+        ? { banco: this.abrirBanco({ lojaId, plataforma: conector.id, motor: conector.banco.motor, bancoPadrao: conector.banco.bancoPadrao, credenciais, registrar }) }
+        : {}),
     };
     return ctx;
   }

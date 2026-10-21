@@ -58,7 +58,8 @@ model BannerLoja {
   @@map("banners_loja")
 }
 
-/// Cópia do catálogo da Kentro enviada pela extensão (omni.products.list). Uma sincronização por vez.
+/// Cópia do catálogo: da Kentro, enviada pela extensão (omni.products.list), ou de um banco de dados de ERP,
+/// lida pela própria API (conectores com sincronizacao). Uma sincronização por vez.
 model CatalogoKentro {
   lojaId          String    @id @map("loja_id") @db.Uuid
   /// Grupos com produto na última sincronização: [{ id, nome }] (vazio se a Kentro não deu os nomes).
@@ -68,6 +69,9 @@ model CatalogoKentro {
   /// Sincronização em andamento (trava): o lote e a última parte recebida.
   loteAtual       String?   @map("lote_atual")
   loteAtividadeEm DateTime? @map("lote_atividade_em")
+  /// Falha da última sincronização feita pela API (a cópia anterior continua valendo). null = deu certo.
+  ultimoErro      String?   @map("ultimo_erro")
+  ultimoErroEm    DateTime? @map("ultimo_erro_em")
 
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
 
