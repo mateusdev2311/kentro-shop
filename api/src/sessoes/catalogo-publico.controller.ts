@@ -129,6 +129,7 @@ export class CatalogoPublicoController {
   async sugestoes(@Req() req: RequisicaoDoCliente) {
     const lojaId = req.sessao.lojaId;
     const config = await this.configLoja.obter(lojaId);
+    if (!config.tema.compreTambem) return [];
     const visivel = visivelNas(new Set(config.categoriasOcultas));
     const filtro = filtroDoLink(req);
     const noCarrinho = (await this.sessoes.publica(req.sessao.id, req.sessao)).itens.map((i) => i.produtoId);

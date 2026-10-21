@@ -21,6 +21,24 @@ export type RegraFrete =
 
 export type Layout = 'grade' | 'lista';
 
+/** Combinações de letras do catálogo (o catálogo carrega as fontes de cada uma). */
+export const FONTES = ['classica', 'moderna', 'elegante', 'arredondada', 'forte', 'simples'] as const;
+export type Fonte = (typeof FONTES)[number];
+export const CANTOS = ['arredondados', 'suaves', 'retos'] as const;
+export type Cantos = (typeof CANTOS)[number];
+/** Proporção da foto nos cartões: quadrada (1:1) ou em pé (3:4, boa para roupas). */
+export const IMAGENS_PRODUTO = ['quadrada', 'retrato'] as const;
+export type ImagemProduto = (typeof IMAGENS_PRODUTO)[number];
+
+export interface BannerPublico {
+  id: string;
+  url: string;
+  titulo?: string;
+  /** Ao tocar: abre esta categoria ou esta busca. */
+  categoriaId?: string;
+  busca?: string;
+}
+
 export interface Tema {
   nome: string;
   corPrimaria: string;
@@ -31,7 +49,22 @@ export interface Tema {
   destaque: boolean;
   logoUrl?: string;
   boasVindas?: string;
+  /** Título da faixa de boas-vindas (vazio = o padrão do catálogo). */
+  tituloDestaque?: string;
+  fonte: Fonte;
+  cantos: Cantos;
+  imagemProduto: ImagemProduto;
+  /** Sugestões "Compre também" no fim da vitrine de um link. */
+  compreTambem: boolean;
+  /** Carrossel no alto da vitrine, na ordem definida pelo admin. */
+  banners: BannerPublico[];
+  /** Tempo de cada banner no carrossel. */
+  bannerSegundos: number;
 }
+
+export const MAX_BANNERS = 6;
+export const MAX_BANNER_BYTES = 400 * 1024;
+const SEGUNDOS_PADRAO = 5;
 
 export interface ConfigEfetiva {
   tema: Tema;
@@ -49,7 +82,7 @@ export interface ConfigEfetiva {
 
 /** O que o admin pode mudar (tudo opcional: só o que vier é gravado; o tema é mesclado). */
 export interface MudancaConfig {
-  tema?: Partial<Omit<Tema, 'logoUrl'>>;
+  tema?: Partial<Omit<Tema, 'logoUrl' | 'banners'>>;
   entrega?: { habilitada: boolean };
   retirada?: { habilitada: boolean };
   lojasRetirada?: { id?: string; nome: string; endereco: string; horario?: string; orientacoes?: string }[];
@@ -75,6 +108,7 @@ export const MAX_LOGO_BYTES = 300 * 1024;
 
 type Objeto = Record<string, unknown>;
 const objeto = (v: unknown): Objeto => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Objeto) : {});
+const umDe = <T extends string>(opcoes: readonly T[], valor: unknown, padrao: T): T => (opcoes.includes(valor as T) ? (valor as T) : padrao);
 
 /** Contraste de uma cor com o texto branco (WCAG). Botões e o topo usam texto branco. */
 export function contrasteComBranco(hex: string): number {
@@ -98,6 +132,27 @@ function tipoReal(bytes: Buffer): (typeof TIPOS_DE_LOGO)[number] | null {
 
 const invalido = (mensagem: string) => new ErroApi(400, 'ENTRADA_INVALIDA', mensagem);
 
+/** Para onde o banner leva ao ser tocado: uma categoria OU uma busca (a categoria vence). Vazio = só imagem. */
+export interface AcaoBanner {
+  titulo?: string;
+  categoriaId?: string;
+  busca?: string;
+}
+
+export interface NovoBanner extends AcaoBanner {
+  tipo: string;
+  base64: string;
+}
+
+function acaoDoBanner(dados: AcaoBanner): { titulo: string | null; categoriaId: string | null; busca: string | null } {
+  const categoriaId = dados.categoriaId?.trim() || null;
+  return {
+    titulo: dados.titulo?.trim() || null,
+    categoriaId,
+    busca: categoriaId ? null : dados.busca?.trim() || null,
+  };
+}
+
 /** Configuração da loja já com os padrões aplicados; o admin edita pela tela de Configurações. */
 @Injectable()
 export class ConfigLojaService {
@@ -107,10 +162,15 @@ export class ConfigLojaService {
   ) {}
 
   async obter(lojaId: string): Promise<ConfigEfetiva> {
-    const [loja, gravada] = await Promise.all([
+    const [loja, gravada, banners] = await Promise.all([
       this.prisma.loja.findUnique({ where: { id: lojaId }, select: { nome: true } }),
-      // O logo (bytes) não é lido aqui: só o hash, para montar a URL.
+      // O logo e os banners (bytes) não são lidos aqui: só o hash, para montar a URL.
       this.prisma.configLoja.findUnique({ where: { lojaId }, omit: { logo: true } }),
+      this.prisma.bannerLoja.findMany({
+        where: { lojaId },
+        orderBy: [{ ordem: 'asc' }, { criadoEm: 'asc' }],
+        select: { id: true, hash: true, titulo: true, categoriaId: true, busca: true },
+      }),
     ]);
     const tema = objeto(gravada?.tema);
     const entrega = objeto(gravada?.entrega);
@@ -126,6 +186,19 @@ export class ConfigLojaService {
         destaque: tema.destaque !== false,
         ...(logoUrl ? { logoUrl } : {}),
         ...(tema.boasVindas ? { boasVindas: String(tema.boasVindas) } : {}),
+        ...(tema.tituloDestaque ? { tituloDestaque: String(tema.tituloDestaque) } : {}),
+        fonte: umDe(FONTES, tema.fonte, 'classica'),
+        cantos: umDe(CANTOS, tema.cantos, 'arredondados'),
+        imagemProduto: umDe(IMAGENS_PRODUTO, tema.imagemProduto, 'quadrada'),
+        compreTambem: tema.compreTambem !== false,
+        banners: banners.map((b) => ({
+          id: b.id,
+          url: `${this.config.urlPublica}/v1/publico/lojas/${lojaId}/banners/${b.id}?v=${b.hash}`,
+          ...(b.titulo ? { titulo: b.titulo } : {}),
+          ...(b.categoriaId ? { categoriaId: b.categoriaId } : {}),
+          ...(b.busca ? { busca: b.busca } : {}),
+        })),
+        bannerSegundos: typeof tema.bannerSegundos === 'number' ? tema.bannerSegundos : SEGUNDOS_PADRAO,
       },
       entrega: { habilitada: entrega.habilitada !== false },
       retirada: { habilitada: retirada.habilitada === true },
@@ -228,6 +301,57 @@ export class ConfigLojaService {
 
   async removerLogo(lojaId: string): Promise<void> {
     await this.prisma.configLoja.updateMany({ where: { lojaId }, data: { logo: null, logoTipo: null, logoHash: null } });
+  }
+
+  // ── Banners do carrossel ──────────────────────────────
+
+  async adicionarBanner(lojaId: string, dados: NovoBanner): Promise<BannerPublico[]> {
+    if ((await this.prisma.bannerLoja.count({ where: { lojaId } })) >= MAX_BANNERS) {
+      throw invalido(`O carrossel aceita até ${MAX_BANNERS} banners. Remova um para adicionar outro.`);
+    }
+    const bytes = Buffer.from(dados.base64, 'base64');
+    if (bytes.length > MAX_BANNER_BYTES) throw invalido('Cada banner pode ter até 400 KB. Exporte em JPG ou WebP, com até 1600 px de largura.');
+    const real = tipoReal(bytes);
+    if (!real || real !== dados.tipo) throw invalido('O arquivo não é uma imagem PNG, JPG ou WebP válida.');
+    const ultima = await this.prisma.bannerLoja.aggregate({ where: { lojaId }, _max: { ordem: true } });
+    await this.prisma.bannerLoja.create({
+      data: {
+        lojaId,
+        ordem: (ultima._max.ordem ?? -1) + 1,
+        imagem: new Uint8Array(bytes),
+        tipo: real,
+        hash: createHash('sha256').update(bytes).digest('hex').slice(0, 12),
+        ...acaoDoBanner(dados),
+      },
+    });
+    return (await this.obter(lojaId)).tema.banners;
+  }
+
+  async editarBanner(lojaId: string, id: string, dados: AcaoBanner): Promise<BannerPublico[]> {
+    const { count } = await this.prisma.bannerLoja.updateMany({ where: { id, lojaId }, data: acaoDoBanner(dados) });
+    if (!count) throw new ErroApi(404, 'NAO_ENCONTRADO', 'Banner não encontrado.');
+    return (await this.obter(lojaId)).tema.banners;
+  }
+
+  async removerBanner(lojaId: string, id: string): Promise<BannerPublico[]> {
+    await this.prisma.bannerLoja.deleteMany({ where: { id, lojaId } });
+    return (await this.obter(lojaId)).tema.banners;
+  }
+
+  /** Nova ordem: a lista precisa ter exatamente os banners da loja. */
+  async ordenarBanners(lojaId: string, ids: string[]): Promise<BannerPublico[]> {
+    const atuais = await this.prisma.bannerLoja.findMany({ where: { lojaId }, select: { id: true } });
+    const conjunto = new Set(ids);
+    if (conjunto.size !== ids.length || ids.length !== atuais.length || atuais.some((b) => !conjunto.has(b.id))) {
+      throw invalido('A nova ordem precisa listar todos os banners, uma vez cada.');
+    }
+    await this.prisma.$transaction(ids.map((id, ordem) => this.prisma.bannerLoja.update({ where: { id }, data: { ordem } })));
+    return (await this.obter(lojaId)).tema.banners;
+  }
+
+  async banner(lojaId: string, id: string): Promise<{ bytes: Buffer; tipo: string } | null> {
+    const b = await this.prisma.bannerLoja.findFirst({ where: { id, lojaId }, select: { imagem: true, tipo: true } });
+    return b ? { bytes: Buffer.from(b.imagem), tipo: b.tipo } : null;
   }
 
   async logo(lojaId: string): Promise<{ bytes: Buffer; tipo: string } | null> {

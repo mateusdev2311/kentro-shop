@@ -23,7 +23,7 @@ describe('configuração da loja (padrões da Fase 1.2)', () => {
   it('loja sem configuração gravada recebe os padrões, com o nome da loja no tema', async () => {
     const loja = await prisma.loja.create({ data: { nome: 'Pisos & Cia', chaveAdminHash: 'a', chaveAtendimentoHash: 'b', tokenMcpHash: 'c' } });
     expect(await servico.obter(loja.id)).toEqual({
-      tema: { nome: 'Pisos & Cia', corPrimaria: '#7C3AED', layout: 'grade', destaque: true },
+      tema: { nome: 'Pisos & Cia', corPrimaria: '#7C3AED', layout: 'grade', destaque: true, fonte: 'classica', cantos: 'arredondados', imagemProduto: 'quadrada', compreTambem: true, banners: [], bannerSegundos: 5 },
       entrega: { habilitada: true },
       retirada: { habilitada: false },
       lojasRetirada: [],
@@ -50,7 +50,7 @@ describe('configuração da loja (padrões da Fase 1.2)', () => {
       },
     });
     const c = await servico.obter(loja.id);
-    expect(c.tema).toEqual({ nome: 'L', corPrimaria: '#0a7', layout: 'grade', destaque: true });
+    expect(c.tema).toEqual({ nome: 'L', corPrimaria: '#0a7', layout: 'grade', destaque: true, fonte: 'classica', cantos: 'arredondados', imagemProduto: 'quadrada', compreTambem: true, banners: [], bannerSegundos: 5 });
     expect(c.retirada.habilitada).toBe(true);
     expect(c.entrega.habilitada).toBe(true);
     expect(c.lojasRetirada).toHaveLength(1);

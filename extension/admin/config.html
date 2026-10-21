@@ -241,7 +241,19 @@
   .loja-retirada button { grid-column: 1 / -1; justify-self: end; }
   @media (max-width: 560px) { .loja-retirada { grid-template-columns: minmax(0, 1fr); } }
   .linha-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 14px; }
-  input.curto { max-width: 140px; }
+  input.curto, select.curto { max-width: 160px; }
+  .banners-lista { display: grid; gap: 10px; margin: 8px 0 14px; padding: 0; list-style: none; }
+  .banners-lista li { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+  .banners-lista img { width: 132px; aspect-ratio: 2 / 1; object-fit: cover; border-radius: 6px; background: var(--ks-superficie); }
+  .banners-lista .banner-campos { display: grid; gap: 6px; min-width: 0; }
+  .banners-lista .banner-campos input, .banners-lista .banner-campos select { width: 100%; }
+  .banners-lista .banner-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+  @media (max-width: 560px) { .banners-lista li { grid-template-columns: minmax(0, 1fr); } .banners-lista img { width: 100%; } }
+  .previa-banner { margin-bottom: 10px; border-radius: 8px; overflow: hidden; aspect-ratio: 2 / 1; background: #e6ddcf; }
+  .previa-banner img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .previa-tema.retrato .previa-cartao i { aspect-ratio: 3 / 4; }
+  .previa-tema.retos .previa-cartao i, .previa-tema.retos .previa-banner, .previa-tema.retos .previa-botao { border-radius: 0; }
+  .previa-tema.suaves .previa-cartao i, .previa-tema.suaves .previa-banner { border-radius: 4px; }
   .lista-simples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
   .lista-simples label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-weight: 400; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); cursor: pointer; }
   .lista-simples label:has(input:checked) { background: var(--ks-superficie); color: var(--ext-color-text-muted); }
@@ -417,15 +429,44 @@
             </div>
           </div>
           <span class="ajuda">A cor principal vai nos botões e destaques.</span>
+          <label for="ap-fonte">Estilo de letra</label>
+          <select id="ap-fonte">
+            <option value="classica">Clássica (títulos com serifa)</option>
+            <option value="moderna">Moderna (geométrica, limpa)</option>
+            <option value="elegante">Elegante (moda e presentes)</option>
+            <option value="arredondada">Arredondada (amigável)</option>
+            <option value="forte">Forte (títulos altos e marcantes)</option>
+            <option value="simples">Simples (a letra do celular, mais rápida)</option>
+          </select>
+          <div class="linha-campos">
+            <div>
+              <label for="ap-cantos">Cantos</label>
+              <select id="ap-cantos">
+                <option value="arredondados">Arredondados</option>
+                <option value="suaves">Suaves</option>
+                <option value="retos">Retos</option>
+              </select>
+            </div>
+            <div>
+              <label for="ap-imagem">Foto dos produtos</label>
+              <select id="ap-imagem">
+                <option value="quadrada">Quadrada</option>
+                <option value="retrato">Em pé (3:4, boa para roupas)</option>
+              </select>
+            </div>
+          </div>
           <label for="ap-layout">Vitrine</label>
           <select id="ap-layout">
             <option value="grade">Grade (2 produtos por linha)</option>
             <option value="lista">Lista (1 produto por linha, com foto ao lado)</option>
           </select>
+          <label for="ap-titulo-destaque">Título da faixa de boas-vindas</label>
+          <input id="ap-titulo-destaque" maxlength="80" placeholder="Monte seu pedido com calma.">
           <label for="ap-boas-vindas">Texto de boas-vindas</label>
           <input id="ap-boas-vindas" maxlength="200" placeholder="Escolha os produtos, ajuste as quantidades e finalize.">
           <div class="grupo-interruptores" style="margin-top:16px">
             <label class="interruptor"><input type="checkbox" id="ap-destaque"><span><strong>Mostrar a faixa de boas-vindas</strong><small>O título e o texto acima dos produtos.</small></span></label>
+            <label class="interruptor"><input type="checkbox" id="ap-compre-tambem"><span><strong>Mostrar "Compre também"</strong><small>Sugestões da mesma categoria no fim da vitrine dos links.</small></span></label>
           </div>
         </div>
         <div class="previa-coluna">
@@ -436,6 +477,7 @@
               <span id="ap-previa-nome"></span>
             </div>
             <div class="previa-corpo">
+              <div class="previa-banner" id="ap-previa-banner" hidden><img id="ap-previa-banner-img" alt=""></div>
               <div class="previa-faixa" id="ap-previa-faixa"><i></i><i></i><b></b></div>
               <div class="previa-grade">
                 <div class="previa-cartao"><i></i><b></b><b></b></div>
@@ -450,6 +492,25 @@
       </div>
       <p id="resultado-aparencia" class="resultado"></p>
       <div class="acoes"><button type="button" class="principal" id="btn-salvar-aparencia">Salvar aparência</button></div>
+
+      <h3>Banners do carrossel</h3>
+      <p class="muted">Aparecem no alto do catálogo, em sequência. Ao tocar, o cliente pode ir para uma categoria ou uma busca.</p>
+      <ul id="ap-banners" class="banners-lista"></ul>
+      <p id="ap-banners-vazio" class="muted">Nenhum banner ainda.</p>
+      <div class="formulario">
+        <label for="ap-banner-novo">Adicionar banner (PNG, JPG ou WebP, até 400 KB)</label>
+        <input id="ap-banner-novo" type="file" accept="image/png,image/jpeg,image/webp">
+        <span class="ajuda">Ideal: 1600 × 800 px (2:1). A imagem é recortada pelo centro: deixe textos e rostos longe das bordas. Até 6 banners.</span>
+        <label for="ap-banner-segundos">Tempo de cada banner</label>
+        <select id="ap-banner-segundos" class="curto">
+          <option value="3">3 segundos</option>
+          <option value="5">5 segundos</option>
+          <option value="7">7 segundos</option>
+          <option value="10">10 segundos</option>
+          <option value="15">15 segundos</option>
+        </select>
+      </div>
+      <p id="resultado-banners" class="resultado"></p>
     </section>
 
     <section id="aba-entrega" class="cartao" hidden>
@@ -1207,7 +1268,14 @@
     $('ap-layout').value = c.tema.layout === 'lista' ? 'lista' : 'grade';
     $('ap-destaque').checked = c.tema.destaque !== false;
     $('ap-boas-vindas').value = c.tema.boasVindas || '';
+    $('ap-titulo-destaque').value = c.tema.tituloDestaque || '';
+    $('ap-fonte').value = c.tema.fonte || 'classica';
+    $('ap-cantos').value = c.tema.cantos || 'arredondados';
+    $('ap-imagem').value = c.tema.imagemProduto || 'quadrada';
+    $('ap-compre-tambem').checked = c.tema.compreTambem !== false;
+    $('ap-banner-segundos').value = String(c.tema.bannerSegundos || 5);
     mostrarLogo(c.tema.logoUrl);
+    desenharBanners(c.tema.banners || []);
     atualizarPrevia();
     // Entrega e frete
     $('ent-entrega').checked = c.entrega.habilitada;
@@ -1249,11 +1317,168 @@
     $('ap-previa-topo').style.background = $('ap-cor-topo').value;
     $('ap-previa-botao').style.background = $('ap-cor').value;
     $('ap-previa-nome').textContent = $('ap-nome').value || 'Sua loja';
-    $('ap-previa').className = 'previa-tema' + ($('ap-layout').value === 'lista' ? ' lista' : '');
+    $('ap-previa').className = 'previa-tema' + ($('ap-layout').value === 'lista' ? ' lista' : '') +
+      ($('ap-imagem').value === 'retrato' ? ' retrato' : '') +
+      ($('ap-cantos').value === 'arredondados' ? '' : ' ' + $('ap-cantos').value);
     $('ap-previa-faixa').hidden = !$('ap-destaque').checked;
+    var primeiro = (banners || [])[0];
+    $('ap-previa-banner').hidden = !primeiro;
+    if (primeiro) $('ap-previa-banner-img').src = primeiro.url;
   }
   ['ap-cor', 'ap-cor-topo', 'ap-nome'].forEach(function (id) { $(id).addEventListener('input', atualizarPrevia); });
-  ['ap-layout', 'ap-destaque'].forEach(function (id) { $(id).addEventListener('change', atualizarPrevia); });
+  ['ap-layout', 'ap-destaque', 'ap-imagem', 'ap-cantos'].forEach(function (id) { $(id).addEventListener('change', atualizarPrevia); });
+
+  // ── Banners do carrossel ─────────────────────────────────────────────────
+  // Cada alteração vai direto para a API, que devolve a lista atualizada (na ordem).
+  var MAX_BANNERS = 6;
+  var banners = [];
+  var categoriasBanner = null;
+
+  function categoriasParaBanner() {
+    if (categoriasBanner) return Promise.resolve(categoriasBanner);
+    return api('/v1/loja/catalogo/categorias').then(function (lista) {
+      categoriasBanner = lista || [];
+      return categoriasBanner;
+    }, function () { return []; });
+  }
+
+  function falhaBanner(erro) { $('resultado-banners').textContent = mensagemDeErro(erro); }
+
+  function desenharBanners(lista) {
+    banners = lista;
+    var ul = $('ap-banners');
+    limpar(ul);
+    $('ap-banners-vazio').hidden = lista.length > 0;
+    $('ap-banner-novo').disabled = lista.length >= MAX_BANNERS;
+    atualizarPrevia();
+    if (!lista.length) return;
+    categoriasParaBanner().then(function (categorias) {
+      if (banners !== lista) return; // a lista mudou enquanto as categorias carregavam
+      lista.forEach(function (b, i) { ul.appendChild(itemDoBanner(b, i, lista.length, categorias)); });
+    });
+  }
+
+  function itemDoBanner(b, i, total, categorias) {
+    var li = document.createElement('li');
+    li.setAttribute('data-banner', b.id);
+    var img = document.createElement('img');
+    img.src = b.url;
+    img.alt = b.titulo || 'Banner ' + (i + 1);
+    li.appendChild(img);
+
+    var campos = el('div', null, 'banner-campos');
+    var titulo = document.createElement('input');
+    titulo.maxLength = 80;
+    titulo.placeholder = 'Título sobre a imagem (opcional)';
+    titulo.value = b.titulo || '';
+    titulo.setAttribute('data-campo', 'titulo');
+    titulo.setAttribute('aria-label', 'Título do banner ' + (i + 1));
+
+    var acao = document.createElement('select');
+    acao.setAttribute('data-campo', 'acao');
+    acao.setAttribute('aria-label', 'Ao tocar no banner ' + (i + 1));
+    [['', 'Ao tocar: nada (só imagem)'], ['categoria', 'Ao tocar: abrir uma categoria'], ['busca', 'Ao tocar: abrir uma busca']].forEach(function (o) {
+      var op = el('option', o[1]);
+      op.value = o[0];
+      acao.appendChild(op);
+    });
+    acao.value = b.categoriaId ? 'categoria' : b.busca ? 'busca' : '';
+
+    var categoria = document.createElement('select');
+    categoria.setAttribute('data-campo', 'categoria');
+    categoria.setAttribute('aria-label', 'Categoria do banner ' + (i + 1));
+    var vazia = el('option', 'Escolha a categoria…');
+    vazia.value = '';
+    categoria.appendChild(vazia);
+    categorias.forEach(function (c) {
+      var op = el('option', c.nome);
+      op.value = c.id;
+      categoria.appendChild(op);
+    });
+    categoria.value = b.categoriaId || '';
+
+    var busca = document.createElement('input');
+    busca.maxLength = 100;
+    busca.placeholder = 'Palavras da busca (ex.: polo)';
+    busca.value = b.busca || '';
+    busca.setAttribute('data-campo', 'busca');
+    busca.setAttribute('aria-label', 'Busca do banner ' + (i + 1));
+
+    function mostrarDestino() {
+      categoria.hidden = acao.value !== 'categoria';
+      busca.hidden = acao.value !== 'busca';
+    }
+    acao.addEventListener('change', mostrarDestino);
+    mostrarDestino();
+
+    var botoes = el('div', null, 'banner-acoes');
+    function botao(texto, classe, aoClicar, desligado) {
+      var bt = el('button', texto, classe);
+      bt.type = 'button';
+      bt.disabled = !!desligado;
+      bt.addEventListener('click', aoClicar);
+      botoes.appendChild(bt);
+      return bt;
+    }
+    botao('Salvar', 'suave', function () {
+      var corpo = { titulo: titulo.value.trim(), categoriaId: '', busca: '' };
+      if (acao.value === 'categoria') {
+        if (!categoria.value) { $('resultado-banners').textContent = 'Escolha a categoria do banner.'; return; }
+        corpo.categoriaId = categoria.value;
+      } else if (acao.value === 'busca') {
+        if (!busca.value.trim()) { $('resultado-banners').textContent = 'Escreva as palavras da busca.'; return; }
+        corpo.busca = busca.value.trim();
+      }
+      api('/v1/loja/banners/' + b.id, { method: 'PATCH', body: corpo }).then(function (lista) {
+        desenharBanners(lista);
+        $('resultado-banners').textContent = 'Banner salvo.';
+      }, falhaBanner);
+    }).setAttribute('data-salvar-banner', b.id);
+    botao('Subir', null, function () { moverBanner(i, -1); }, i === 0).setAttribute('aria-label', 'Subir o banner ' + (i + 1));
+    botao('Descer', null, function () { moverBanner(i, 1); }, i === total - 1).setAttribute('aria-label', 'Descer o banner ' + (i + 1));
+    botao('Remover', 'perigo', function () {
+      api('/v1/loja/banners/' + b.id, { method: 'DELETE' }).then(function (lista) {
+        desenharBanners(lista);
+        $('resultado-banners').textContent = 'Banner removido.';
+      }, falhaBanner);
+    }).setAttribute('data-remover-banner', b.id);
+
+    [titulo, acao, categoria, busca, botoes].forEach(function (n) { campos.appendChild(n); });
+    li.appendChild(campos);
+    return li;
+  }
+
+  function moverBanner(i, passo) {
+    var ids = banners.map(function (b) { return b.id; });
+    var j = i + passo;
+    if (j < 0 || j >= ids.length) return;
+    var troca = ids[i];
+    ids[i] = ids[j];
+    ids[j] = troca;
+    api('/v1/loja/banners/ordem', { method: 'PUT', body: { ids: ids } }).then(function (lista) {
+      desenharBanners(lista);
+      $('resultado-banners').textContent = 'Ordem salva.';
+    }, falhaBanner);
+  }
+
+  $('ap-banner-novo').addEventListener('change', function () {
+    var campo = this;
+    var arquivo = campo.files && campo.files[0];
+    if (!arquivo) return;
+    if (arquivo.size > 400 * 1024) { $('resultado-banners').textContent = 'Cada banner pode ter até 400 KB. Exporte em JPG ou WebP, com até 1600 px de largura.'; return; }
+    if (['image/png', 'image/jpeg', 'image/webp'].indexOf(arquivo.type) < 0) { $('resultado-banners').textContent = 'Envie o banner em PNG, JPG ou WebP.'; return; }
+    var leitor = new FileReader();
+    leitor.onload = function () {
+      var base64 = String(leitor.result || '').split(',')[1] || '';
+      $('resultado-banners').textContent = 'Enviando o banner…';
+      api('/v1/loja/banners', { method: 'POST', body: { tipo: arquivo.type, base64: base64 } }).then(function (lista) {
+        campo.value = '';
+        desenharBanners(lista);
+        $('resultado-banners').textContent = 'Banner adicionado. Escolha para onde ele leva e salve.';
+      }, falhaBanner);
+    };
+    leitor.readAsDataURL(arquivo);
+  });
 
   function mostrarLogo(url) {
     $('ap-logo-atual').hidden = !url;
@@ -1303,7 +1528,13 @@
         corTopo: $('ap-cor-topo').value,
         layout: $('ap-layout').value,
         destaque: $('ap-destaque').checked,
-        boasVindas: $('ap-boas-vindas').value.trim()
+        boasVindas: $('ap-boas-vindas').value.trim(),
+        tituloDestaque: $('ap-titulo-destaque').value.trim(),
+        fonte: $('ap-fonte').value,
+        cantos: $('ap-cantos').value,
+        imagemProduto: $('ap-imagem').value,
+        compreTambem: $('ap-compre-tambem').checked,
+        bannerSegundos: Number($('ap-banner-segundos').value)
       }
     }, this, 'resultado-aparencia', 'Aparência salva.');
   });

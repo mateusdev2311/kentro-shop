@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Put, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { ErroApi } from '../comum/erros';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from '../lojas/chave-loja.guard';
 import { ConfigLojaService } from './config-loja.service';
-import { AtualizarConfigDto, LogoDto } from './dto';
+import { AcaoBannerDto, AtualizarConfigDto, LogoDto, NovoBannerDto, OrdemBannersDto } from './dto';
 
 /** Tela de Configurações (extensão Admin): aparência, entrega, pedidos e catálogo. */
 @Controller('v1/loja')
@@ -33,6 +33,27 @@ export class ConfiguracoesController {
     await this.configLoja.removerLogo(req.loja.id);
     return { ok: true };
   }
+
+  // Banners do carrossel: cada rota devolve a lista atualizada, na ordem.
+  @Post('banners')
+  adicionarBanner(@Req() req: RequisicaoDaLoja, @Body() dto: NovoBannerDto) {
+    return this.configLoja.adicionarBanner(req.loja.id, dto);
+  }
+
+  @Put('banners/ordem')
+  ordenarBanners(@Req() req: RequisicaoDaLoja, @Body() dto: OrdemBannersDto) {
+    return this.configLoja.ordenarBanners(req.loja.id, dto.ids);
+  }
+
+  @Patch('banners/:id')
+  editarBanner(@Req() req: RequisicaoDaLoja, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: AcaoBannerDto) {
+    return this.configLoja.editarBanner(req.loja.id, id, dto);
+  }
+
+  @Delete('banners/:id')
+  removerBanner(@Req() req: RequisicaoDaLoja, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.configLoja.removerBanner(req.loja.id, id);
+  }
 }
 
 /** Logo da loja para o catálogo do cliente. A URL leva o hash (?v=), então pode ficar em cache para sempre. */
@@ -51,5 +72,15 @@ export class LogoPublicoController {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(logo.bytes);
+  }
+
+  @Get(':lojaId/banners/:id')
+  async banner(@Param('lojaId', new ParseUUIDPipe()) lojaId: string, @Param('id', new ParseUUIDPipe()) id: string, @Res() res: Response) {
+    const banner = await this.configLoja.banner(lojaId, id);
+    if (!banner) throw new ErroApi(404, 'NAO_ENCONTRADO', 'Banner não encontrado.');
+    res.setHeader('Content-Type', banner.tipo);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(banner.bytes);
   }
 }

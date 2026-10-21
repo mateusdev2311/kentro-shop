@@ -218,6 +218,34 @@ afterEach(() => {
 });
 
 describe('catálogo do cliente', () => {
+  it('aparência da loja: carrossel de banners, letra, cantos, foto em pé e título da faixa', async () => {
+    estado.abertura.tema = {
+      ...estado.abertura.tema,
+      fonte: 'elegante',
+      cantos: 'retos',
+      imagemProduto: 'retrato',
+      tituloDestaque: 'Moda masculina',
+      bannerSegundos: 5,
+      banners: [
+        { id: 'b1', url: 'https://shop.teste/b1.png', titulo: 'Argamassas em oferta', categoriaId: '2' },
+        { id: 'b2', url: 'https://shop.teste/b2.png' },
+      ],
+    };
+    await montar();
+    const raizCss = document.documentElement.style;
+    expect(raizCss.getPropertyValue('--canto')).toBe('0');
+    expect(raizCss.getPropertyValue('--proporcao-produto')).toBe('3 / 4');
+    expect(raizCss.getPropertyValue('--fonte-titulo')).toContain('Playfair Display');
+    expect(document.head.querySelector('link[data-fonte="elegante"]')).not.toBeNull();
+    expect(tem('Moda masculina')).toBe(true);
+    expect(raiz.querySelectorAll('.banners .banner')).toHaveLength(2);
+    expect(raiz.querySelectorAll('.banners-pontos button')).toHaveLength(2);
+    // Banner com categoria leva até ela; o carrossel sai da frente dos resultados.
+    clicar(elemento('.banners button.banner', 'Argamassas em oferta'));
+    await ate(() => chamadas('/produtos?categoria=2').length === 1);
+    expect(raiz.querySelector('.banners')).toBeNull();
+  });
+
   it('carrega a vitrine com a saudação, o tema e os cards', async () => {
     await montar();
     expect(tem('Loja Teste')).toBe(true);

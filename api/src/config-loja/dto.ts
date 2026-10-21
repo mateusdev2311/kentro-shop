@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -15,7 +16,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { TIPOS_DE_LOGO } from './config-loja.service';
+import { CANTOS, Cantos, Fonte, FONTES, IMAGENS_PRODUTO, ImagemProduto, MAX_BANNERS, TIPOS_DE_LOGO } from './config-loja.service';
 
 const COR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const MENSAGEM_COR = 'Use uma cor no formato #RRGGBB.';
@@ -27,6 +28,29 @@ export class TemaDto {
   @IsOptional() @IsIn(['grade', 'lista']) layout?: 'grade' | 'lista';
   @IsOptional() @IsBoolean() destaque?: boolean;
   @IsOptional() @IsString() @MaxLength(200) boasVindas?: string;
+  @IsOptional() @IsString() @MaxLength(80) tituloDestaque?: string;
+  @IsOptional() @IsIn(FONTES as unknown as string[]) fonte?: Fonte;
+  @IsOptional() @IsIn(CANTOS as unknown as string[]) cantos?: Cantos;
+  @IsOptional() @IsIn(IMAGENS_PRODUTO as unknown as string[]) imagemProduto?: ImagemProduto;
+  @IsOptional() @IsBoolean() compreTambem?: boolean;
+  @IsOptional() @IsInt() @Min(3) @Max(15) bannerSegundos?: number;
+}
+
+/** Para onde o banner leva: uma categoria ou uma busca (os dois vazios = só imagem). */
+export class AcaoBannerDto {
+  @IsOptional() @IsString() @MaxLength(80) titulo?: string;
+  @IsOptional() @IsString() @MaxLength(50) categoriaId?: string;
+  @IsOptional() @IsString() @MaxLength(100) busca?: string;
+}
+
+export class NovoBannerDto extends AcaoBannerDto {
+  @IsIn(TIPOS_DE_LOGO as unknown as string[], { message: 'Envie o banner em PNG, JPG ou WebP.' }) tipo!: string;
+  // O tamanho real (400 KB) é conferido depois de decodificar, com mensagem clara; aqui só um teto.
+  @IsString() @MaxLength(560_000) base64!: string;
+}
+
+export class OrdemBannersDto {
+  @IsArray() @ArrayMaxSize(MAX_BANNERS) @IsUUID('4', { each: true }) ids!: string[];
 }
 
 export class LigadoDto {

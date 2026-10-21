@@ -75,7 +75,22 @@ describe('abas de configuração do Admin', () => {
     expect((t.document.getElementById('ap-previa-botao') as HTMLElement).style.background).toBe('rgb(0, 85, 170)');
     await t.clicar('btn-salvar-aparencia');
     expect(patches(t)).toEqual([
-      { tema: { nome: 'Shopping dos Pisos', corPrimaria: '#0055aa', corTopo: '#003366', layout: 'lista', destaque: false, boasVindas: 'Escolha com calma!' } },
+      {
+        tema: {
+          nome: 'Shopping dos Pisos',
+          corPrimaria: '#0055aa',
+          corTopo: '#003366',
+          layout: 'lista',
+          destaque: false,
+          boasVindas: 'Escolha com calma!',
+          tituloDestaque: '',
+          fonte: 'classica',
+          cantos: 'arredondados',
+          imagemProduto: 'quadrada',
+          compreTambem: true,
+          bannerSegundos: 5,
+        },
+      },
     ]);
     expect(t.texto('resultado-aparencia')).toBe('Aparência salva.');
   });
@@ -169,6 +184,33 @@ describe('abas de configuração do Admin', () => {
     caixa('2').checked = false;
     await t.clicar('btn-salvar-catalogo');
     expect(patches(t)).toEqual([{ categoriasOcultas: ['1'] }]);
+  });
+
+  it('Aparência: banners gravados aparecem na lista; salvar a ação e remover vão direto para a API', async () => {
+    const banner = { id: 'b1', url: 'https://api.teste/b1.png', titulo: 'Verão' };
+    t = await abrir({
+      'GET /v1/loja/configuracoes': { status: 200, body: { ...configuracoes.body, tema: { ...configuracoes.body.tema, banners: [banner], bannerSegundos: 7 } } },
+      'PATCH /v1/loja/banners/b1': { status: 200, body: [{ ...banner, categoriaId: '1' }] },
+      'DELETE /v1/loja/banners/b1': { status: 200, body: [] },
+    });
+    await t.clicar('botao-aba-aparencia');
+    await t.esperar(5);
+    expect(t.valor('ap-banner-segundos')).toBe('7');
+    const item = t.document.querySelector('[data-banner="b1"]')!;
+    expect((item.querySelector('[data-campo="titulo"]') as HTMLInputElement).value).toBe('Verão');
+    escolher(t, 'ap-fonte', 'moderna'); // não interfere nos banners
+    const acao = item.querySelector('[data-campo="acao"]') as HTMLSelectElement;
+    acao.value = 'categoria';
+    acao.dispatchEvent(new t.document.defaultView!.Event('change', { bubbles: true }));
+    (item.querySelector('[data-campo="categoria"]') as HTMLSelectElement).value = '1';
+    (item.querySelector('[data-salvar-banner="b1"]') as HTMLButtonElement).click();
+    await t.esperar(5);
+    const patch = t.chamadas.find((c) => c.method === 'PATCH' && c.url.endsWith('/v1/loja/banners/b1'))!;
+    expect(JSON.parse(patch.body!)).toEqual({ titulo: 'Verão', categoriaId: '1', busca: '' });
+    (t.document.querySelector('[data-remover-banner="b1"]') as HTMLButtonElement).click();
+    await t.esperar(5);
+    expect(t.chamadas.some((c) => c.method === 'DELETE' && c.url.endsWith('/v1/loja/banners/b1'))).toBe(true);
+    expect(t.visivel('ap-banners-vazio')).toBe(true);
   });
 
   it('IA: endereço do servidor MCP e token gerado só depois de confirmar', async () => {

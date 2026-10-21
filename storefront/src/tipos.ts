@@ -97,6 +97,26 @@ export interface Tema {
   destaque?: boolean;
   logoUrl?: string;
   boasVindas?: string;
+  /** Título da faixa de boas-vindas (ausente = o padrão do catálogo). */
+  tituloDestaque?: string;
+  // Opcionais: a API sempre manda, mas o catálogo também abre com uma API anterior (padrões no lugar).
+  fonte?: 'classica' | 'moderna' | 'elegante' | 'arredondada' | 'forte' | 'simples';
+  cantos?: 'arredondados' | 'suaves' | 'retos';
+  imagemProduto?: 'quadrada' | 'retrato';
+  /** Sugestões "Compre também" no fim da vitrine de um link (padrão: ligadas). */
+  compreTambem?: boolean;
+  banners?: Banner[];
+  /** Tempo de cada banner no carrossel (padrão: 5). */
+  bannerSegundos?: number;
+}
+
+export interface Banner {
+  id: string;
+  url: string;
+  titulo?: string;
+  /** Ao tocar: abre esta categoria ou esta busca. */
+  categoriaId?: string;
+  busca?: string;
 }
 
 export interface EnderecoSalvo {

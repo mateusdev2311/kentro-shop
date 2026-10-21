@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Api } from './api';
 import { ehErroDaApi } from './api';
+import { aplicarAparencia } from './aparencia';
 import { criarCarrinho, type DocumentoVisivel } from './carrinho';
 import type { EnderecoCep } from './cep';
 import { brl, iniciais, primeiroNome } from './formato';
 import { precos } from './precos';
-import { pedidoAberto, type Abertura, type Categoria, type CorpoFinalizar, type Diferenca, type Produto } from './tipos';
+import { pedidoAberto, type Abertura, type Banner, type Categoria, type CorpoFinalizar, type Diferenca, type Produto } from './tipos';
+import { Banners } from './telas/Banners';
 import { Carrinho, linhasDoCarrinho, subtotalDaTela } from './telas/Carrinho';
 import { Checkout } from './telas/Checkout';
 import { Confirmado } from './telas/Confirmado';
@@ -75,6 +77,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
     if (!abertura) return;
     if (COR_VALIDA.test(abertura.tema.corPrimaria)) document.documentElement.style.setProperty('--cor-primaria', abertura.tema.corPrimaria);
     if (abertura.tema.corTopo && COR_VALIDA.test(abertura.tema.corTopo)) document.documentElement.style.setProperty('--cor-topo', abertura.tema.corTopo);
+    aplicarAparencia(abertura.tema);
     document.title = abertura.tema.nome;
   }, [abertura]);
 
@@ -135,6 +138,8 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   const noFimDaSelecao = !!abertura?.filtro && selecao && !temMais && !carregando;
   useEffect(() => {
     if (!noFimDaSelecao || sugestoes !== null) return;
+    // Loja que desligou as sugestões: fica só o "Ver todos os produtos".
+    if (abertura?.tema.compreTambem === false) return void setSugestoes([]);
     api
       .sugestoes()
       .then(setSugestoes)
@@ -215,6 +220,18 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   function escolherCategoria(id: string) {
     setSelecao(false);
     setCategoria(id);
+  }
+
+  /** Banner tocado: abre a categoria ou a busca dele, a partir do catálogo todo. */
+  function abrirBanner(b: Banner) {
+    setSelecao(false);
+    if (b.categoriaId) {
+      setBuscaDigitada('');
+      setCategoria(b.categoriaId);
+    } else if (b.busca) {
+      setCategoria('');
+      setBuscaDigitada(b.busca);
+    }
   }
 
   // Os itens entram como qualquer outro: o servidor revalida preço e estoque (e avisa o que não existe mais).
@@ -314,6 +331,9 @@ export function App({ api, buscarCep, documento }: Dependencias) {
       </div>
 
       <main>
+        {!busca && !categoria && !!abertura.tema.banners?.length && (
+          <Banners banners={abertura.tema.banners} segundos={abertura.tema.bannerSegundos ?? 5} aoTocar={abrirBanner} />
+        )}
         {emSelecao && (
           <section class="selecao">
             <strong>{tituloDaSelecao}</strong>
@@ -337,9 +357,13 @@ export function App({ api, buscarCep, documento }: Dependencias) {
                 </svg>
                 Atendimento pelo WhatsApp
               </p>
-              <h1>
-                Monte seu pedido <em>com calma.</em>
-              </h1>
+              {abertura.tema.tituloDestaque ? (
+                <h1>{abertura.tema.tituloDestaque}</h1>
+              ) : (
+                <h1>
+                  Monte seu pedido <em>com calma.</em>
+                </h1>
+              )}
               <p class="destaque-texto">
                 {abertura.tema.boasVindas || 'Escolha os produtos, ajuste as quantidades e finalize. Um atendente confirma tudo com você na conversa.'}
               </p>

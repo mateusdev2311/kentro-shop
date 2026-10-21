@@ -33,8 +33,29 @@ model Loja {
   clientes   ClienteLoja[]
   catalogoKentro CatalogoKentro?
   produtosKentro ProdutoKentro[]
+  banners        BannerLoja[]
 
   @@map("lojas")
+}
+
+/// Banner do carrossel do catálogo (PNG/JPG/WebP até 400 KB), servido com cache longo pelo hash.
+/// Ao tocar, abre uma categoria ou uma busca (os dois vazios = só imagem).
+model BannerLoja {
+  id          String   @id @default(uuid()) @db.Uuid
+  lojaId      String   @map("loja_id") @db.Uuid
+  ordem       Int      @default(0)
+  imagem      Bytes
+  tipo        String
+  hash        String
+  titulo      String?
+  categoriaId String?  @map("categoria_id")
+  busca       String?
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@index([lojaId, ordem])
+  @@map("banners_loja")
 }
 
 /// Cópia do catálogo da Kentro enviada pela extensão (omni.products.list). Uma sincronização por vez.
