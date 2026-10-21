@@ -193,9 +193,27 @@ model Sessao {
   loja    Loja           @relation(fields: [lojaId], references: [id], onDelete: Cascade)
   itens   ItemCarrinho[]
   eventos EventoSessao[]
+  links   LinkSessao[]
 
   @@index([lojaId, chatId])
   @@map("sessoes")
+}
+
+/// Links anteriores do MESMO carrinho: cada um mostra a sua vitrine (filtro), e todos gravam no carrinho da sessão.
+/// O link atual fica em sessoes.token; ao gerar um link montado novo, o atual vem para cá (até 4, mais o atual).
+model LinkSessao {
+  id            String   @id @default(uuid()) @db.Uuid
+  sessaoId      String   @map("sessao_id") @db.Uuid
+  token         String   @unique
+  filtro        Json?
+  restrito      Boolean  @default(true)
+  mostrarPrecos Boolean? @map("mostrar_precos")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  sessao Sessao @relation(fields: [sessaoId], references: [id], onDelete: Cascade)
+
+  @@index([sessaoId, criadoEm])
+  @@map("links_sessao")
 }
 
 /// Item do carrinho: o item vendável (produto simples ou variação) com o preço revalidado no servidor.

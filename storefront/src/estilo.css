@@ -21,7 +21,8 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* manipulation: toques rápidos (ex.: + + + na quantidade) não viram zoom de duplo toque; o zoom de pinça continua. */
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body {
   margin: 0; font-family: var(--fonte); font-size: 15px; line-height: 1.45;
   color: var(--texto); background: var(--fundo);
@@ -30,7 +31,7 @@ body {
 body.travado { overflow: hidden; }
 [hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 img { display: block; max-width: 100%; }
 h1, h2, h3 { line-height: 1.2; margin: 0; }
 h1, h2 { font-family: var(--fonte-titulo); font-weight: 600; letter-spacing: -.01em; }

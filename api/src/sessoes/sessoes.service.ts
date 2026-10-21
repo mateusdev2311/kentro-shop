@@ -9,6 +9,11 @@ import { calcularTotais, resumoDoPedido } from './calculo';
 import { Checkout, Cliente, EnderecoContato, EventoPublico, FiltroLink, ItemPublico, PedidoNaLoja, SessaoCompleta, SessaoPublica, StatusSessao, Totais } from './tipos';
 
 const MAX_EVENTOS = 30;
+/** Links ativos do mesmo carrinho: o atual mais os anteriores. */
+export const MAX_LINKS = 5;
+
+/** A vitrine de um link: um link anterior do carrinho tem filtro e preços próprios. */
+export type VistaDoLink = Pick<SessaoBanco, 'token' | 'filtro' | 'restrito' | 'mostrarPrecos'>;
 const ABERTOS: StatusSessao[] = ['link_enviado', 'navegando'];
 const MENSAGEM_LINK_INVALIDO = 'Este link não está mais disponível. Peça um novo link no WhatsApp.';
 
@@ -80,8 +85,9 @@ export class SessoesService {
 
   /**
    * Link do atendimento: reaproveita a sessão aberta do chat ou cria outra (a anterior foi finalizada ou expirou).
-   * Link montado (filtro, preços ou carrinho pronto) é sempre novo, e o link aberto anterior deixa de valer:
-   * o cliente fica com um carrinho só.
+   * Link montado (filtro, preços ou carrinho pronto) é sempre um link novo, mas do MESMO carrinho: o link atual passa
+   * para o histórico e continua valendo (até MAX_LINKS no total), cada um com a sua vitrine. novoCarrinho = descarta o
+   * carrinho aberto e começa outro (o comportamento de antes).
    */
   async criarOuReaproveitar(
     lojaId: string,
@@ -89,17 +95,21 @@ export class SessoesService {
     atendente = '',
     montado: OpcoesDoLink | null = null,
     autor: 'atendente' | 'ia' = 'atendente',
-  ): Promise<SessaoCompleta> {
+    novoCarrinho = false,
+  ): Promise<{ sessao: SessaoCompleta; linkNovo: boolean }> {
     const aberta = await this.prisma.sessao.findFirst({
       where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS }, expiraEm: { gt: new Date() } },
       orderBy: { criadaEm: 'desc' },
     });
-    if (aberta && montado) {
+    if (aberta && novoCarrinho) {
       await this.prisma.sessao.updateMany({ where: { lojaId, chatId: dados.chatId, status: { in: ABERTOS } }, data: { status: 'expirado' } });
+    } else if (aberta && montado) {
+      await this.novoLinkDoCarrinho(aberta, dados, montado, textoDoLink(autor, atendente), autor);
+      return { sessao: await this.completa(aberta.id), linkNovo: true };
     } else if (aberta) {
       const atualizado = mesclarCliente(aberta.cliente as unknown as Cliente, dados);
       await this.prisma.sessao.update({ where: { id: aberta.id }, data: { cliente: atualizado as unknown as Prisma.InputJsonValue } });
-      return this.completa(aberta.id);
+      return { sessao: await this.completa(aberta.id), linkNovo: false };
     }
 
     const { expiracaoLinkDias } = await this.configLoja.obter(lojaId);
@@ -120,12 +130,50 @@ export class SessoesService {
         eventos: { create: { tipo: 'link', texto: textoDoLink(autor, atendente), autor } },
       },
     });
-    return this.completa(criada.id);
+    return { sessao: await this.completa(criada.id), linkNovo: true };
   }
 
-  /** Sessão pelo token do link. Inexistente, expirada ou de loja bloqueada → LINK_INVALIDO. */
+  /** O link atual vai para o histórico (os mais antigos além de MAX_LINKS deixam de valer) e o novo assume. */
+  private async novoLinkDoCarrinho(aberta: SessaoBanco, dados: DadosDoContato, montado: OpcoesDoLink, texto: string, autor: Autor): Promise<void> {
+    const filtro = montado.filtro && limparFiltro(montado.filtro);
+    const cliente = mesclarCliente(aberta.cliente as unknown as Cliente, dados);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.linkSessao.create({
+        data: {
+          sessaoId: aberta.id,
+          token: aberta.token,
+          ...(aberta.filtro ? { filtro: aberta.filtro as Prisma.InputJsonValue } : {}),
+          restrito: aberta.restrito,
+          mostrarPrecos: aberta.mostrarPrecos,
+        },
+      });
+      const antigos = await tx.linkSessao.findMany({ where: { sessaoId: aberta.id }, orderBy: { criadoEm: 'desc' }, skip: MAX_LINKS - 1, select: { id: true } });
+      if (antigos.length) await tx.linkSessao.deleteMany({ where: { id: { in: antigos.map((l) => l.id) } } });
+      await tx.sessao.update({
+        where: { id: aberta.id },
+        data: {
+          token: randomBytes(24).toString('base64url'),
+          filtro: filtro ? (filtro as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+          restrito: montado.restrito ?? true,
+          mostrarPrecos: montado.mostrarPrecos ?? null,
+          cliente: cliente as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await this.registrar(aberta.id, 'link', `${texto} (o carrinho continua o mesmo)`, autor, tx);
+    });
+  }
+
+  /**
+   * Sessão pelo token do link (o atual ou um anterior do mesmo carrinho). Um link anterior traz a vitrine DELE:
+   * token, filtro, restrito e mostrarPrecos. Inexistente, expirada ou de loja bloqueada → LINK_INVALIDO.
+   */
   async porToken(token: string): Promise<SessaoBanco> {
-    const sessao = await this.prisma.sessao.findUnique({ where: { token }, include: { loja: { select: { status: true } } } });
+    const incluir = { loja: { select: { status: true } } } as const;
+    let sessao = await this.prisma.sessao.findUnique({ where: { token }, include: incluir });
+    if (!sessao) {
+      const link = await this.prisma.linkSessao.findUnique({ where: { token }, include: { sessao: { include: incluir } } });
+      if (link) sessao = { ...link.sessao, token: link.token, filtro: link.filtro, restrito: link.restrito, mostrarPrecos: link.mostrarPrecos };
+    }
     if (!sessao || sessao.loja.status === 'bloqueada') throw linkInvalido();
     const encerrada = sessao.status === 'finalizado' || sessao.status === 'pedido_criado';
     if (!encerrada && (sessao.status === 'expirado' || sessao.expiraEm.getTime() < Date.now())) throw linkInvalido();
@@ -153,18 +201,24 @@ export class SessoesService {
       });
       if (mudou.count) await this.registrar(sessao.id, 'abriu', 'Cliente abriu o catálogo', 'cliente');
     }
-    return this.publica(sessao.id);
+    return this.publica(sessao.id, sessao);
   }
 
   async registrar(sessaoId: string, tipo: string, texto: string, autor: Autor, tx: Prisma.TransactionClient = this.prisma): Promise<void> {
     await tx.eventoSessao.create({ data: { sessaoId, tipo, texto, autor } });
   }
 
-  async completa(sessaoId: string): Promise<SessaoCompleta> {
-    const s = await this.prisma.sessao.findUniqueOrThrow({
+  /** vista = o link pelo qual o cliente entrou (um anterior traz a vitrine dele); omitida = o link atual. */
+  async completa(sessaoId: string, vista?: VistaDoLink): Promise<SessaoCompleta> {
+    const lida = await this.prisma.sessao.findUniqueOrThrow({
       where: { id: sessaoId },
-      include: { itens: { orderBy: { revalidadoEm: 'asc' } }, eventos: { orderBy: { em: 'desc' }, take: MAX_EVENTOS } },
+      include: {
+        itens: { orderBy: { revalidadoEm: 'asc' } },
+        eventos: { orderBy: { em: 'desc' }, take: MAX_EVENTOS },
+        links: { orderBy: { criadoEm: 'desc' } },
+      },
     });
+    const s = vista ? { ...lida, token: vista.token, filtro: vista.filtro, restrito: vista.restrito, mostrarPrecos: vista.mostrarPrecos } : lida;
     const itens: ItemPublico[] = s.itens.map((i) => {
       const precoUnitario = Number(i.precoUnitario);
       return {
@@ -203,11 +257,15 @@ export class SessoesService {
       restrito: s.restrito,
       mostrarPrecos: s.mostrarPrecos,
       pedido,
+      // Os outros links que gravam neste mesmo carrinho (sem o atual), do mais novo para o mais antigo.
+      linksAnteriores: [{ token: lida.token, filtro: lida.filtro, restrito: lida.restrito }, ...lida.links]
+        .filter((l) => l.token !== s.token)
+        .map((l) => ({ url: `${this.config.urlPublica}/c/${l.token}`, filtro: (l.filtro as unknown as FiltroLink | null) ?? null, restrito: l.restrito })),
     };
   }
 
-  async publica(sessaoId: string): Promise<SessaoPublica> {
-    const { eventos: _eventos, resumo: _resumo, ...publica } = await this.completa(sessaoId);
+  async publica(sessaoId: string, vista?: VistaDoLink): Promise<SessaoPublica> {
+    const { eventos: _eventos, resumo: _resumo, linksAnteriores: _links, ...publica } = await this.completa(sessaoId, vista);
     return publica;
   }
 }

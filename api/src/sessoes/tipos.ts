@@ -88,6 +88,8 @@ export interface SessaoCompleta {
   mostrarPrecos: boolean | null;
   /** Pedido criado na loja ao finalizar (modo "criar pedido"); null = o atendente fecha a venda. */
   pedido: PedidoNaLoja | null;
+  /** Outros links ainda válidos que gravam neste mesmo carrinho (cada um com a sua vitrine). */
+  linksAnteriores: { url: string; filtro: FiltroLink | null; restrito: boolean }[];
 }
 
 export interface PedidoNaLoja {
@@ -105,4 +107,4 @@ export interface FiltroLink {
 }
 
 /** O que o catálogo do cliente recebe (sem a atividade e sem o resumo do atendente). */
-export type SessaoPublica = Omit<SessaoCompleta, 'eventos' | 'resumo'>;
+export type SessaoPublica = Omit<SessaoCompleta, 'eventos' | 'resumo' | 'linksAnteriores'>;

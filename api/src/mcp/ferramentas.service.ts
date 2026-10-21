@@ -11,7 +11,7 @@ import { CarrinhoService, MAX_QUANTIDADE } from '../sessoes/carrinho.service';
 import { ClientesService } from '../sessoes/clientes.service';
 import { ItemPedidoDto } from '../sessoes/dto';
 import { precosVisiveis } from '../sessoes/sem-preco';
-import { SessoesService } from '../sessoes/sessoes.service';
+import { MAX_LINKS, SessoesService } from '../sessoes/sessoes.service';
 import { FiltroLink, SessaoCompleta } from '../sessoes/tipos';
 import { DefinicaoFerramenta, ResultadoFerramenta } from './protocolo';
 import { encontrarVariacao, linhasDeVariacoes, mesmaVariacao, opcoesDe, precoUnico } from './variacoes';
@@ -146,8 +146,9 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
     description:
       'Gera o link de compra exclusivo deste atendimento, para enviar ao cliente. O link pode ser personalizado: ' +
       'só alguns produtos (produto_ids), uma categoria (categoria_id) ou uma busca, e pode já abrir com o carrinho montado (itens). ' +
-      'Sem personalização, reaproveita o link aberto do atendimento. Um link personalizado é sempre novo e o anterior deixa de valer: ' +
-      'se o cliente já tem itens no link aberto, prefira adicionar_ao_carrinho.',
+      'Sem personalização, reaproveita o link aberto do atendimento. Um link personalizado é sempre novo, mas do MESMO carrinho: ' +
+      'os links anteriores continuam valendo (cada um com a sua vitrine), os itens são somados e o cliente finaliza tudo junto. ' +
+      'Use um link por assunto (ex.: um de bermudas, depois um de camisas).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -164,9 +165,9 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
         },
         mostrar_precos: { type: 'boolean', description: 'Omitir = segue a loja. false = lista para orçamento, sem valores.' },
         itens: { ...ESQUEMA_ITENS, description: 'Carrinho pronto: o cliente abre o link com estes itens já no carrinho.' },
-        substituir_link_aberto: {
+        carrinho_novo: {
           type: 'boolean',
-          description: 'Só quando o cliente pediu um link novo: descarta o link aberto que já tem itens no carrinho.',
+          description: 'Só quando o cliente pediu para começar do zero: descarta o carrinho aberto (e os links dele) e abre outro vazio.',
         },
       },
       required: ['chat_id'],
@@ -316,6 +317,10 @@ function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: 
   }
   if (s.checkout?.observacoes) linhas.push(`Observações do cliente: ${s.checkout.observacoes}`);
   if (s.pedido) linhas.push(`Pedido na loja: nº ${s.pedido.numero}${s.pedido.url ? ` — link de pagamento: ${s.pedido.url}` : ''}`);
+  if (ABERTOS.includes(s.status) && !expirou && s.linksAnteriores.length) {
+    linhas.push('Outros links ativos deste mesmo carrinho:');
+    for (const l of s.linksAnteriores) linhas.push(`- ${l.url} — ${textoDoFiltro(l.filtro, l.restrito)}`);
+  }
   if (opcoes.eventos && s.eventos.length) {
     linhas.push('Últimas atividades:');
     for (const e of s.eventos.slice(0, 6)) linhas.push(`- ${e.texto}`);
@@ -482,23 +487,23 @@ export class FerramentasMcpService {
     const montado = filtro || itens.length || restrito !== undefined || mostrarPrecos !== undefined ? { filtro, restrito, mostrarPrecos } : null;
 
     const antes = await this.sessoes.porChat(lojaId, chatId);
-    const abertoComItens = antes && ABERTOS.includes(antes.status) && new Date(antes.expiraEm).getTime() > Date.now() && antes.itens.length > 0;
-    if (montado && abertoComItens && booleano(args.substituir_link_aberto) !== true) {
-      throw new Recusa(
-        `O cliente já tem um link aberto com ${antes!.itens.length} item(ns) no carrinho (${antes!.url}). Um link personalizado novo ` +
-          'descartaria esse carrinho. Para incluir produtos, use adicionar_ao_carrinho. Se o cliente pediu mesmo um link novo, ' +
-          'chame de novo com substituir_link_aberto: true.',
-      );
-    }
+    const carrinhoAberto = !!antes && ABERTOS.includes(antes.status) && new Date(antes.expiraEm).getTime() > Date.now();
+    const novoCarrinho = booleano(args.carrinho_novo) === true;
 
     const contato = { chatId, nome: texto(args.nome, 120), telefone: texto(args.telefone, 30), email: texto(args.email, 120) };
-    let sessao = await this.sessoes.criarOuReaproveitar(lojaId, contato, '', montado, 'ia');
+    let { sessao, linkNovo } = await this.sessoes.criarOuReaproveitar(lojaId, contato, '', montado, 'ia', novoCarrinho);
     let avisos: string[] = [];
-    if (itens.length) ({ sessao, avisos } = await this.carrinho.definirPeloAtendente(lojaId, sessao.id, itens, 'ia'));
+    // Os itens são SOMADOS ao carrinho: num carrinho aberto, o que o cliente já escolheu (em qualquer link) continua.
+    if (itens.length) ({ sessao, avisos } = await this.carrinho.adicionarPeloAtendente(lojaId, sessao.id, itens, 'ia'));
     const config = await this.configLoja.obter(lojaId);
-    const reaproveitado = antes?.id === sessao.id;
+    const mesmoCarrinho = carrinhoAberto && antes!.id === sessao.id;
+    const cabeca = !linkNovo
+      ? 'Este atendimento já tinha um link aberto: é o mesmo link.'
+      : mesmoCarrinho
+        ? `Link novo gerado, no MESMO carrinho: os links anteriores continuam valendo e tudo cai num carrinho só (até ${MAX_LINKS} links).`
+        : 'Link novo gerado, com um carrinho novo.';
     return [
-      reaproveitado ? 'Este atendimento já tinha um link aberto: é o mesmo link.' : 'Link novo gerado.',
+      cabeca,
       ...(avisos.length ? ['Avisos (conte ao cliente o que for relevante):', ...avisos.map((a) => `- ${a}`)] : []),
       ...(itens.length ? [CONFIRA] : []),
       '',

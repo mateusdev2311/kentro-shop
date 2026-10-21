@@ -111,7 +111,7 @@ export class CarrinhoService {
   async definir(token: string, pedidos: ItemPedidoDto[]): Promise<{ sessao: SessaoPublica; avisos: string[] }> {
     const sessao = await this.sessoes.porToken(token);
     const avisos = await this.definirNaSessao(sessao, pedidos, 'cliente');
-    return { sessao: await this.sessoes.publica(sessao.id), avisos };
+    return { sessao: await this.sessoes.publica(sessao.id, sessao), avisos };
   }
 
   /**
@@ -315,7 +315,7 @@ export class CarrinhoService {
             .filter((d) => !d.depois || d.depois.quantidade !== d.antes.quantidade)
             .map((d) => ({ sku: d.sku, nome: d.nome, antes: { quantidade: d.antes.quantidade }, depois: d.depois && { quantidade: d.depois.quantidade } }));
       if (visiveis.length) {
-        const publica = await this.sessoes.publica(sessao.id);
+        const publica = await this.sessoes.publica(sessao.id, sessao);
         throw new ErroApi(
           409,
           'PRECOS_ALTERADOS',
@@ -355,8 +355,7 @@ export class CarrinhoService {
     await this.clientes.registrarFinalizacao(sessao.lojaId, clienteAntes.telefone, completa).catch(() => undefined);
     if (pedidoNaLoja) completa = await this.criarNaPlataforma(sessao.lojaId, completa);
     for (const acao of this.aoFinalizar) await acao(completa, sessao.lojaId).catch(() => undefined);
-    const { eventos: _eventos, resumo: _resumo, ...publica } = completa;
-    return publica;
+    return this.sessoes.publica(sessao.id, sessao);
   }
 
   /**

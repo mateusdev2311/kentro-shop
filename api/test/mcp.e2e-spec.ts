@@ -115,7 +115,7 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
     });
     expect(r.texto).toContain('confira item por item');
     expect(r.erro).toBe(false);
-    expect(r.texto).toContain('Link novo gerado.');
+    expect(r.texto).toContain('Link novo gerado, com um carrinho novo.');
     expect(r.texto).toContain('Escolha a opção de Produto C3.');
     expect(r.texto).toContain('2 unidades de Produto A1 — R$ 259,80');
     expect(r.texto).toContain('1 unidade de Produto C3 (Azul) — R$ 20,00');
@@ -126,14 +126,21 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
     expect(sessao.eventos.map((e) => e.texto)).toContain('Assistente de IA — Adicionou 2 unidades de Produto A1');
   });
 
-  it('não descarta o carrinho do link aberto sem pedir; adicionar e alterar mantêm o link', async () => {
-    const primeiro = await chamar('gerar_link_catalogo', { chat_id: '50', itens: [{ produto_id: 'id-A1', quantidade: 1 }] });
-    const url = /exatamente este link: (\S+)/.exec(primeiro.texto)![1];
-    const recusado = await chamar('gerar_link_catalogo', { chat_id: '50', categoria_id: '2' });
-    expect(recusado.erro).toBe(true);
-    expect(recusado.texto).toContain('adicionar_ao_carrinho');
+  it('link de outro assunto é novo, mas o carrinho continua o mesmo; adicionar e alterar mantêm o link', async () => {
+    const primeiro = await chamar('gerar_link_catalogo', { chat_id: '50', categoria_id: '2', itens: [{ produto_id: 'id-B2', quantidade: 1 }] });
+    const linkB2 = /exatamente este link: (\S+)/.exec(primeiro.texto)![1];
+    // Outro assunto: link novo, itens somados e o link anterior listado (continua valendo).
+    const segundo = await chamar('gerar_link_catalogo', { chat_id: '50', produto_ids: ['id-A1'], itens: [{ produto_id: 'id-A1', quantidade: 1 }] });
+    expect(segundo.erro).toBe(false);
+    expect(segundo.texto).toContain('no MESMO carrinho');
+    expect(segundo.texto).toContain('1 unidade de Produto B2');
+    expect(segundo.texto).toContain('1 unidade de Produto A1');
+    expect(segundo.texto).toContain(`- ${linkB2} — categoria 2`);
+    const url = /exatamente este link: (\S+)/.exec(segundo.texto)![1];
+    expect(url).not.toBe(linkB2);
     // Sem personalização, é o mesmo link.
     expect((await chamar('gerar_link_catalogo', { chat_id: '50' })).texto).toContain(url);
+    await chamar('alterar_item_carrinho', { chat_id: '50', produto_id: 'id-B2', quantidade: 0 });
 
     const somado = await chamar('adicionar_ao_carrinho', { chat_id: '50', itens: [{ produto_id: 'id-A1', quantidade: 2 }, { produto_id: 'id-B2', quantidade: 1 }] });
     expect(somado.texto).toContain('3 unidades de Produto A1');
@@ -151,8 +158,11 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
     expect(consulta.texto).toContain('link enviado, o cliente ainda não abriu');
     expect(consulta.texto).toContain('Últimas atividades:');
 
-    const novo = await chamar('gerar_link_catalogo', { chat_id: '50', categoria_id: '2', substituir_link_aberto: true });
+    // Começar do zero só quando pedido: carrinho novo, vazio, sem os links antigos.
+    const novo = await chamar('gerar_link_catalogo', { chat_id: '50', categoria_id: '2', carrinho_novo: true });
     expect(novo.erro).toBe(false);
+    expect(novo.texto).toContain('com um carrinho novo');
+    expect(novo.texto).toContain('Carrinho: vazio');
     expect(novo.texto).not.toContain(url);
   });
 

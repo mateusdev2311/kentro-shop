@@ -32,7 +32,8 @@ export class SessoesController {
   ) {}
 
   /**
-   * Gera (ou reaproveita) o link do atendimento. Com filtro, preços ou carrinho pronto, o link é sempre novo.
+   * Gera (ou reaproveita) o link do atendimento. Com filtro, preços ou carrinho pronto, o link é sempre novo, mas o
+   * carrinho continua o mesmo: os itens do carrinho pronto são somados e os links anteriores continuam valendo.
    * A resposta traz `avisos` quando algum item do carrinho pronto não pôde entrar.
    */
   @Post()
@@ -40,11 +41,10 @@ export class SessoesController {
     const { filtro, restrito, mostrarPrecos, itens, ...contato } = dto;
     const chatId = dto.chatId.trim();
     const montado = filtro || itens?.length || restrito !== undefined || mostrarPrecos !== undefined ? { filtro, restrito, mostrarPrecos } : null;
-    const antes = await this.sessoes.porChat(req.loja.id, chatId);
-    let sessao = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...contato, chatId }, nomeDoAtendente(req), montado);
+    let { sessao, linkNovo } = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...contato, chatId }, nomeDoAtendente(req), montado);
     let avisos: string[] = [];
-    if (itens?.length) ({ sessao, avisos } = await this.carrinho.definirPeloAtendente(req.loja.id, sessao.id, itens));
-    res.status(antes && antes.id === sessao.id ? 200 : 201);
+    if (itens?.length) ({ sessao, avisos } = await this.carrinho.adicionarPeloAtendente(req.loja.id, sessao.id, itens));
+    res.status(linkNovo ? 201 : 200);
     return { ...sessao, avisos };
   }
 

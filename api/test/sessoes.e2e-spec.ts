@@ -34,7 +34,7 @@ describe('sessões do catálogo', () => {
 
   describe('serviço', () => {
     it('cria a sessão com link, evento e validade de 7 dias', async () => {
-      const s = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', nome: 'Ana Souza', telefone: '5538988887777' });
+      const s = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', nome: 'Ana Souza', telefone: '5538988887777' })).sessao;
       expect(s.status).toBe('link_enviado');
       expect(s.url).toMatch(/^https:\/\/shop\.teste\/c\/[A-Za-z0-9_-]{32}$/);
       expect(s.cliente).toEqual({ nome: 'Ana Souza', telefone: '5538988887777' });
@@ -45,17 +45,17 @@ describe('sessões do catálogo', () => {
     });
 
     it('reaproveita a sessão aberta do mesmo chat e cria outra depois de finalizada', async () => {
-      const a = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', nome: 'Ana' });
-      const b = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', telefone: '5538999990000' });
+      const a = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', nome: 'Ana' })).sessao;
+      const b = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123', telefone: '5538999990000' })).sessao;
       expect(b.url).toBe(a.url);
       expect(b.cliente).toEqual({ nome: 'Ana', telefone: '5538999990000' });
       await prisma.sessao.updateMany({ data: { status: 'finalizado', finalizadaEm: new Date() } });
-      const c = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123' });
+      const c = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '123' })).sessao;
       expect(c.url).not.toBe(a.url);
     });
 
     it('link expirado ou de loja bloqueada é inválido', async () => {
-      const s = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '1' });
+      const s = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '1' })).sessao;
       const token = s.url.split('/c/')[1];
       await expect(servico.porToken(token)).resolves.toMatchObject({ chatId: '1' });
       await prisma.sessao.updateMany({ data: { expiraEm: new Date(Date.now() - 1000) } });
@@ -67,7 +67,7 @@ describe('sessões do catálogo', () => {
     });
 
     it('abrir muda para navegando e registra o evento uma vez só', async () => {
-      const s = await servico.criarOuReaproveitar(loja.lojaId, { chatId: '1' });
+      const s = (await servico.criarOuReaproveitar(loja.lojaId, { chatId: '1' })).sessao;
       const token = s.url.split('/c/')[1];
       await servico.abrir(token);
       const depois = await servico.abrir(token);

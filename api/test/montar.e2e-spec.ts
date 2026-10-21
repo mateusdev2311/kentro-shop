@@ -43,17 +43,63 @@ describe('link montado pelo atendente (carrinho pronto e filtro)', () => {
     expect(res.body.eventos[0]).toMatchObject({ texto: 'Atendente — Adicionou 2 unidades de Produto A1', autor: 'atendente' });
   });
 
-  it('link com filtro ou carrinho pronto cria outro link e encerra o anterior aberto', async () => {
+  it('link com filtro ou carrinho pronto é novo, mas do mesmo carrinho: os anteriores continuam valendo', async () => {
     const primeiro = await criar({});
     const segundo = await criar({ filtro: { categoriaId: '2' } });
     expect(segundo.status).toBe(201);
+    expect(segundo.body.id).toBe(primeiro.body.id);
     expect(segundo.body.url).not.toBe(primeiro.body.url);
     expect(segundo.body).toMatchObject({ filtro: { categoriaId: '2' }, restrito: true });
-    expect((await pub('get', `/v1/catalogo/${tokenDe(primeiro.body.url)}/abrir`)).status).toBe(404);
-    // Sem filtro, itens ou opções: reaproveita o aberto (comportamento de antes).
+    expect(segundo.body.linksAnteriores).toEqual([{ url: primeiro.body.url, filtro: null, restrito: true }]);
+    // O link anterior abre com a vitrine DELE (catálogo todo).
+    const antigo = await pub('get', `/v1/catalogo/${tokenDe(primeiro.body.url)}/abrir`);
+    expect(antigo.status).toBe(200);
+    expect(antigo.body).toMatchObject({ filtro: null, sessao: { url: primeiro.body.url } });
+    // Sem filtro, itens ou opções: reaproveita o atual.
     const terceiro = await criar({});
     expect(terceiro.status).toBe(200);
     expect(terceiro.body.url).toBe(segundo.body.url);
+  });
+
+  it('o que o cliente põe em qualquer link cai no mesmo carrinho; carrinho pronto soma, não substitui', async () => {
+    const bermudas = (await criar({ filtro: { categoriaId: '2' } })).body;
+    await pub('put', `/v1/catalogo/${tokenDe(bermudas.url)}/carrinho`).send({ itens: [{ produtoId: 'id-B2', quantidade: 2 }] });
+    const camisas = (await criar({ filtro: { produtoIds: ['id-A1'] }, itens: [{ produtoId: 'id-A1', quantidade: 1 }] })).body;
+    expect(camisas.itens.map((i: { produtoId: string; quantidade: number }) => [i.produtoId, i.quantidade])).toEqual([
+      ['id-B2', 2],
+      ['id-A1', 1],
+    ]);
+    // Pelo link das camisas, o cliente vê o carrinho inteiro e só a vitrine das camisas.
+    const peloNovo = await pub('get', `/v1/catalogo/${tokenDe(camisas.url)}/abrir`);
+    expect(peloNovo.body.sessao.itens).toHaveLength(2);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(camisas.url)}/produtos`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-A1']);
+    // De volta ao link das bermudas: a vitrine continua a dele, e a mudança vale para o carrinho único.
+    expect((await pub('get', `/v1/catalogo/${tokenDe(bermudas.url)}/produtos`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-B2']);
+    await pub('put', `/v1/catalogo/${tokenDe(bermudas.url)}/carrinho`).send({ itens: [{ produtoId: 'id-B2', quantidade: 3 }, { produtoId: 'id-A1', quantidade: 1 }] });
+    const painel = await http().get('/v1/sessoes/chat/100').set('X-Loja-Chave', loja.chaveAtendimento);
+    expect(painel.body.itens.map((i: { produtoId: string; quantidade: number }) => [i.produtoId, i.quantidade])).toEqual([
+      ['id-A1', 1],
+      ['id-B2', 3],
+    ]);
+  });
+
+  it('ficam valendo só os 5 links mais recentes do carrinho', async () => {
+    const urls: string[] = [];
+    for (let i = 0; i < 6; i++) urls.push((await criar({ filtro: { busca: `termo${i}` } })).body.url);
+    const atual = (await http().get('/v1/sessoes/chat/100').set('X-Loja-Chave', loja.chaveAtendimento)).body;
+    expect(atual.url).toBe(urls[5]);
+    expect(atual.linksAnteriores.map((l: { url: string }) => l.url)).toEqual([urls[4], urls[3], urls[2], urls[1]]);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(urls[0])}/abrir`)).status).toBe(404);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(urls[1])}/abrir`)).status).toBe(200);
+  });
+
+  it('finalizado por um link, todos os links do carrinho mostram o pedido enviado', async () => {
+    const a = (await criar({ itens: [{ produtoId: 'id-A1', quantidade: 1 }] })).body;
+    const b = (await criar({ filtro: { categoriaId: '2' } })).body;
+    await prisma.sessao.update({ where: { id: a.id }, data: { status: 'finalizado' } });
+    const peloAntigo = await pub('put', `/v1/catalogo/${tokenDe(a.url)}/carrinho`).send({ itens: [{ produtoId: 'id-A1', quantidade: 2 }] });
+    expect(peloAntigo.status).toBe(409);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(b.url)}/abrir`)).body.sessao.status).toBe('finalizado');
   });
 
   it('filtro inválido → 400', async () => {
