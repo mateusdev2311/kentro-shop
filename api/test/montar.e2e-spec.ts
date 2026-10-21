@@ -72,9 +72,9 @@ describe('link montado pelo atendente (carrinho pronto e filtro)', () => {
     // Pelo link das camisas, o cliente vê o carrinho inteiro e só a vitrine das camisas.
     const peloNovo = await pub('get', `/v1/catalogo/${tokenDe(camisas.url)}/abrir`);
     expect(peloNovo.body.sessao.itens).toHaveLength(2);
-    expect((await pub('get', `/v1/catalogo/${tokenDe(camisas.url)}/produtos`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-A1']);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(camisas.url)}/produtos?selecao=1`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-A1']);
     // De volta ao link das bermudas: a vitrine continua a dele, e a mudança vale para o carrinho único.
-    expect((await pub('get', `/v1/catalogo/${tokenDe(bermudas.url)}/produtos`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-B2']);
+    expect((await pub('get', `/v1/catalogo/${tokenDe(bermudas.url)}/produtos?selecao=1`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-B2']);
     await pub('put', `/v1/catalogo/${tokenDe(bermudas.url)}/carrinho`).send({ itens: [{ produtoId: 'id-B2', quantidade: 3 }, { produtoId: 'id-A1', quantidade: 1 }] });
     const painel = await http().get('/v1/sessoes/chat/100').set('X-Loja-Chave', loja.chaveAtendimento);
     expect(painel.body.itens.map((i: { produtoId: string; quantidade: number }) => [i.produtoId, i.quantidade])).toEqual([
@@ -108,27 +108,29 @@ describe('link montado pelo atendente (carrinho pronto e filtro)', () => {
     expect((await criar({ itens: [{ produtoId: 'id-A1', quantidade: -1 }] })).status).toBe(400);
   });
 
-  it('seleção de produtos restrita: o cliente vê e compra só o que foi separado', async () => {
+  it('link com seleção é só a vitrine inicial: o cliente vê e compra qualquer produto da loja', async () => {
     const res = await criar({ filtro: { produtoIds: ['id-C3', 'id-A1'] } });
     const token = tokenDe(res.body.url);
     const aberto = await pub('get', `/v1/catalogo/${token}/abrir`);
-    expect(aberto.body).toMatchObject({ filtro: { produtoIds: ['id-C3', 'id-A1'] }, restrito: true });
-    const lista = await pub('get', `/v1/catalogo/${token}/produtos?categoria=2`);
-    expect(lista.body.itens.map((p: { id: string }) => p.id)).toEqual(['id-C3', 'id-A1']);
-    expect(lista.body.temMais).toBe(false);
-    expect((await pub('get', `/v1/catalogo/${token}/produtos?busca=A1`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-A1']);
-    expect((await pub('get', `/v1/catalogo/${token}/categorias`)).body).toEqual([]);
-    expect((await pub('get', `/v1/catalogo/${token}/produtos/id-B2`)).status).toBe(404);
+    expect(aberto.body).toMatchObject({ filtro: { produtoIds: ['id-C3', 'id-A1'] }, restrito: false });
+    const selecao = await pub('get', `/v1/catalogo/${token}/produtos?selecao=1`);
+    expect(selecao.body.itens.map((p: { id: string }) => p.id)).toEqual(['id-C3', 'id-A1']);
+    expect((await pub('get', `/v1/catalogo/${token}/produtos?selecao=1&busca=A1`)).body.itens.map((p: { id: string }) => p.id)).toEqual(['id-A1']);
+    expect((await pub('get', `/v1/catalogo/${token}/categorias`)).body.length).toBeGreaterThan(1);
+    expect((await pub('get', `/v1/catalogo/${token}/produtos/id-B2`)).status).toBe(200);
     const carrinho = await pub('put', `/v1/catalogo/${token}/carrinho`).send({ itens: [{ produtoId: 'id-A1', quantidade: 1 }, { produtoId: 'id-B2', quantidade: 1 }] });
-    expect(carrinho.body.sessao.itens.map((i: { produtoId: string }) => i.produtoId)).toEqual(['id-A1']);
-    expect(carrinho.body.avisos).toEqual(['Produto B2 não faz parte desta seleção.']);
+    expect(carrinho.body.sessao.itens.map((i: { produtoId: string }) => i.produtoId)).toEqual(['id-A1', 'id-B2']);
+    expect(carrinho.body.avisos).toEqual([]);
   });
 
-  it('categoria restrita: lista e categorias presas à categoria do link', async () => {
-    const token = tokenDe((await criar({ filtro: { categoriaId: '2' } })).body.url);
-    const lista = await pub('get', `/v1/catalogo/${token}/produtos?categoria=1`);
-    expect(lista.body.itens.map((p: { id: string }) => p.id)).toEqual(['id-B2']);
-    expect((await pub('get', `/v1/catalogo/${token}/categorias`)).body.map((c: { id: string }) => c.id)).toEqual(['2']);
+  it('"Compre também": mesmas categorias da seleção e do carrinho, sem o que já está na seleção ou no carrinho', async () => {
+    // A seleção tem o A1 (categoria 1); o carrinho, o B2 (categoria 2). Sugestão: o C3 (categoria 1), vendável.
+    const token = tokenDe((await criar({ filtro: { produtoIds: ['id-A1'] }, itens: [{ produtoId: 'id-B2', quantidade: 1 }] })).body.url);
+    const sugeridos = (await pub('get', `/v1/catalogo/${token}/sugestoes`)).body.map((p: { id: string }) => p.id);
+    expect(sugeridos).toEqual(['id-C3']);
+    // Categoria oculta: o produto só dela some das sugestões.
+    await http().patch('/v1/loja/configuracoes').set('X-Loja-Chave', loja.chaveAdmin).send({ categoriasOcultas: ['1'] });
+    expect((await pub('get', `/v1/catalogo/${token}/sugestoes`)).body).toEqual([]);
   });
 
   it('filtro não restrito: é só a vitrine inicial (selecao=1); o catálogo todo continua aberto', async () => {

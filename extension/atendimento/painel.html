@@ -339,14 +339,14 @@
 
       <details class="link-novo" id="link-novo">
         <summary id="link-novo-titulo">Opções do link</summary>
-        <p class="subtitulo">O que o cliente vê</p>
+        <p class="subtitulo">Onde o link abre</p>
         <div class="opcoes-link escolha">
           <label><input type="radio" name="op-visao" id="op-ver-tudo" checked> Todo o catálogo</label>
-          <label><input type="radio" name="op-visao" id="op-ver-escolhidos"> Só os produtos escolhidos</label>
-          <label><input type="radio" name="op-visao" id="op-ver-destaque"> Os escolhidos em destaque, com o catálogo liberado</label>
-          <label><input type="radio" name="op-visao" id="op-ver-categoria"> Só uma categoria
+          <label><input type="radio" name="op-visao" id="op-ver-escolhidos"> Nos produtos escolhidos</label>
+          <label><input type="radio" name="op-visao" id="op-ver-categoria"> Numa categoria
             <select id="montar-categoria" aria-label="Categoria"><option value="">Escolha…</option></select></label>
         </div>
+        <p class="ajuda">No fim da vitrine o cliente vê "Compre também" e pode abrir o catálogo todo. Links novos usam o mesmo carrinho.</p>
         <div class="opcoes-link">
           <label><input type="checkbox" id="op-carrinho" checked> Já colocar os escolhidos no carrinho</label>
           <label><input type="checkbox" id="op-sem-preco"> Esconder os preços (pedido de orçamento)</label>
@@ -946,16 +946,14 @@
   $('btn-gerar-montado').addEventListener('click', function () {
     if (!chat) return;
     var corpo = corpoDoLink(chat);
-    var visao = $('op-ver-escolhidos').checked ? 'escolhidos' : $('op-ver-destaque').checked ? 'destaque' : $('op-ver-categoria').checked ? 'categoria' : 'tudo';
-    if ((visao === 'escolhidos' || visao === 'destaque') && !montagem.length) { avisoMontar('Escolha os produtos que o cliente vai ver.'); return; }
+    var visao = $('op-ver-escolhidos').checked ? 'escolhidos' : $('op-ver-categoria').checked ? 'categoria' : 'tudo';
+    if (visao === 'escolhidos' && !montagem.length) { avisoMontar('Escolha os produtos que o cliente vai ver.'); return; }
     if (visao === 'categoria' && !$('montar-categoria').value) { avisoMontar('Escolha a categoria.'); return; }
     if ($('op-carrinho').checked && montagem.length) corpo.itens = itensDaMontagem();
-    if (visao === 'escolhidos' || visao === 'destaque') {
+    if (visao === 'escolhidos') {
       var ids = [];
       montagem.forEach(function (i) { if (ids.indexOf(i.produtoId) < 0) ids.push(i.produtoId); });
       corpo.filtro = { produtoIds: ids };
-      // Em destaque: o link abre nos escolhidos, mas o cliente pode ver o resto do catálogo.
-      if (visao === 'destaque') corpo.restrito = false;
     } else if (visao === 'categoria') {
       corpo.filtro = { categoriaId: $('montar-categoria').value };
     }

@@ -34,6 +34,41 @@ export function Vitrine({ produtos, noCarrinho, aoAbrir, temMais, carregando, er
   );
 }
 
+/** Fim da vitrine de um link: "Compre também" (mesmas categorias, fora da seleção e do carrinho) e "Ver todos". */
+export function CompreTambem({
+  produtos,
+  noCarrinho,
+  aoAbrir,
+  aoVerTodos,
+  layout = 'grade',
+}: {
+  produtos: Produto[];
+  noCarrinho: (produtoId: string) => number;
+  aoAbrir: (produto: Produto) => void;
+  aoVerTodos: () => void;
+  layout?: 'grade' | 'lista';
+}) {
+  return (
+    <section class="compre-tambem" aria-labelledby="compre-tambem-titulo">
+      {produtos.length > 0 && (
+        <>
+          <h2 id="compre-tambem-titulo">Compre também</h2>
+          <div class={layout === 'lista' ? 'grade lista' : 'grade'}>
+            {produtos.map((p) => (
+              <Cartao key={p.id} produto={p} quantidade={noCarrinho(p.id)} aoAbrir={aoAbrir} />
+            ))}
+          </div>
+        </>
+      )}
+      <div class="ver-todos">
+        <button type="button" class="botao" onClick={aoVerTodos}>
+          Ver todos os produtos
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Cartao({ produto: p, quantidade, aoAbrir }: { produto: Produto; quantidade: number; aoAbrir: (p: Produto) => void }) {
   const f = faixaDePreco(p);
   const m2 = p.regras?.m2PorUnidade;

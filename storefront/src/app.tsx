@@ -12,7 +12,7 @@ import { Confirmado } from './telas/Confirmado';
 import { Detalhe } from './telas/Detalhe';
 import { Diferencas } from './telas/Diferencas';
 import { LinkInvalido } from './telas/LinkInvalido';
-import { Vitrine } from './telas/Vitrine';
+import { CompreTambem, Vitrine } from './telas/Vitrine';
 
 export interface Dependencias {
   api: Api;
@@ -130,6 +130,24 @@ export function App({ api, buscarCep, documento }: Dependencias) {
     if (!carregando && temMais) void carregar(pagina + 1);
   };
 
+  // ── Compre também (fim da vitrine do link) ───────────
+  const [sugestoes, setSugestoes] = useState<Produto[] | null>(null);
+  const noFimDaSelecao = !!abertura?.filtro && selecao && !temMais && !carregando;
+  useEffect(() => {
+    if (!noFimDaSelecao || sugestoes !== null) return;
+    api
+      .sugestoes()
+      .then(setSugestoes)
+      .catch(() => setSugestoes([]));
+  }, [noFimDaSelecao, sugestoes]);
+
+  function verTodos() {
+    setSelecao(false);
+    setCategoria('');
+    setBuscaDigitada('');
+    window.scrollTo?.(0, 0);
+  }
+
   // ── Painéis ──────────────────────────────────────────
   const [detalhe, setDetalhe] = useState<Produto | null>(null);
   const [diferencas, setDiferencas] = useState<{ lista: Diferenca[]; corpo: CorpoFinalizar } | null>(null);
@@ -185,8 +203,6 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   const ultimoPedido = abertura.historico?.pedidos[0];
   const filtroLink = abertura.filtro;
   const emSelecao = selecao && !!filtroLink;
-  /** Link restrito: o cliente não sai do filtro (o servidor também garante isso). */
-  const travado = !!filtroLink && abertura.restrito;
   const nomeCategoria = filtroLink?.categoriaId ? categorias.find((c) => c.id === filtroLink.categoriaId)?.nome : undefined;
   const tituloDaSelecao = filtroLink?.produtoIds?.length
     ? 'Separados para você'
@@ -283,7 +299,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             {totalItens > 0 && <span class="contador">{totalItens}</span>}
           </button>
         </div>
-        {categorias.length > 0 && !travado && (
+        {categorias.length > 0 && (
           <nav class="categorias" aria-label="Categorias">
             <button type="button" class={categoria === '' && !emSelecao ? 'ativa' : ''} onClick={() => escolherCategoria('')}>
               Todos
@@ -301,11 +317,9 @@ export function App({ api, buscarCep, documento }: Dependencias) {
         {emSelecao && (
           <section class="selecao">
             <strong>{tituloDaSelecao}</strong>
-            {!abertura.restrito && (
-              <button type="button" class="botao-texto" onClick={() => setSelecao(false)}>
-                Ver todo o catálogo
-              </button>
-            )}
+            <button type="button" class="botao-texto" onClick={verTodos}>
+              Ver todo o catálogo
+            </button>
           </section>
         )}
         {!busca && !categoria && !emSelecao && abertura.tema.destaque !== false && (
@@ -391,6 +405,15 @@ export function App({ api, buscarCep, documento }: Dependencias) {
           aoCarregarMais={carregarMais}
           layout={abertura.tema.layout ?? 'grade'}
         />
+        {emSelecao && noFimDaSelecao && sugestoes !== null && (
+          <CompreTambem
+            produtos={sugestoes}
+            noCarrinho={carrinho.quantidadeDoProduto}
+            aoAbrir={setDetalhe}
+            aoVerTodos={verTodos}
+            layout={abertura.tema.layout ?? 'grade'}
+          />
+        )}
       </main>
 
       {totalItens > 0 && !finalizado && !painel && !detalhe && (

@@ -77,12 +77,6 @@ export function validarEntrega(e: Record<string, unknown> | undefined): DadosEnt
   return dados;
 }
 
-/** O produto pertence ao filtro do link? Busca por texto não dá para conferir: vale tudo. */
-export function permitidoPeloFiltro(filtro: FiltroLink, produto: Produto): boolean {
-  if (filtro.produtoIds?.length) return filtro.produtoIds.includes(produto.id) || filtro.produtoIds.includes(produto.sku);
-  if (filtro.categoriaId) return produto.categoriaIds.includes(filtro.categoriaId);
-  return true;
-}
 
 export const pedidoJaEnviado = () => new ErroApi(409, 'PEDIDO_JA_ENVIADO', 'Seu pedido já foi enviado ao atendente.');
 
@@ -145,8 +139,7 @@ export class CarrinhoService {
 
   private async definirNaSessao(sessao: SessaoBanco, pedidos: ItemPedidoDto[], autor: 'cliente' | 'atendente' | 'ia'): Promise<string[]> {
     if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
-    // Link restrito: o cliente só põe no carrinho o que está no filtro (o que o atendente já pôs continua).
-    const filtro = sessao.restrito ? (sessao.filtro as unknown as FiltroLink | null) : null;
+    // O filtro do link é só a vitrine inicial: o cliente pode pôr no carrinho qualquer produto da loja.
     const aceitaSemPreco = !precosVisiveis(sessao, (await this.configLoja.obter(sessao.lojaId)).mostrarPrecos);
 
     const desejados = new Map<string, { produtoId: string; variacaoId: string; quantidade: number }>();
@@ -172,13 +165,6 @@ export class CarrinhoService {
       if (existente && existente.quantidade === desejado.quantidade) {
         finais.push(daLinha(existente));
         continue;
-      }
-      if (autor === 'cliente' && filtro && !existente) {
-        const produto = await this.carregar(sessao.lojaId, desejado.produtoId, cache);
-        if (produto && !permitidoPeloFiltro(filtro, produto)) {
-          avisos.push(`${produto.nome} não faz parte desta seleção.`);
-          continue;
-        }
       }
       const item = await this.revalidarItem(sessao.lojaId, desejado, cache, avisos, existente, aceitaSemPreco);
       if (item) finais.push(item);

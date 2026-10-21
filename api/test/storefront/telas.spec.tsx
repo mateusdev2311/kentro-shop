@@ -104,6 +104,7 @@ async function servidorBase(url: string, init?: RequestInit): Promise<Response> 
   if (estado.linkInvalido) return json(404, { erro: { codigo: 'LINK_INVALIDO', mensagem: 'Este link não está mais disponível. Peça um novo link no WhatsApp.' } });
   if (caminho === '/abrir') return json(200, { ...estado.abertura, sessao: sessao(estado.abertura.sessao.status) });
   if (caminho === '/categorias') return json(200, [{ id: '1', nome: 'Pisos' }, { id: '2', nome: 'Argamassas' }]);
+  if (caminho === '/sugestoes') return json(200, CATALOGO.filter((p) => !(estado.abertura.filtro?.produtoIds ?? []).includes(p.id)));
   if (caminho.startsWith('/produtos/')) return json(200, CATALOGO.find((p) => p.id === decodeURIComponent(caminho.slice(10))));
   if (caminho.startsWith('/produtos')) {
     const q = new URLSearchParams(caminho.split('?')[1] ?? '');
@@ -383,14 +384,21 @@ describe('catálogo do cliente', () => {
     });
   });
 
-  it('link com seleção restrita: faixa "Separados para você", sem categorias e sem "ver tudo"', async () => {
+  it('link com seleção: "Separados para você" e, no fim, "Compre também" e "Ver todos os produtos"', async () => {
     estado.abertura.filtro = { produtoIds: ['PISO', 'ARG'] };
-    estado.abertura.restrito = true;
     await montar();
     expect(tem('Separados para você')).toBe(true);
-    expect(raiz.querySelector('.categorias')).toBeNull();
-    expect(tem('Ver todo o catálogo')).toBe(false);
+    // A seleção é só a vitrine inicial: as categorias e o "ver tudo" continuam à mão.
+    expect(raiz.querySelector('.categorias')).not.toBeNull();
     expect(chamadas('/produtos?selecao=1')).toHaveLength(1);
+    await ate(() => tem('Compre também'));
+    const sugeridos = [...raiz.querySelectorAll('.compre-tambem .produto')].map((p) => p.textContent ?? '');
+    expect(sugeridos.length).toBeGreaterThan(0);
+    expect(sugeridos.some((t) => t.includes('Porcelanato Bege'))).toBe(false);
+    clicar(elemento('.compre-tambem button', 'Ver todos os produtos'));
+    await ate(() => chamadas('/produtos').length === 1);
+    expect(tem('Separados para você')).toBe(false);
+    expect(tem('Compre também')).toBe(false);
   });
 
   it('link com categoria não restrita: começa filtrado e "Ver todo o catálogo" libera tudo', async () => {

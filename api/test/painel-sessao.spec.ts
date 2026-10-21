@@ -162,15 +162,15 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     await clicarEm('[data-adicionar="T1"]');
     expect(tela.texto('montar-itens')).toContain('3× Porcelanato Bege');
     (tela.document.getElementById('op-carrinho') as HTMLInputElement).checked = false;
-    (tela.document.getElementById('op-ver-destaque') as HTMLInputElement).checked = true;
+    (tela.document.getElementById('op-ver-escolhidos') as HTMLInputElement).checked = true;
     (tela.document.getElementById('op-sem-preco') as HTMLInputElement).checked = true;
     await tela.clicar('btn-gerar-montado');
     const corpo = corpoDoPost();
-    expect(corpo).toMatchObject({ filtro: { produtoIds: ['A1', 'T1'] }, restrito: false, mostrarPrecos: false });
+    expect(corpo).toMatchObject({ filtro: { produtoIds: ['A1', 'T1'] }, mostrarPrecos: false });
     expect(corpo.itens).toBeUndefined();
   });
 
-  it('"só os escolhidos" gera link restrito à seleção; sem escolher nada, pede os produtos', async () => {
+  it('"nos produtos escolhidos" abre o link na seleção; sem escolher nada, pede os produtos', async () => {
     await montar();
     (tela.document.getElementById('op-ver-escolhidos') as HTMLInputElement).checked = true;
     await tela.clicar('btn-gerar-montado');
@@ -179,7 +179,7 @@ describe('painel do atendimento — montar link e pedidos anteriores', () => {
     await tela.clicar('btn-gerar-montado');
     const corpo = corpoDoPost();
     expect(corpo.filtro).toEqual({ produtoIds: ['A1', 'T1'] });
-    expect(corpo.restrito).toBeUndefined(); // restrito é o padrão do link com filtro
+    expect(corpo.restrito).toBeUndefined();
   });
 
   it('link limitado a uma categoria: escolher a categoria marca a opção', async () => {

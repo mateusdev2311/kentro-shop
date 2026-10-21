@@ -156,13 +156,9 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
         nome: { type: 'string', description: 'Nome do cliente.' },
         telefone: { type: 'string', description: 'Telefone do cliente com DDD.' },
         email: { type: 'string' },
-        produto_ids: { type: 'array', items: { type: 'string' }, maxItems: 50, description: 'Vitrine só com estes produtos.' },
-        categoria_id: { type: 'string', description: 'Vitrine só com esta categoria.' },
-        busca: { type: 'string', description: 'Vitrine com o resultado desta busca.' },
-        restrito: {
-          type: 'boolean',
-          description: 'Com produto_ids, categoria_id ou busca: true (padrão) = o cliente vê só a seleção; false = a seleção é só a vitrine inicial e o catálogo todo continua aberto.',
-        },
+        produto_ids: { type: 'array', items: { type: 'string' }, maxItems: 50, description: 'O link abre mostrando estes produtos.' },
+        categoria_id: { type: 'string', description: 'O link abre mostrando esta categoria.' },
+        busca: { type: 'string', description: 'O link abre mostrando o resultado desta busca.' },
         mostrar_precos: { type: 'boolean', description: 'Omitir = segue a loja. false = lista para orçamento, sem valores.' },
         itens: { ...ESQUEMA_ITENS, description: 'Carrinho pronto: o cliente abre o link com estes itens já no carrinho.' },
         carrinho_novo: {
@@ -273,14 +269,14 @@ function avisoSemPreco(mostrar: boolean): string[] {
   return mostrar ? [] : ['Atenção: esta loja não mostra preços ao cliente. Não informe valores; o atendente passa o orçamento.'];
 }
 
-function textoDoFiltro(f: FiltroLink | null, restrito: boolean): string {
+function textoDoFiltro(f: FiltroLink | null): string {
   if (!f) return 'catálogo completo';
   const partes = [
     f.produtoIds?.length ? `${f.produtoIds.length} produto(s) escolhido(s)` : '',
     f.categoriaId ? `categoria ${f.categoriaId}` : '',
     f.busca ? `busca "${f.busca}"` : '',
   ].filter(Boolean);
-  return `${partes.join(', ')}${restrito ? ' (o cliente vê só essa seleção)' : ' (vitrine inicial; o catálogo todo continua aberto)'}`;
+  return `${partes.join(', ')} (vitrine inicial; no fim, "Compre também" e o catálogo todo continuam abertos)`;
 }
 
 const SITUACAO: Record<string, string> = {
@@ -293,7 +289,7 @@ const SITUACAO: Record<string, string> = {
 
 function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: boolean } = {}): string {
   const expirou = ABERTOS.includes(s.status) && new Date(s.expiraEm).getTime() < Date.now();
-  const linhas = [`Situação: ${expirou ? 'link expirado' : SITUACAO[s.status] ?? s.status}`, `Link: ${s.url}`, `Mostra: ${textoDoFiltro(s.filtro, s.restrito)}`];
+  const linhas = [`Situação: ${expirou ? 'link expirado' : SITUACAO[s.status] ?? s.status}`, `Link: ${s.url}`, `Mostra: ${textoDoFiltro(s.filtro)}`];
   if (ABERTOS.includes(s.status) && !expirou) linhas.push(`Válido até: ${new Date(s.expiraEm).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
   if (!s.itens.length) linhas.push('Carrinho: vazio');
   else {
@@ -319,7 +315,7 @@ function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: 
   if (s.pedido) linhas.push(`Pedido na loja: nº ${s.pedido.numero}${s.pedido.url ? ` — link de pagamento: ${s.pedido.url}` : ''}`);
   if (ABERTOS.includes(s.status) && !expirou && s.linksAnteriores.length) {
     linhas.push('Outros links ativos deste mesmo carrinho:');
-    for (const l of s.linksAnteriores) linhas.push(`- ${l.url} — ${textoDoFiltro(l.filtro, l.restrito)}`);
+    for (const l of s.linksAnteriores) linhas.push(`- ${l.url} — ${textoDoFiltro(l.filtro)}`);
   }
   if (opcoes.eventos && s.eventos.length) {
     linhas.push('Últimas atividades:');
@@ -476,7 +472,6 @@ export class FerramentasMcpService {
     // Produtos escolhidos já definem a vitrine: categoria e busca junto só confundem o cliente.
     const categoriaId = produtoIds.length ? '' : texto(args.categoria_id, 50);
     const busca = produtoIds.length ? '' : texto(args.busca, 100);
-    const restrito = booleano(args.restrito);
     const mostrarPrecos = booleano(args.mostrar_precos);
     if (categoriaId) await this.categoriaExiste(lojaId, categoriaId);
     const itens = await this.resolver(lojaId, itensDe(args.itens, 1));
@@ -484,7 +479,7 @@ export class FerramentasMcpService {
       produtoIds.length || categoriaId || busca
         ? { ...(produtoIds.length ? { produtoIds } : {}), ...(categoriaId ? { categoriaId } : {}), ...(busca ? { busca } : {}) }
         : undefined;
-    const montado = filtro || itens.length || restrito !== undefined || mostrarPrecos !== undefined ? { filtro, restrito, mostrarPrecos } : null;
+    const montado = filtro || itens.length || mostrarPrecos !== undefined ? { filtro, mostrarPrecos } : null;
 
     const antes = await this.sessoes.porChat(lojaId, chatId);
     const carrinhoAberto = !!antes && ABERTOS.includes(antes.status) && new Date(antes.expiraEm).getTime() > Date.now();
