@@ -212,28 +212,43 @@
   .logo-caixa input[type=file] { flex: 1; min-width: 220px; }
   .previa-coluna > strong { display: block; margin-bottom: 10px; font-size: .9em; color: var(--ext-color-text-muted); }
   /* Celular com a cara do catálogo de verdade (topo, faixa, vitrine e botão). */
-  .previa-tema { width: 260px; overflow: hidden; border: 8px solid #1d1e20; border-radius: 30px; background: #f5f2ec; box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .45); }
-  .previa-topo { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 18px 12px 12px; color: #fff; font-weight: 700; font-size: .95em; }
-  .previa-logo { flex: none; display: flex; align-items: center; padding: 3px 6px; border-radius: 6px; background: #fff; }
+  /* Prévia do celular: mesma letra, cantos (--pc: 1, .5 ou 0), foto e banners do catálogo. */
+  .previa-tema {
+    --pc: 1; --previa-titulo: Georgia, serif; --previa-texto: system-ui, sans-serif;
+    width: 260px; overflow: hidden; border: 8px solid #1d1e20; border-radius: 30px; background: #f5f2ec; color: #23211e;
+    font-family: var(--previa-texto); box-shadow: 0 18px 40px -20px rgba(0, 0, 0, .45);
+  }
+  .previa-topo { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 18px 12px 12px; color: #fff; font-family: var(--previa-titulo); font-weight: 700; font-size: 1.02em; }
+  .previa-logo { flex: none; display: flex; align-items: center; padding: 3px 6px; border-radius: calc(6px * var(--pc)); background: #fff; }
   .previa-logo img { display: block; height: 22px; width: auto; max-width: 70px; object-fit: contain; }
   .previa-corpo { padding: 12px; }
-  .previa-faixa { margin-bottom: 12px; }
-  .previa-faixa i { display: block; height: 9px; border-radius: 3px; background: #2b2722; }
-  .previa-faixa i + i { width: 62%; margin-top: 5px; }
-  .previa-faixa b { display: block; width: 85%; height: 5px; margin-top: 8px; border-radius: 3px; background: #cfc8bd; }
+  .previa-faixa { display: grid; gap: 4px; margin-bottom: 12px; }
+  .previa-faixa strong { font-family: var(--previa-titulo); font-size: 1.15em; font-weight: 700; line-height: 1.15; }
+  .previa-faixa span { font-size: .74em; line-height: 1.35; color: #6e675e; }
   .previa-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .previa-cartao i { display: block; aspect-ratio: 1; border-radius: 8px; background: #e6ddcf; }
+  .previa-cartao { display: grid; gap: 2px; align-content: start; min-width: 0; }
+  .previa-cartao i { display: block; aspect-ratio: var(--previa-foto, 1); border-radius: calc(8px * var(--pc)); background: #e6ddcf; margin-bottom: 3px; }
   .previa-cartao:nth-child(2) i { background: #d9dee2; }
   .previa-cartao:nth-child(3) i { background: #dce3d5; }
   .previa-cartao:nth-child(4) i { background: #ecd7cb; }
-  .previa-cartao b { display: block; height: 5px; margin-top: 6px; border-radius: 3px; background: #cfc8bd; }
-  .previa-cartao b + b { width: 55%; background: #2b2722; }
+  .previa-produto { font-size: .72em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .previa-preco { font-size: .78em; font-weight: 700; }
   .previa-tema.lista .previa-grade { grid-template-columns: 1fr; gap: 8px; }
-  .previa-tema.lista .previa-cartao { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-content: center; }
-  .previa-tema.lista .previa-cartao i { grid-row: span 2; }
-  .previa-tema.lista .previa-cartao b { align-self: end; }
-  .previa-tema.lista .previa-cartao b + b { align-self: start; }
-  .previa-botao { width: 100%; padding: 9px; border: 0; border-radius: 10px; color: #fff; font-weight: 700; pointer-events: none; }
+  .previa-tema.lista .previa-cartao { grid-template-columns: 44px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; align-content: center; }
+  .previa-tema.lista .previa-cartao i { grid-row: span 2; margin: 0; }
+  .previa-tema.lista .previa-produto { align-self: end; }
+  .previa-tema.lista .previa-preco { align-self: start; }
+  .previa-botao { width: 100%; padding: 9px; border: 0; border-radius: calc(10px * var(--pc)); color: #fff; font-family: var(--previa-texto); font-weight: 700; pointer-events: none; }
+  .previa-banner { margin-bottom: 12px; }
+  .previa-banner-janela { overflow: hidden; border-radius: calc(8px * var(--pc)); }
+  .previa-banner-trilho { display: flex; transition: transform .5s ease; }
+  .previa-banner-slide { position: relative; flex: 0 0 100%; aspect-ratio: 2 / 1; background: #e6ddcf; }
+  .previa-banner-slide img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .previa-banner-slide span { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; background: linear-gradient(transparent, rgba(0, 0, 0, .55)); color: #fff; font-family: var(--previa-titulo); font-size: .78em; font-weight: 700; }
+  .previa-banner-pontos { display: flex; justify-content: center; gap: 4px; padding-top: 6px; }
+  .previa-banner-pontos button { width: 6px; height: 6px; min-height: 0; padding: 0; border: 0; border-radius: calc(99px * var(--pc)); background: #cfc8bd; }
+  .previa-banner-pontos button.ativo { width: 14px; background: var(--previa-cor, #7c3aed); }
+  @media (prefers-reduced-motion: reduce) { .previa-banner-trilho { transition: none; } }
 
   /* ── Entrega, pedidos e catálogo ── */
   .lojas-lista { display: grid; gap: 10px; margin-bottom: 10px; }
@@ -249,11 +264,6 @@
   .banners-lista .banner-campos input, .banners-lista .banner-campos select { width: 100%; }
   .banners-lista .banner-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
   @media (max-width: 560px) { .banners-lista li { grid-template-columns: minmax(0, 1fr); } .banners-lista img { width: 100%; } }
-  .previa-banner { margin-bottom: 10px; border-radius: 8px; overflow: hidden; aspect-ratio: 2 / 1; background: #e6ddcf; }
-  .previa-banner img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  .previa-tema.retrato .previa-cartao i { aspect-ratio: 3 / 4; }
-  .previa-tema.retos .previa-cartao i, .previa-tema.retos .previa-banner, .previa-tema.retos .previa-botao { border-radius: 0; }
-  .previa-tema.suaves .previa-cartao i, .previa-tema.suaves .previa-banner { border-radius: 4px; }
   .lista-simples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
   .lista-simples label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-weight: 400; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); cursor: pointer; }
   .lista-simples label:has(input:checked) { background: var(--ks-superficie); color: var(--ext-color-text-muted); }
@@ -477,13 +487,19 @@
               <span id="ap-previa-nome"></span>
             </div>
             <div class="previa-corpo">
-              <div class="previa-banner" id="ap-previa-banner" hidden><img id="ap-previa-banner-img" alt=""></div>
-              <div class="previa-faixa" id="ap-previa-faixa"><i></i><i></i><b></b></div>
+              <div class="previa-banner" id="ap-previa-banner" hidden>
+                <div class="previa-banner-janela"><div class="previa-banner-trilho" id="ap-previa-banner-trilho"></div></div>
+                <div class="previa-banner-pontos" id="ap-previa-banner-pontos"></div>
+              </div>
+              <div class="previa-faixa" id="ap-previa-faixa">
+                <strong id="ap-previa-titulo"></strong>
+                <span id="ap-previa-texto"></span>
+              </div>
               <div class="previa-grade">
-                <div class="previa-cartao"><i></i><b></b><b></b></div>
-                <div class="previa-cartao"><i></i><b></b><b></b></div>
-                <div class="previa-cartao"><i></i><b></b><b></b></div>
-                <div class="previa-cartao"><i></i><b></b><b></b></div>
+                <div class="previa-cartao"><i></i><span class="previa-produto">Camiseta básica</span><span class="previa-preco">R$ 39,90</span></div>
+                <div class="previa-cartao"><i></i><span class="previa-produto">Bermuda sarja</span><span class="previa-preco">R$ 69,90</span></div>
+                <div class="previa-cartao"><i></i><span class="previa-produto">Camisa polo</span><span class="previa-preco">R$ 60,99</span></div>
+                <div class="previa-cartao"><i></i><span class="previa-produto">Calça jeans</span><span class="previa-preco">R$ 119,90</span></div>
               </div>
               <button type="button" id="ap-previa-botao" class="previa-botao" tabindex="-1">Adicionar</button>
             </div>
@@ -1313,20 +1329,98 @@
   }
 
   // ── Aba Aparência ────────────────────────────────────────────────────────
+  // Mesma tabela de letras do catálogo (storefront/src/aparencia.ts): a prévia carrega a fonte escolhida.
+  var SISTEMA = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  var SERIFA = 'Georgia, "Times New Roman", serif';
+  var GOOGLE = 'https://fonts.googleapis.com/css2?';
+  var FONTES = {
+    classica: { titulo: '"Fraunces", ' + SERIFA, texto: '"Instrument Sans", ' + SISTEMA, css: GOOGLE + 'family=Fraunces:wght@600;700&family=Instrument+Sans:wght@400;600;700&display=swap' },
+    moderna: { titulo: '"Sora", ' + SISTEMA, texto: '"Manrope", ' + SISTEMA, css: GOOGLE + 'family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap' },
+    elegante: { titulo: '"Playfair Display", ' + SERIFA, texto: '"Lato", ' + SISTEMA, css: GOOGLE + 'family=Playfair+Display:wght@500;600;700&family=Lato:wght@400;700&display=swap' },
+    arredondada: { titulo: '"Nunito", ' + SISTEMA, texto: '"Nunito", ' + SISTEMA, css: GOOGLE + 'family=Nunito:wght@400;500;600;700;800&display=swap' },
+    forte: { titulo: '"Oswald", "Arial Narrow", ' + SISTEMA, texto: '"Source Sans 3", ' + SISTEMA, css: GOOGLE + 'family=Oswald:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap' },
+    simples: { titulo: SISTEMA, texto: SISTEMA }
+  };
+  var CANTOS_PREVIA = { arredondados: '1', suaves: '.5', retos: '0' };
+  var TITULO_PADRAO = 'Monte seu pedido com calma.';
+  var TEXTO_PADRAO = 'Escolha os produtos, ajuste as quantidades e finalize. Um atendente confirma tudo com você na conversa.';
+
+  function carregarFonte(nome) {
+    var f = FONTES[nome];
+    if (!f || !f.css || document.querySelector('link[data-fonte="' + nome + '"]')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = f.css;
+    link.setAttribute('data-fonte', nome);
+    document.head.appendChild(link);
+  }
+
   function atualizarPrevia() {
+    var previa = $('ap-previa');
+    var fonte = FONTES[$('ap-fonte').value] ? $('ap-fonte').value : 'classica';
+    carregarFonte(fonte);
+    previa.style.setProperty('--previa-titulo', FONTES[fonte].titulo);
+    previa.style.setProperty('--previa-texto', FONTES[fonte].texto);
+    previa.style.setProperty('--pc', CANTOS_PREVIA[$('ap-cantos').value] || '1');
+    previa.style.setProperty('--previa-foto', $('ap-imagem').value === 'retrato' ? '3 / 4' : '1');
+    previa.style.setProperty('--previa-cor', $('ap-cor').value);
+    previa.className = 'previa-tema' + ($('ap-layout').value === 'lista' ? ' lista' : '');
     $('ap-previa-topo').style.background = $('ap-cor-topo').value;
     $('ap-previa-botao').style.background = $('ap-cor').value;
     $('ap-previa-nome').textContent = $('ap-nome').value || 'Sua loja';
-    $('ap-previa').className = 'previa-tema' + ($('ap-layout').value === 'lista' ? ' lista' : '') +
-      ($('ap-imagem').value === 'retrato' ? ' retrato' : '') +
-      ($('ap-cantos').value === 'arredondados' ? '' : ' ' + $('ap-cantos').value);
     $('ap-previa-faixa').hidden = !$('ap-destaque').checked;
-    var primeiro = (banners || [])[0];
-    $('ap-previa-banner').hidden = !primeiro;
-    if (primeiro) $('ap-previa-banner-img').src = primeiro.url;
+    $('ap-previa-titulo').textContent = $('ap-titulo-destaque').value.trim() || TITULO_PADRAO;
+    $('ap-previa-texto').textContent = $('ap-boas-vindas').value.trim() || TEXTO_PADRAO;
+    desenharCarrosselPrevia();
   }
-  ['ap-cor', 'ap-cor-topo', 'ap-nome'].forEach(function (id) { $(id).addEventListener('input', atualizarPrevia); });
-  ['ap-layout', 'ap-destaque', 'ap-imagem', 'ap-cantos'].forEach(function (id) { $(id).addEventListener('change', atualizarPrevia); });
+  ['ap-cor', 'ap-cor-topo', 'ap-nome', 'ap-titulo-destaque', 'ap-boas-vindas'].forEach(function (id) { $(id).addEventListener('input', atualizarPrevia); });
+  ['ap-layout', 'ap-destaque', 'ap-imagem', 'ap-cantos', 'ap-fonte', 'ap-banner-segundos'].forEach(function (id) { $(id).addEventListener('change', atualizarPrevia); });
+
+  // Carrossel da prévia: passa pelos banners no tempo escolhido, como no catálogo.
+  var previaBanner = { atual: 0, relogio: null, chave: '' };
+  function mostrarSlidePrevia(i) {
+    var total = (banners || []).length;
+    if (!total) return;
+    previaBanner.atual = ((i % total) + total) % total;
+    $('ap-previa-banner-trilho').style.transform = 'translateX(-' + previaBanner.atual * 100 + '%)';
+    Array.prototype.forEach.call($('ap-previa-banner-pontos').children, function (p, j) {
+      p.className = j === previaBanner.atual ? 'ativo' : '';
+    });
+  }
+  function desenharCarrosselPrevia() {
+    var lista = banners || [];
+    $('ap-previa-banner').hidden = !lista.length;
+    var segundos = Number($('ap-banner-segundos').value) || 5;
+    var chave = lista.map(function (b) { return b.id + '|' + b.url + '|' + (b.titulo || ''); }).join(',') + '#' + segundos;
+    if (chave === previaBanner.chave) return;
+    previaBanner.chave = chave;
+    clearInterval(previaBanner.relogio);
+    var trilho = $('ap-previa-banner-trilho');
+    var pontos = $('ap-previa-banner-pontos');
+    limpar(trilho);
+    limpar(pontos);
+    lista.forEach(function (b, i) {
+      var slide = el('div', null, 'previa-banner-slide');
+      var img = document.createElement('img');
+      img.src = b.url;
+      img.alt = '';
+      slide.appendChild(img);
+      if (b.titulo) slide.appendChild(el('span', b.titulo));
+      trilho.appendChild(slide);
+      var ponto = document.createElement('button');
+      ponto.type = 'button';
+      ponto.setAttribute('aria-label', 'Ver banner ' + (i + 1) + ' na prévia');
+      ponto.addEventListener('click', function () { mostrarSlidePrevia(i); });
+      pontos.appendChild(ponto);
+    });
+    pontos.hidden = lista.length < 2;
+    mostrarSlidePrevia(Math.min(previaBanner.atual, Math.max(lista.length - 1, 0)));
+    if (lista.length > 1) {
+      previaBanner.relogio = setInterval(function () {
+        if (!$('aba-aparencia').hidden) mostrarSlidePrevia(previaBanner.atual + 1);
+      }, segundos * 1000);
+    }
+  }
 
   // ── Banners do carrossel ─────────────────────────────────────────────────
   // Cada alteração vai direto para a API, que devolve a lista atualizada (na ordem).

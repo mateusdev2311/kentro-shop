@@ -186,6 +186,35 @@ describe('abas de configuração do Admin', () => {
     expect(patches(t)).toEqual([{ categoriasOcultas: ['1'] }]);
   });
 
+  it('Aparência: a prévia mostra a letra, os cantos, a foto, o título da faixa e o carrossel de banners', async () => {
+    const tema = {
+      ...configuracoes.body.tema,
+      fonte: 'elegante',
+      cantos: 'retos',
+      imagemProduto: 'retrato',
+      tituloDestaque: 'Moda masculina',
+      banners: [
+        { id: 'b1', url: 'https://api.teste/b1.png', titulo: 'Verão' },
+        { id: 'b2', url: 'https://api.teste/b2.png' },
+      ],
+    };
+    t = await abrir({ 'GET /v1/loja/configuracoes': { status: 200, body: { ...configuracoes.body, tema } } });
+    await t.clicar('botao-aba-aparencia');
+    const previa = t.document.getElementById('ap-previa')!;
+    expect(previa.style.getPropertyValue('--previa-titulo')).toContain('Playfair Display');
+    expect(previa.style.getPropertyValue('--pc')).toBe('0');
+    expect(previa.style.getPropertyValue('--previa-foto')).toBe('3 / 4');
+    expect(t.document.head.querySelector('link[data-fonte="elegante"]')).not.toBeNull();
+    expect(t.texto('ap-previa-titulo')).toBe('Moda masculina');
+    expect(t.document.querySelectorAll('#ap-previa-banner-trilho .previa-banner-slide')).toHaveLength(2);
+    expect(t.document.querySelector('#ap-previa-banner-trilho span')!.textContent).toBe('Verão');
+    // Os pontos trocam o banner da prévia; mudar a letra atualiza na hora.
+    (t.document.querySelectorAll('#ap-previa-banner-pontos button')[1] as HTMLButtonElement).click();
+    expect(t.document.getElementById('ap-previa-banner-trilho')!.style.transform).toBe('translateX(-100%)');
+    escolher(t, 'ap-fonte', 'forte');
+    expect(previa.style.getPropertyValue('--previa-titulo')).toContain('Oswald');
+  });
+
   it('Aparência: banners gravados aparecem na lista; salvar a ação e remover vão direto para a API', async () => {
     const banner = { id: 'b1', url: 'https://api.teste/b1.png', titulo: 'Verão' };
     t = await abrir({
