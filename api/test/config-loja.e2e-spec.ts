@@ -33,6 +33,7 @@ describe('configuração da loja (padrões da Fase 1.2)', () => {
       categoriasOcultas: [],
       urlCapturaKentro: null,
       mostrarPrecos: true,
+      filasAtendimento: [],
     });
     expect(await prisma.configLoja.count()).toBe(0);
   });

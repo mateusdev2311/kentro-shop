@@ -3,6 +3,7 @@ import { Categoria, Produto } from '../../contratos/modelo';
 import { camposMysql, ClienteBanco, destinoBanco, Linha, lerCredenciaisBanco } from '../nucleo/banco';
 import { CatalogoLocal, Conector, CtxConector, ProdutoSincronizado } from '../nucleo/conector';
 import { RecusadoPelaPlataforma } from '../nucleo/erros';
+import { camposFtpFotos, destinoFtp, lerCredenciaisFtp } from '../nucleo/ftp';
 
 // ERP Automatiza (farmácias): o ERP libera views "view_ecommerce_delivery_*" num MySQL, para um usuário
 // ligado a uma filial (as views já vêm filtradas pela filial logada). Ler a view de produtos custa alguns
@@ -81,7 +82,7 @@ export function produtoDaView(l: Linha): ProdutoSincronizado | null {
     categoriaIds: subgrupo ? [idCategoria(subgrupo)] : [],
     variacoes: [],
   };
-  return { produto, ...(ean ? { termos: ean } : {}) };
+  return { produto, ...(ean ? { termos: ean, codigoBarras: ean } : {}) };
 }
 
 /** Categorias dos produtos que entraram, em ordem alfabética. */
@@ -111,6 +112,8 @@ export const conectorAutomatiza: Conector = {
   ritmo: { porSegundo: 20, rajada: 40 },
   banco: { motor: 'mysql', bancoPadrao: BANCO_PADRAO },
   sincronizacao: { minutos: 15 },
+  // O banco do ERP não tem imagens: a farmácia publica as fotos num FTP, nomeadas pelo código de barras.
+  fotosFtp: { minutos: 60 },
   capacidades: {
     buscaTextual: true,
     categorias: true,
@@ -122,13 +125,16 @@ export const conectorAutomatiza: Conector = {
     oauth: false,
     historicoCliente: false,
   },
-  camposDeCredencial: camposMysql(BANCO_PADRAO),
+  camposDeCredencial: [...camposMysql(BANCO_PADRAO), ...camposFtpFotos()],
 
-  destino: destinoBanco,
+  // A senha do banco e a do FTP vão para servidores diferentes: trocar um não pede a senha do outro.
+  destino: (c) => ({ senha: destinoBanco(c), ftp_senha: destinoFtp(c) }),
 
   validarCredenciais(c) {
-    const lidas = lerCredenciaisBanco(c, BANCO_PADRAO);
-    return typeof lidas === 'string' ? lidas : null;
+    const banco = lerCredenciaisBanco(c, BANCO_PADRAO);
+    if (typeof banco === 'string') return banco;
+    const ftp = lerCredenciaisFtp(c);
+    return typeof ftp === 'string' ? ftp : null;
   },
 
   async testarConexao(ctx) {

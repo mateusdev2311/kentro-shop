@@ -72,6 +72,10 @@ model CatalogoKentro {
   /// Falha da última sincronização feita pela API (a cópia anterior continua valendo). null = deu certo.
   ultimoErro      String?   @map("ultimo_erro")
   ultimoErroEm    DateTime? @map("ultimo_erro_em")
+  /// Fotos vindas do FTP da loja (conectores com fotosFtp): última leitura completa e a última falha.
+  fotosSincronizadasEm DateTime? @map("fotos_sincronizadas_em")
+  fotosErro            String?   @map("fotos_erro")
+  fotosErroEm          DateTime? @map("fotos_erro_em")
 
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
 
@@ -88,6 +92,8 @@ model ProdutoKentro {
   grupos String[] @default([])
   dados  Json
   lote   String
+  /// Código de barras (EAN) da fonte, quando ela informa: liga o produto à foto do FTP.
+  codigoBarras String? @map("codigo_barras")
 
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
 
@@ -95,6 +101,29 @@ model ProdutoKentro {
   @@index([lojaId, sku])
   @@index([lojaId, nome])
   @@map("produtos_kentro")
+}
+
+/// Foto de produto copiada do FTP de uma loja e servida pela API em https (o cliente nunca acessa o FTP).
+/// A origem (servidor + pasta) é compartilhada: filiais da mesma rede com o mesmo FTP usam a mesma cópia.
+model FotoProduto {
+  origem       String
+  /// EAN sem zeros à esquerda, ou "cod_<código interno>".
+  chave        String
+  /// 1 = principal; o arquivo _2 é a 2, e assim por diante.
+  ordem        Int
+  arquivo      String
+  tamanho      Int
+  /// Data do arquivo como o FTP informa: com o tamanho, diz se a foto mudou.
+  modificadoEm String   @map("modificado_em")
+  /// Conteúdo (sha256): vai na URL, então a foto pode ficar em cache para sempre.
+  hash         String
+  tipo         String
+  imagem       Bytes
+  baixadaEm    DateTime @default(now()) @map("baixada_em")
+
+  @@id([origem, chave, ordem])
+  @@index([hash])
+  @@map("fotos_produto")
 }
 
 enum StatusIntegracao {
@@ -168,6 +197,8 @@ model ConfigLoja {
   modoPedido        String   @default("handoff") @map("modo_pedido")
   expiracaoLinkDias Int      @default(7) @map("expiracao_link_dias")
   categoriasOcultas String[] @default([]) @map("categorias_ocultas")
+  /// Filas da Kentro que usam este catálogo: o painel do atendimento só aparece nelas. Vazio = todas.
+  filasAtendimento  Int[]    @default([]) @map("filas_atendimento")
   urlCapturaKentro  String?  @map("url_captura_kentro")
   /// Padrão da loja; cada link pode mudar (Sessao.mostrarPrecos).
   mostrarPrecos     Boolean  @default(true) @map("mostrar_precos")

@@ -64,7 +64,7 @@ describe('registro e chaves da loja', () => {
     const comAdmin = await loja(app, r.chaveAdmin);
     expect(comAdmin.status).toBe(200);
     // plataforma: null até integrar (o painel usa para saber se lança no carrinho nativo da Kentro).
-    expect(comAdmin.body).toEqual({ id: r.lojaId, nome: 'Loja Teste', status: 'pendente_integracao', plano: 'gratis', papel: 'admin', plataforma: null });
+    expect(comAdmin.body).toEqual({ id: r.lojaId, nome: 'Loja Teste', status: 'pendente_integracao', plano: 'gratis', papel: 'admin', plataforma: null, filasAtendimento: [] });
     const comAtendimento = await loja(app, r.chaveAtendimento);
     expect(comAtendimento.body.papel).toBe('atendimento');
   });

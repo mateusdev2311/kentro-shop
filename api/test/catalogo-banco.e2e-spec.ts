@@ -58,7 +58,7 @@ describe('catálogo de banco de dados sincronizado pela API (ERP Automatiza)', (
     const lista = (await http().get('/v1/conectores').set('X-Loja-Chave', loja.chaveAdmin)).body as { id: string; sincronizacao?: object; camposDeCredencial: { chave: string }[] }[];
     const automatiza = lista.find((c) => c.id === 'automatiza')!;
     expect(automatiza.sincronizacao).toEqual({ minutos: 15 });
-    expect(automatiza.camposDeCredencial.map((c) => c.chave)).toEqual(['host', 'porta', 'usuario', 'senha', 'banco']);
+    expect(automatiza.camposDeCredencial.map((c) => c.chave)).toEqual(['host', 'porta', 'usuario', 'senha', 'banco', 'ftp_host', 'ftp_porta', 'ftp_usuario', 'ftp_senha', 'ftp_pasta']);
     expect(lista.find((c) => c.id === 'falso')!.sincronizacao).toBeUndefined();
 
     expect((await salvar()).body.credenciais).toEqual({ ...CREDENCIAIS_BANCO, senha: '••••', banco: undefined });

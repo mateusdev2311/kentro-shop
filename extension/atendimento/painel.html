@@ -254,6 +254,12 @@
   <p class="muted">Abra um atendimento para acompanhar o carrinho do cliente.</p>
 </div>
 
+<div id="fora-da-fila" class="vazio" hidden>
+  <span class="bolha"><svg class="ic"><use href="#i-chat"/></svg></span>
+  <strong>Atendimento de outra fila</strong>
+  <p class="muted">Este catálogo é usado só nas filas da unidade. O atendimento aberto é de outra fila.</p>
+</div>
+
 <!-- Ainda não há link para este atendimento -->
 <section id="sem-sessao" class="cartao convite" hidden>
   <span class="bolha"><svg class="ic"><use href="#i-link"/></svg></span>
@@ -1045,7 +1051,18 @@
   }
 
   // ── Atendimento aberto na Kentro ────────────────────────────────────────
+  /** Filas que usam este catálogo (configuradas no Admin). Vazio = todas. */
+  var filasDaLoja = [];
+
   function carregarChat(c) {
+    // Com filas configuradas, a fila do atendimento decide; o evento pode vir sem ela: lê o atendimento.
+    if (filasDaLoja.length && c && c.id != null && c.queueId == null && omni.chats.get) {
+      return Promise.resolve(omni.chats.get(c.id)).then(function (completo) { abrirChat(completo || c); }, function () { abrirChat(c); });
+    }
+    abrirChat(c);
+  }
+
+  function abrirChat(c) {
     var id = c && c.id != null ? String(c.id) : null;
     if (chat && chat.id === id) return;
     clearTimeout(timer);
@@ -1055,12 +1072,19 @@
     mostrarAviso(null);
     $('com-sessao').hidden = true;
     $('sem-sessao').hidden = true;
+    $('fora-da-fila').hidden = true;
     limparMontagem();
     atualizarAcoesMontar();
     $('secao-historico').hidden = true;
     $('ferramentas').hidden = !id;
     if (!id) { chat = null; $('sem-chat').hidden = false; return; }
     $('sem-chat').hidden = true;
+    if (filasDaLoja.length && filasDaLoja.indexOf(Number(c.queueId)) < 0) {
+      chat = null;
+      $('ferramentas').hidden = true;
+      $('fora-da-fila').hidden = false;
+      return;
+    }
     var base = c.contact || {};
     chat = { id: id, nome: base.name || '', telefone: String(base.phone || '').replace(/\D/g, '') };
     carregarCategorias();
@@ -1099,6 +1123,7 @@
         return;
       }
       plataforma = loja.plataforma || null;
+      filasDaLoja = (loja.filasAtendimento || []).map(Number);
       if (plataforma === 'kentro') {
         manterCatalogoKentro();
         setInterval(manterCatalogoKentro, CONFERIR_CATALOGO_MS);

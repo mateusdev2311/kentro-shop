@@ -7,7 +7,8 @@ import { IntegracoesController } from './integracoes.controller';
 import { IntegracoesService } from './integracoes.service';
 import { ContasNuvemshop, NuvemshopLgpdController, NuvemshopWebhooksController } from './nuvemshop-lgpd.controller';
 import { OAuthIniciarController, OAuthRetornoController } from './oauth.controller';
-import { SincronizacaoController } from './sincronizacao.controller';
+import { FotosService } from './fotos.service';
+import { FotosPublicoController, SincronizacaoController } from './sincronizacao.controller';
 import { SincronizacaoService } from './sincronizacao.service';
 
 @Module({
@@ -16,12 +17,13 @@ import { SincronizacaoService } from './sincronizacao.service';
     IntegracoesController,
     CatalogoKentroController,
     SincronizacaoController,
+    FotosPublicoController,
     OAuthIniciarController,
     OAuthRetornoController,
     NuvemshopLgpdController,
     NuvemshopWebhooksController,
   ],
-  providers: [IntegracoesService, CatalogoKentroService, SincronizacaoService, CacheCatalogo, ContasNuvemshop],
+  providers: [IntegracoesService, CatalogoKentroService, SincronizacaoService, FotosService, CacheCatalogo, ContasNuvemshop],
   exports: [IntegracoesService, CacheCatalogo],
 })
 export class IntegracoesModule {}

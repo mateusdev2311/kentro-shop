@@ -19,7 +19,14 @@ export class IntegracoesController {
   conectores() {
     return this.registro
       .listar()
-      .map(({ id, nome, capacidades, camposDeCredencial, sincronizacao }) => ({ id, nome, capacidades, camposDeCredencial, ...(sincronizacao ? { sincronizacao } : {}) }));
+      .map(({ id, nome, capacidades, camposDeCredencial, sincronizacao, fotosFtp }) => ({
+        id,
+        nome,
+        capacidades,
+        camposDeCredencial,
+        ...(sincronizacao ? { sincronizacao } : {}),
+        ...(fotosFtp ? { fotosFtp } : {}),
+      }));
   }
 
   @Get('loja/integracao')

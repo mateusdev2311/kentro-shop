@@ -97,6 +97,14 @@ export class AtualizarConfigDto {
   @IsString({ each: true })
   @MaxLength(50, { each: true })
   categoriasOcultas?: string[];
+
+  /** Filas da Kentro que usam este catálogo. Vazio = todas. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  filasAtendimento?: number[];
 }
 
 export class LogoDto {

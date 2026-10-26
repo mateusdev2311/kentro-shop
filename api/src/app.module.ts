@@ -10,6 +10,7 @@ import { PrismaService } from './comum/prisma.service';
 import { ConectoresModule, conectoresPadrao } from './conectores/conectores.module';
 import { ABRIR_BANCO, AbrirBanco, abrirBancoPadrao } from './conectores/nucleo/banco';
 import { Conector } from './conectores/nucleo/conector';
+import { ABRIR_FTP, AbrirFtp, abrirFtpPadrao } from './conectores/nucleo/ftp';
 import { ExtensaoController } from './arquivos-extensao/extensao.controller';
 import { IntegracoesModule } from './integracoes/integracoes.module';
 import { OPCOES_SINCRONIZACAO } from './integracoes/sincronizacao.service';
@@ -26,6 +27,8 @@ export interface OpcoesApp {
   envioAviso?: EnvioAviso;
   /** Substitui o acesso aos bancos de dados das lojas (usado nos testes). */
   abrirBanco?: AbrirBanco;
+  /** Substitui o acesso aos FTPs de fotos das lojas (usado nos testes). */
+  abrirFtp?: AbrirFtp;
   /** false desliga a sincronização periódica dos catálogos (testes). Padrão: ligada. */
   sincronizacaoAutomatica?: boolean;
 }
@@ -47,10 +50,11 @@ export class AppModule {
         { provide: CONFIG_APP, useValue: config },
         { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp },
         { provide: ABRIR_BANCO, useValue: opcoes.abrirBanco ?? abrirBancoPadrao },
+        { provide: ABRIR_FTP, useValue: opcoes.abrirFtp ?? abrirFtpPadrao },
         { provide: OPCOES_SINCRONIZACAO, useValue: { automatica: opcoes.sincronizacaoAutomatica ?? true } },
         PrismaService,
       ],
-      exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, OPCOES_SINCRONIZACAO, PrismaService],
+      exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, ABRIR_FTP, OPCOES_SINCRONIZACAO, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
     };
   }

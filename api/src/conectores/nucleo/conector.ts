@@ -50,6 +50,8 @@ export interface ProdutoSincronizado {
   produto: Produto;
   /** Texto a mais para a busca, além do nome e do SKU (ex.: código de barras). */
   termos?: string;
+  /** EAN, quando a fonte informa: liga o produto à foto do FTP. */
+  codigoBarras?: string;
 }
 
 export interface CatalogoSincronizado {
@@ -117,15 +119,21 @@ export interface Conector {
    * a cada `minutos` e o conector lê a cópia (ctx.catalogoLocal).
    */
   readonly sincronizacao?: { minutos: number };
+  /**
+   * Fotos num FTP da loja (campos ftp_* entre as credenciais), ligadas ao produto pelo nome do arquivo:
+   * EAN ou "cod_" + código interno. Só para conectores com sincronizacao (as fotos vão na cópia).
+   */
+  readonly fotosFtp?: { minutos: number };
 
   /** Conferência ao salvar, além dos campos obrigatórios. Devolve a mensagem do erro, ou null. */
   validarCredenciais?(credenciais: Record<string, string>): string | null;
 
   /**
    * Para onde os segredos são enviados, quando isso vem de um campo que não é do tipo url (ex.: domínio da loja).
-   * Trocar o destino exige digitar os segredos de novo.
+   * Trocar o destino exige digitar os segredos de novo. Com segredos que vão para lugares diferentes
+   * (ex.: senha do banco e senha do FTP), um destino por chave de segredo: só o que mudou é pedido de novo.
    */
-  destino?(credenciais: Record<string, string>): string;
+  destino?(credenciais: Record<string, string>): string | Record<string, string>;
 
   testarConexao(ctx: CtxConector): Promise<{ ok: true; nomeLoja?: string } | { ok: false; mensagem: string }>;
   listarCategorias(ctx: CtxConector): Promise<Categoria[]>;

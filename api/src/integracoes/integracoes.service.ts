@@ -70,19 +70,22 @@ export class IntegracoesService {
 
     const anteriores = await this.credenciaisGravadas(lojaId, plataforma);
     const camposUrl = conector.camposDeCredencial.filter((c) => c.tipo === 'url');
-    const destino = (credenciais: Record<string, string> | null | undefined) => {
+    /** Para onde vai o segredo `chave` com estas credenciais. */
+    const destino = (credenciais: Record<string, string> | null | undefined, chave: string) => {
       if (!credenciais || !conector.destino) return '';
       try {
-        return conector.destino(credenciais);
+        const d = conector.destino(credenciais);
+        return typeof d === 'string' ? d : (d[chave] ?? '');
       } catch {
         return (Object.values(credenciais).join('|') || '').toLowerCase(); // inválido: qualquer mudança conta
       }
     };
-    const hostMudou =
-      camposUrl.some((c) => hostDe(novos[c.chave]) !== hostDe(anteriores?.[c.chave])) || (!!anteriores && destino(novos) !== destino(anteriores));
-    const mascarados = conector.camposDeCredencial.filter((c) => c.tipo === 'segredo' && novos[c.chave] === MASCARA);
+    const urlMudou = camposUrl.some((c) => hostDe(novos[c.chave]) !== hostDe(anteriores?.[c.chave]));
     // Reaproveitar o segredo gravado com outro endereço o enviaria para um servidor diferente.
-    if (hostMudou && mascarados.length) {
+    const mascarados = conector.camposDeCredencial.filter(
+      (c) => c.tipo === 'segredo' && novos[c.chave] === MASCARA && (urlMudou || (!!anteriores && destino(novos, c.chave) !== destino(anteriores, c.chave))),
+    );
+    if (mascarados.length) {
       throw new ErroApi(400, 'ENTRADA_INVALIDA', `Ao trocar o endereço, digite de novo: ${mascarados.map((c) => c.rotulo).join(', ')}.`);
     }
 

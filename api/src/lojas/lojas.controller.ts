@@ -22,7 +22,8 @@ export class LojasController {
   @Papel('atendimento')
   async dados(@Req() req: RequisicaoDaLoja) {
     const { id, nome, status, plano } = req.loja;
-    return { id, nome, status, plano, papel: req.papel, plataforma: await this.lojas.plataforma(id) };
+    const [plataforma, filasAtendimento] = await Promise.all([this.lojas.plataforma(id), this.lojas.filasAtendimento(id)]);
+    return { id, nome, status, plano, papel: req.papel, plataforma, filasAtendimento };
   }
 
   @Post('loja/chave-admin/rotacionar')

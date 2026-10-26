@@ -198,6 +198,10 @@
   .sincronizar .bolha .ic { width: 19px; height: 19px; }
   .sincronizar p { margin-top: 1px; }
   .sincronizar.trabalhando .bolha .ic { animation: girar 1.1s linear infinite; }
+  .sem-foto { margin-top: 10px; }
+  .sem-foto summary { cursor: pointer; font-weight: 600; }
+  .sem-foto ul { max-height: 260px; overflow: auto; margin: 8px 0 0; padding-left: 18px; }
+  .sem-foto li { margin: 2px 0; }
   .oauth-passos { margin-top: 10px; padding: 12px 14px; border-radius: var(--ks-r-p); background: var(--ext-color-bg); border: 1px solid var(--ks-linha); }
   .oauth-passos .ajuda { margin: 6px 0 10px; }
   .duas-metades { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 28px; margin-top: 8px; }
@@ -389,6 +393,19 @@
         </div>
         <button type="button" class="suave" id="btn-sincronizar-banco"><svg class="ic"><use href="#i-sincronizar"/></svg>Sincronizar agora</button>
       </div>
+      <div id="bloco-fotos" class="sincronizar" hidden>
+        <span class="bolha"><svg class="ic"><use href="#i-sincronizar"/></svg></span>
+        <div>
+          <strong>Fotos dos produtos (FTP)</strong>
+          <p id="fotos-estado" class="muted"></p>
+          <span class="ajuda">As fotos são lidas do FTP a cada hora, pelo nome do arquivo: código de barras (ex.: 7891234567890.jpg, e 7891234567890_2.jpg para uma segunda foto) ou cod_ e o código interno. Só as novas ou alteradas são baixadas.</span>
+          <details id="fotos-sem" class="sem-foto" hidden>
+            <summary id="fotos-sem-titulo">Ver os produtos sem foto</summary>
+            <ul id="fotos-sem-lista"></ul>
+          </details>
+        </div>
+        <button type="button" class="suave" id="btn-fotos"><svg class="ic"><use href="#i-sincronizar"/></svg>Buscar fotos agora</button>
+      </div>
       <div id="bloco-oauth" class="sincronizar" hidden>
         <span class="bolha"><svg class="ic"><use href="#i-plug"/></svg></span>
         <div>
@@ -576,7 +593,7 @@
     <section id="aba-pedidos" class="cartao" hidden>
       <div class="cartao-cabeca">
         <h2>Pedidos</h2>
-        <p>Preços e validade dos links enviados aos clientes.</p>
+        <p>Preços, validade dos links enviados aos clientes e filas do atendimento.</p>
       </div>
       <div class="formulario">
         <div class="grupo-interruptores">
@@ -587,6 +604,11 @@
         </div>
         <label for="pd-validade">Validade do link (dias)</label>
         <input id="pd-validade" class="curto" type="number" min="1" max="60">
+        <div id="bloco-filas" hidden>
+          <h3>Filas que usam este catálogo</h3>
+          <span class="ajuda">O painel do Kentro Shop só aparece nos atendimentos das filas marcadas (ex.: as filas da unidade). Nenhuma marcada = todas as filas. Para esconder a extensão de quem não é da unidade, filtre também a instalação por fila na Kentro.</span>
+          <ul id="lista-filas" class="lista-simples"></ul>
+        </div>
       </div>
       <p id="resultado-pedidos" class="resultado"></p>
       <div class="acoes"><button type="button" class="principal" id="btn-salvar-pedidos">Salvar pedidos</button></div>
@@ -836,6 +858,7 @@
     estado.alterado = false;
     $('bloco-kentro').hidden = !conector || conector.id !== 'kentro';
     $('bloco-banco').hidden = !conector || !conector.sincronizacao;
+    $('bloco-fotos').hidden = !conector || !conector.fotosFtp;
     var oauth = !!(conector && conector.capacidades.oauth);
     $('bloco-oauth').hidden = !oauth;
     // Com OAuth não há formulário: "Salvar" apagaria o token.
@@ -843,6 +866,7 @@
     if (!conector) return;
     if (conector.id === 'kentro') mostrarEstadoKentro();
     if (conector.sincronizacao) mostrarEstadoBanco(conector);
+    if (conector.fotosFtp) mostrarEstadoFotos();
     if (oauth) mostrarEstadoOAuth(conector);
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
@@ -1080,14 +1104,18 @@
     });
   }
 
+  /** "hoje às 10:41" ou "em 25/10/2026 às 10:41". */
+  function quandoFoi(iso) {
+    var d = new Date(iso);
+    var hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? 'hoje às ' + hora : 'em ' + d.toLocaleDateString('pt-BR') + ' às ' + hora;
+  }
+
   function textoEstadoKentro(e) {
     if (e.sincronizando) return 'Sincronizando…';
     if (!e.sincronizadoEm) return 'Ainda não sincronizado.';
-    var d = new Date(e.sincronizadoEm);
-    var hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    var quando = d.toDateString() === new Date().toDateString() ? 'hoje às ' + hora : 'em ' + d.toLocaleDateString('pt-BR') + ' às ' + hora;
     var categorias = e.categorias ? e.categorias + (e.categorias === 1 ? ' categoria' : ' categorias') : 'sem categorias';
-    return e.total + (e.total === 1 ? ' produto' : ' produtos') + ' · ' + categorias + ' · sincronizado ' + quando;
+    return e.total + (e.total === 1 ? ' produto' : ' produtos') + ' · ' + categorias + ' · sincronizado ' + quandoFoi(e.sincronizadoEm);
   }
 
   function integracaoKentroSalva() { return !!(estado.integracao && estado.integracao.plataforma === 'kentro'); }
@@ -1180,6 +1208,7 @@
     return api('/v1/loja/catalogo-sincronizado/sincronizar', { method: 'POST' }).then(function (e) {
       mostrarResultado('');
       $('banco-estado').textContent = textoEstadoBanco(e);
+      if (conector.fotosFtp) mostrarEstadoFotos();
       if (!e.total) return;
       if (estado.situacao !== 'ok') $('btn-testar').click();
       else if (!$('bloco-capacidades').hidden) carregarPrevia();
@@ -1200,6 +1229,78 @@
   $('btn-sincronizar-banco').addEventListener('click', function () {
     var pronto = integracaoBancoSalva() && !estado.alterado ? Promise.resolve(true) : salvar();
     pronto.then(function (ok) { if (ok) sincronizarBanco(); });
+  });
+
+  // ── Fotos no FTP da loja: a API copia as fotos e liga ao produto pelo nome do arquivo ──
+  var ESPERA_FOTOS_MS = window.KENTRO_SHOP_INTERVALO_MS || 4000;
+  var MAX_SEM_FOTO = 300; // a API lista até isso
+  var esperaFotos = 0;    // muda a cada consulta: a espera antiga para
+
+  /** 4718 -> "4.718" (sem depender do Intl do iframe). */
+  function milhares(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
+  function textoEstadoFotos(e) {
+    if (!e.configurado) return 'Preencha o servidor, a porta, o usuário e a senha do FTP das fotos e salve a integração.';
+    if (e.sincronizando) {
+      var p = e.progresso;
+      return p && p.total ? 'Buscando fotos… ' + milhares(p.feitas) + ' de ' + milhares(p.total) + '.' : 'Buscando fotos…';
+    }
+    var texto = milhares(e.comFoto) + (e.comFoto === 1 ? ' produto com foto' : ' produtos com foto') + ' · ' + milhares(e.semFoto) + ' sem foto · ' +
+      (e.sincronizadasEm ? 'lidas ' + quandoFoi(e.sincronizadasEm) : 'ainda não lidas');
+    if (e.erro) texto += ' · a última leitura falhou: ' + e.erro;
+    return texto;
+  }
+
+  /** Mostra o estado; durante a leitura, consulta de novo até terminar. */
+  function mostrarEstadoFotos() {
+    var minha = ++esperaFotos;
+    if (!integracaoBancoSalva()) {
+      $('fotos-estado').textContent = 'Salve a integração para buscar as fotos.';
+      $('fotos-sem').hidden = true;
+      return Promise.resolve();
+    }
+    return api('/v1/loja/catalogo-sincronizado/fotos').then(function (e) {
+      if (minha !== esperaFotos) return;
+      $('fotos-estado').textContent = textoEstadoFotos(e);
+      $('bloco-fotos').className = e.sincronizando ? 'sincronizar trabalhando' : 'sincronizar';
+      $('btn-fotos').disabled = !!e.sincronizando || !e.configurado;
+      $('fotos-sem').hidden = !e.configurado || !e.semFoto || !!e.sincronizando;
+      $('fotos-sem').open = false;
+      $('fotos-sem-titulo').textContent = 'Ver os produtos sem foto (' + milhares(e.semFoto) + ')';
+      limpar($('fotos-sem-lista'));
+      if (e.sincronizando) setTimeout(function () { if (minha === esperaFotos) mostrarEstadoFotos(); }, ESPERA_FOTOS_MS);
+    }, function () {});
+  }
+
+  /** Cada produto sem foto com o nome de arquivo que falta publicar no FTP. */
+  function carregarSemFoto() {
+    var lista = $('fotos-sem-lista');
+    if (lista.firstChild) return Promise.resolve();
+    lista.appendChild(el('li', 'Carregando…', 'muted'));
+    return api('/v1/loja/catalogo-sincronizado/fotos/sem-foto').then(function (itens) {
+      limpar(lista);
+      itens.forEach(function (p) { lista.appendChild(el('li', (p.codigoBarras || 'cod_' + p.id) + '.jpg — ' + p.nome)); });
+      if (itens.length >= MAX_SEM_FOTO) lista.appendChild(el('li', 'Mostrando os ' + MAX_SEM_FOTO + ' primeiros.', 'muted'));
+    }, function (erro) {
+      limpar(lista);
+      lista.appendChild(el('li', mensagemDeErro(erro), 'muted'));
+    });
+  }
+
+  $('fotos-sem').addEventListener('toggle', function () { if (this.open) carregarSemFoto(); });
+
+  $('btn-fotos').addEventListener('click', function () {
+    var botao = this;
+    var pronto = integracaoBancoSalva() && !estado.alterado ? Promise.resolve(true) : salvar();
+    pronto.then(function (ok) {
+      if (!ok) return;
+      botao.disabled = true;
+      $('fotos-estado').textContent = 'Buscando fotos…';
+      return api('/v1/loja/catalogo-sincronizado/fotos/sincronizar', { method: 'POST' }).then(mostrarEstadoFotos, function (erro) {
+        $('fotos-estado').textContent = mensagemDeErro(erro);
+        botao.disabled = false;
+      });
+    });
   });
 
   $('btn-testar').addEventListener('click', function () {
@@ -1386,6 +1487,31 @@
     $('pd-validade').value = String(c.expiracaoLinkDias || 7);
     $('pd-criar-pedido').checked = c.modoPedido === 'criar_pedido';
     mostrarModoPedido();
+    mostrarFilas(c.filasAtendimento || []);
+  }
+
+  /** Filas da Kentro (omni.queues.list) para escolher as que usam este catálogo. */
+  function mostrarFilas(marcadas) {
+    var lista = $('lista-filas');
+    if (!omni.queues || !omni.queues.list) return;
+    Promise.resolve(omni.queues.list()).then(function (filas) {
+      limpar(lista);
+      (filas || []).forEach(function (f) {
+        var id = Number(f && (f.id != null ? f.id : f.queueId));
+        if (!id) return;
+        var caixa = document.createElement('input');
+        caixa.type = 'checkbox';
+        caixa.setAttribute('data-fila', String(id));
+        caixa.checked = marcadas.indexOf(id) >= 0;
+        var rotulo = el('label');
+        rotulo.appendChild(caixa);
+        rotulo.appendChild(document.createTextNode(' ' + (f.name || f.nome || f.description || 'Fila ' + id)));
+        var item = el('li');
+        item.appendChild(rotulo);
+        lista.appendChild(item);
+      });
+      $('bloco-filas').hidden = !lista.firstChild;
+    }, function () { $('bloco-filas').hidden = true; });
   }
 
   /** "Criar o pedido na loja" só aparece quando a plataforma conectada sabe criar pedido (ex.: Nuvemshop). */
@@ -1768,6 +1894,9 @@
       expiracaoLinkDias: Math.max(1, Math.min(60, Math.floor(Number($('pd-validade').value)) || 7))
     };
     if (!$('bloco-modo-pedido').hidden) corpo.modoPedido = $('pd-criar-pedido').checked ? 'criar_pedido' : 'handoff';
+    if (!$('bloco-filas').hidden) {
+      corpo.filasAtendimento = Array.prototype.map.call(document.querySelectorAll('#lista-filas input:checked'), function (c) { return Number(c.getAttribute('data-fila')); });
+    }
     salvarConfig(corpo, this, 'resultado-pedidos', 'Pedidos salvos.');
   });
 

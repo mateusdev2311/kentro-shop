@@ -78,6 +78,8 @@ export interface ConfigEfetiva {
   urlCapturaKentro: string | null;
   /** Padrão da loja; o link pode mudar. */
   mostrarPrecos: boolean;
+  /** Filas da Kentro que usam este catálogo (ex.: as da unidade). Vazio = todas. */
+  filasAtendimento: number[];
 }
 
 /** O que o admin pode mudar (tudo opcional: só o que vier é gravado; o tema é mesclado). */
@@ -90,6 +92,7 @@ export interface MudancaConfig {
   expiracaoLinkDias?: number;
   mostrarPrecos?: boolean;
   categoriasOcultas?: string[];
+  filasAtendimento?: number[];
   /** criar_pedido: ao finalizar, o pedido é criado na plataforma (ex.: rascunho com link de pagamento na Nuvemshop). */
   modoPedido?: 'handoff' | 'criar_pedido';
   /** Vazio desliga o aviso de pedido finalizado. */
@@ -209,6 +212,7 @@ export class ConfigLojaService {
       categoriasOcultas: gravada?.categoriasOcultas ?? [],
       urlCapturaKentro: gravada?.urlCapturaKentro ?? null,
       mostrarPrecos: gravada?.mostrarPrecos ?? true,
+      filasAtendimento: gravada?.filasAtendimento ?? [],
     };
   }
 
@@ -279,6 +283,7 @@ export class ConfigLojaService {
       ...(mudanca.modoPedido ? { modoPedido: mudanca.modoPedido } : {}),
       ...(urlCapturaKentro !== undefined ? { urlCapturaKentro } : {}),
       ...(mudanca.categoriasOcultas ? { categoriasOcultas: [...new Set(mudanca.categoriasOcultas.map((c) => c.trim()).filter(Boolean))] } : {}),
+      ...(mudanca.filasAtendimento ? { filasAtendimento: [...new Set(mudanca.filasAtendimento)].sort((a, b) => a - b) } : {}),
     };
     await this.prisma.configLoja.upsert({
       where: { lojaId },

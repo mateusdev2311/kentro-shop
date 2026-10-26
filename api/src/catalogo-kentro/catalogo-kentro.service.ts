@@ -149,7 +149,7 @@ export class CatalogoKentroService {
         await tx.produtoKentro.deleteMany({ where: { lojaId } });
         for (let i = 0; i < produtos.length; i += LINHAS_POR_INSERT) {
           await tx.produtoKentro.createMany({
-            data: produtos.slice(i, i + LINHAS_POR_INSERT).map(({ produto: p, termos }) => ({
+            data: produtos.slice(i, i + LINHAS_POR_INSERT).map(({ produto: p, termos, codigoBarras }) => ({
               lojaId,
               id: p.id,
               nome: p.nome,
@@ -158,6 +158,7 @@ export class CatalogoKentroService {
               grupos: p.categoriaIds,
               dados: p as unknown as Prisma.InputJsonValue,
               lote,
+              codigoBarras: codigoBarras ?? null,
             })),
           });
         }

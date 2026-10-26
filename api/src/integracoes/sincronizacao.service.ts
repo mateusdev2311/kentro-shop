@@ -4,6 +4,7 @@ import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { traduzirErroConector } from '../conectores/nucleo/erros';
 import { RegistroConectores } from '../conectores/nucleo/registro';
+import { FotosService } from './fotos.service';
 import { IntegracoesService } from './integracoes.service';
 
 export const OPCOES_SINCRONIZACAO = Symbol('OPCOES_SINCRONIZACAO');
@@ -31,6 +32,7 @@ export class SincronizacaoService implements OnApplicationBootstrap, OnApplicati
     private readonly registro: RegistroConectores,
     private readonly integracoes: IntegracoesService,
     private readonly copia: CatalogoKentroService,
+    private readonly fotos: FotosService,
     @Inject(OPCOES_SINCRONIZACAO) private readonly opcoes: OpcoesSincronizacao,
   ) {}
 
@@ -53,6 +55,8 @@ export class SincronizacaoService implements OnApplicationBootstrap, OnApplicati
     const lote = await this.copia.travar(lojaId);
     try {
       const catalogo = await conector.lerCatalogoCompleto(ctx);
+      // A fonte não tem as fotos: vão as já copiadas do FTP (a leitura do FTP tem o seu próprio ritmo).
+      if (conector.fotosFtp) await this.fotos.aplicarNoCatalogo(ctx.credenciais, catalogo);
       await this.copia.trocar(lojaId, lote, catalogo, { automatica });
     } catch (e) {
       const erro = traduzirErroConector(e);
@@ -63,24 +67,41 @@ export class SincronizacaoService implements OnApplicationBootstrap, OnApplicati
     return this.copia.estado(lojaId);
   }
 
-  /** Renova as cópias vencidas. Depois de uma falha, espera o mesmo intervalo antes de tentar de novo. */
+  /**
+   * Renova as cópias vencidas e, depois, as fotos vencidas. Depois de uma falha, espera o mesmo intervalo
+   * antes de tentar de novo.
+   */
   async rodada(agora = Date.now()): Promise<void> {
     if (this.rodando) return;
     this.rodando = true;
     try {
-      const validade = new Map(this.sincronizaveis().map((c) => [c.id, c.sincronizacao!.minutos * 60_000]));
+      const conectores = new Map(this.sincronizaveis().map((c) => [c.id, c]));
       const lojas = await this.prisma.integracao.findMany({
-        where: { plataforma: { in: [...validade.keys()] }, loja: { status: { not: 'bloqueada' } } },
-        select: { lojaId: true, plataforma: true, loja: { select: { catalogoKentro: { select: { sincronizadoEm: true, ultimoErroEm: true } } } } },
+        where: { plataforma: { in: [...conectores.keys()] }, loja: { status: { not: 'bloqueada' } } },
+        select: {
+          lojaId: true,
+          plataforma: true,
+          loja: { select: { catalogoKentro: { select: { sincronizadoEm: true, ultimoErroEm: true, fotosSincronizadasEm: true, fotosErroEm: true } } } },
+        },
       });
+      const vencida = (minutos: number, ...datas: (Date | null | undefined)[]) => agora - Math.max(0, ...datas.map((d) => d?.getTime() ?? 0)) >= minutos * 60_000;
       for (const { lojaId, plataforma, loja } of lojas) {
+        const conector = conectores.get(plataforma)!;
         const c = loja.catalogoKentro;
-        const ultima = Math.max(c?.sincronizadoEm?.getTime() ?? 0, c?.ultimoErroEm?.getTime() ?? 0);
-        if (agora - ultima < validade.get(plataforma)!) continue;
-        try {
-          await this.sincronizar(lojaId, { automatica: true });
-        } catch (e) {
-          this.logger.warn(`Loja ${lojaId}: ${traduzirErroConector(e).mensagem}`);
+        if (vencida(conector.sincronizacao!.minutos, c?.sincronizadoEm, c?.ultimoErroEm)) {
+          try {
+            await this.sincronizar(lojaId, { automatica: true });
+          } catch (e) {
+            this.logger.warn(`Loja ${lojaId}: ${traduzirErroConector(e).mensagem}`);
+          }
+        }
+        if (conector.fotosFtp && vencida(conector.fotosFtp.minutos, c?.fotosSincronizadasEm, c?.fotosErroEm)) {
+          try {
+            await this.fotos.sincronizar(lojaId);
+          } catch (e) {
+            const erro = traduzirErroConector(e);
+            if (erro.codigo !== 'SEM_FTP') this.logger.warn(`Loja ${lojaId}, fotos: ${erro.mensagem}`);
+          }
         }
       }
     } catch (e) {

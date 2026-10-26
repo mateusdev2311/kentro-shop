@@ -255,8 +255,9 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 }
 
 /* Detalhe do produto */
-.detalhe-imagem { border-radius: var(--raio); overflow: hidden; aspect-ratio: 16 / 10; margin-bottom: 14px; background: #eee; }
-.detalhe-imagem img { width: 100%; height: 100%; object-fit: cover; }
+/* A foto aparece inteira (contain): cortar as bordas esconderia o nome e a dosagem numa embalagem. */
+.detalhe-imagem { border-radius: var(--raio); overflow: hidden; aspect-ratio: 16 / 10; margin-bottom: 14px; background: #fff; }
+.detalhe-imagem img { width: 100%; height: 100%; object-fit: contain; }
 @media (min-width: 720px) {
   .detalhe { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .detalhe-imagem { aspect-ratio: 1; margin: 0; }

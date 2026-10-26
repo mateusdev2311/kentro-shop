@@ -32,6 +32,7 @@ describe('conector ERP Automatiza (views do MySQL)', () => {
         variacoes: [],
       },
       termos: '7890000000101',
+      codigoBarras: '7890000000101',
     });
     expect(produtoDaView(LINHAS_VIEW[1])!.produto.precoDe).toBeUndefined(); // mesmo preço: sem "de"
   });
@@ -96,8 +97,14 @@ describe('conector ERP Automatiza (views do MySQL)', () => {
     expect(conectorAutomatiza.validarCredenciais!({ ...CREDENCIAIS_BANCO, porta: '70000' })).toMatch(/porta/);
     expect(conectorAutomatiza.validarCredenciais!({ ...CREDENCIAIS_BANCO, banco: 'x; drop' })).toMatch(/nome do banco/);
     // Trocar o servidor ou a porta exige digitar a senha de novo.
-    expect(conectorAutomatiza.destino!(CREDENCIAIS_BANCO)).toBe('banco.erp.teste:3306');
-    expect(conectorAutomatiza.destino!({ ...CREDENCIAIS_BANCO, porta: '' })).toBe('banco.erp.teste:3306');
+    // Um destino por senha: a do banco vai ao servidor do banco; a do FTP, ao FTP.
+    expect(conectorAutomatiza.destino!(CREDENCIAIS_BANCO)).toEqual({ senha: 'banco.erp.teste:3306', ftp_senha: '' });
+    expect(conectorAutomatiza.destino!({ ...CREDENCIAIS_BANCO, porta: '', ftp_host: 'arquivos.teste', ftp_porta: '6785' })).toEqual({
+      senha: 'banco.erp.teste:3306',
+      ftp_senha: 'arquivos.teste:6785',
+    });
+    // FTP opcional, mas se vier precisa estar completo.
+    expect(conectorAutomatiza.validarCredenciais!({ ...CREDENCIAIS_BANCO, ftp_host: 'arquivos.teste' })).toMatch(/usuário e a senha do FTP/);
   });
 
   it('sem o banco ou a cópia no contexto, recusa em vez de quebrar', async () => {

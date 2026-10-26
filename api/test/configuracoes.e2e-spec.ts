@@ -81,6 +81,23 @@ describe('configurações da loja (admin): aparência, entrega, pedidos e catál
     expect((await ler()).body.categoriasOcultas).toEqual(['2']);
   });
 
+  it('filas do atendimento: grava sem repetir, o painel lê pelo GET /v1/loja, e vazio volta a valer para todas', async () => {
+    const loja1 = () => http().get('/v1/loja').set('X-Loja-Chave', loja.chaveAtendimento);
+    expect((await ler()).body.filasAtendimento).toEqual([]);
+    expect((await loja1()).body.filasAtendimento).toEqual([]);
+
+    expect((await patch({ filasAtendimento: [12, 3, 12] })).status).toBe(200);
+    expect((await ler()).body.filasAtendimento).toEqual([3, 12]);
+    expect((await loja1()).body.filasAtendimento).toEqual([3, 12]);
+
+    expect((await patch({ mostrarPrecos: false })).status).toBe(200); // sem o campo, as filas ficam
+    expect((await ler()).body.filasAtendimento).toEqual([3, 12]);
+    expect((await patch({ filasAtendimento: [] })).status).toBe(200);
+    expect((await loja1()).body.filasAtendimento).toEqual([]);
+
+    for (const filasAtendimento of [[0], ['12'], [1.5]]) expect((await patch({ filasAtendimento })).status).toBe(400);
+  });
+
   it('logo: envia, aparece no catálogo com cache longo, e pode ser removido', async () => {
     const envio = await http()
       .put('/v1/loja/logo')

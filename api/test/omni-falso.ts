@@ -25,7 +25,11 @@ export interface OpcoesTela {
    */
   proxy?: 'rejeita' | 'resolve' | 'kentro';
   /** Atendimento aberto (omni.chats.getSelected); padrão: nenhum. */
-  chat?: { id: number | string; contactId?: number; contact?: { name?: string; phone?: string } } | null;
+  chat?: { id: number | string; queueId?: number; contactId?: number; contact?: { name?: string; phone?: string } } | null;
+  /** Atendimentos completos por id (omni.chats.get); padrão: o chat aberto. */
+  chatsPorId?: Record<string, { id: number | string; queueId?: number }>;
+  /** Filas da instância (omni.queues.list). Ausente = SDK sem queues. */
+  filas?: { id: number; name: string }[];
   /** Contatos por id (omni.contacts.get). */
   contatos?: Record<string, { name?: string; phone?: string }>;
   /** Intervalo da consulta periódica do painel, para o teste não esperar 5 s. */
@@ -104,7 +108,11 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     on(evento: string, cb: (dado: unknown) => void) {
       (ouvintes[evento] ??= []).push(cb);
     },
-    chats: { getSelected: () => Promise.resolve(opcoes.chat ?? null) },
+    chats: {
+      getSelected: () => Promise.resolve(opcoes.chat ?? null),
+      get: (id: number | string) => Promise.resolve(opcoes.chatsPorId?.[String(id)] ?? opcoes.chat ?? null),
+    },
+    ...(opcoes.filas ? { queues: { list: () => Promise.resolve(opcoes.filas!.map((f) => ({ ...f }))) } } : {}),
     ...(opcoes.produtos ? { products: { list: () => Promise.resolve(opcoes.produtos!.map((p) => ({ ...p }))) } } : {}),
     data: {
       request: (recurso: string) =>

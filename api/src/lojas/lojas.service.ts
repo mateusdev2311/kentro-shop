@@ -36,6 +36,12 @@ export class LojasService {
     return integracao?.plataforma ?? null;
   }
 
+  /** Filas da Kentro que usam este catálogo (o painel do atendimento só aparece nelas). Vazio = todas. */
+  async filasAtendimento(lojaId: string): Promise<number[]> {
+    const config = await this.prisma.configLoja.findUnique({ where: { lojaId }, select: { filasAtendimento: true } });
+    return config?.filasAtendimento ?? [];
+  }
+
   async buscarPorChave(chave: string): Promise<{ loja: Loja; papel: Papel } | null> {
     const hash = hashSegredo(chave);
     const loja = await this.prisma.loja.findFirst({

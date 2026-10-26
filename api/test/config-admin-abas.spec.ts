@@ -21,8 +21,9 @@ const configuracoes = {
 const categorias = { status: 200, body: [{ id: '1', nome: 'Pisos' }, { id: '2', nome: 'Tintas' }] };
 const salvo = { status: 200, body: configuracoes.body };
 
-async function abrir(extra: OpcoesTela['respostas'] = {}): Promise<Tela> {
+async function abrir(extra: OpcoesTela['respostas'] = {}, opcoes: Partial<OpcoesTela> = {}): Promise<Tela> {
   const t = await montarTela('admin/config.html', {
+    ...opcoes,
     config,
     respostas: {
       'GET /v1/loja': loja,
@@ -171,6 +172,21 @@ describe('abas de configuração do Admin', () => {
     t.preencher('pd-validade', '3');
     await t.clicar('btn-salvar-pedidos');
     expect(patches(t)).toEqual([{ mostrarPrecos: false, expiracaoLinkDias: 3 }]);
+    expect(t.visivel('bloco-filas')).toBe(false); // SDK sem filas: o bloco não aparece e nada muda
+  });
+
+  it('Pedidos: filas da Kentro que usam o catálogo, já marcadas as gravadas', async () => {
+    const filas = [{ id: 8, name: 'Loja 08 - WhatsApp' }, { id: 9, name: 'Loja 08 - Balcão' }, { id: 3, name: 'Loja 03' }];
+    t = await abrir({ 'GET /v1/loja/configuracoes': { status: 200, body: { ...configuracoes.body, filasAtendimento: [9] } } }, { filas });
+    await t.clicar('botao-aba-pedidos');
+    await t.esperar(5);
+    expect(t.visivel('bloco-filas')).toBe(true);
+    const caixa = (id: number) => t.document.querySelector(`[data-fila="${id}"]`) as HTMLInputElement;
+    expect([...t.document.querySelectorAll('#lista-filas label')].map((l) => l.textContent!.trim())).toEqual(['Loja 08 - WhatsApp', 'Loja 08 - Balcão', 'Loja 03']);
+    expect([caixa(8).checked, caixa(9).checked, caixa(3).checked]).toEqual([false, true, false]);
+    caixa(8).checked = true;
+    await t.clicar('btn-salvar-pedidos');
+    expect(patches(t)).toEqual([{ mostrarPrecos: true, expiracaoLinkDias: 7, filasAtendimento: [8, 9] }]);
   });
 
   it('Catálogo: categorias da plataforma com "esconder", já marcadas as ocultas', async () => {

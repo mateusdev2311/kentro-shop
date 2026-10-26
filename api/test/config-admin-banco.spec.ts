@@ -116,6 +116,76 @@ describe('aba Integração: banco de dados do ERP', () => {
     expect(t.texto('banco-estado')).toBe('Ainda não sincronizado. A última tentativa falhou: A plataforma de e-commerce não respondeu. Tente de novo em instantes.');
   });
 
+  describe('fotos do FTP', () => {
+    const comFotos = {
+      status: 200,
+      body: conectores.body.map((c) => (c.id === 'automatiza' ? { ...c, camposDeCredencial: [...CAMPOS, { chave: 'ftp_host', rotulo: 'Fotos: servidor FTP', tipo: 'texto', obrigatorio: false }], fotosFtp: { minutos: 60 } } : c)),
+    };
+    const fotos = (extra: object = {}) => ({
+      status: 200,
+      body: { configurado: true, sincronizando: false, progresso: null, sincronizadasEm: new Date().toISOString(), erro: null, erroEm: null, comFoto: 4718, semFoto: 1822, ...extra },
+    });
+
+    it('mostra quantos produtos têm foto e lista os que faltam com o nome do arquivo a publicar', async () => {
+      t = await tela({
+        'GET /v1/conectores': comFotos,
+        'GET /v1/loja/integracao': bancoSalvo,
+        'GET /v1/loja/catalogo-sincronizado/fotos': fotos(),
+        'GET /v1/loja/catalogo-sincronizado/fotos/sem-foto': { status: 200, body: [{ id: '104', nome: 'PROTETOR SOLAR', codigoBarras: '7890000000104' }, { id: '7', nome: 'SEM EAN', codigoBarras: null }] },
+      });
+      await t.esperar(20);
+      expect(t.visivel('bloco-fotos')).toBe(true);
+      expect(t.texto('fotos-estado')).toMatch(/^4\.718 produtos com foto · 1\.822 sem foto · lidas hoje às \d\d:\d\d$/);
+      expect(t.texto('fotos-sem-titulo')).toBe('Ver os produtos sem foto (1.822)');
+      const detalhes = t.document.getElementById('fotos-sem') as HTMLDetailsElement;
+      detalhes.open = true;
+      detalhes.dispatchEvent(new t.document.defaultView!.Event('toggle'));
+      await t.esperar(10);
+      expect([...t.document.querySelectorAll('#fotos-sem-lista li')].map((l) => l.textContent)).toEqual([
+        '7890000000104.jpg — PROTETOR SOLAR',
+        'cod_7.jpg — SEM EAN',
+      ]);
+    });
+
+    it('Buscar fotos agora: começa na API e acompanha o andamento até terminar', async () => {
+      t = await tela(
+        {
+          'GET /v1/conectores': comFotos,
+          'GET /v1/loja/integracao': bancoSalvo,
+          'GET /v1/loja/catalogo-sincronizado/fotos': fotos({ sincronizadasEm: null, comFoto: 0, semFoto: 6562 }),
+          'POST /v1/loja/catalogo-sincronizado/fotos/sincronizar': { status: 202, body: {} },
+        },
+        { intervaloMs: 15 },
+      );
+      await t.esperar(20);
+      expect(t.texto('fotos-estado')).toMatch(/0 produtos com foto · 6\.562 sem foto · ainda não lidas/);
+      t.respostas['GET /v1/loja/catalogo-sincronizado/fotos'] = fotos({ sincronizando: true, progresso: { feitas: 1200, total: 4718 } });
+      await t.clicar('btn-fotos');
+      await t.esperar(10);
+      expect(t.chamadas.filter((c) => c.method === 'POST' && c.url.endsWith('/fotos/sincronizar'))).toHaveLength(1);
+      expect(t.texto('fotos-estado')).toBe('Buscando fotos… 1.200 de 4.718.');
+      expect((t.document.getElementById('btn-fotos') as HTMLButtonElement).disabled).toBe(true);
+      t.respostas['GET /v1/loja/catalogo-sincronizado/fotos'] = fotos();
+      await t.esperar(60);
+      expect(t.texto('fotos-estado')).toMatch(/^4\.718 produtos com foto/);
+      expect((t.document.getElementById('btn-fotos') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('sem o FTP preenchido: explica o que falta e não deixa buscar', async () => {
+      t = await tela({ 'GET /v1/conectores': comFotos, 'GET /v1/loja/integracao': bancoSalvo, 'GET /v1/loja/catalogo-sincronizado/fotos': fotos({ configurado: false }) });
+      await t.esperar(20);
+      expect(t.texto('fotos-estado')).toBe('Preencha o servidor, a porta, o usuário e a senha do FTP das fotos e salve a integração.');
+      expect((t.document.getElementById('btn-fotos') as HTMLButtonElement).disabled).toBe(true);
+      expect(t.visivel('fotos-sem')).toBe(false);
+    });
+
+    it('conector sem fotos por FTP não mostra o bloco', async () => {
+      t = await tela({ 'GET /v1/loja/integracao': bancoSalvo });
+      await t.esperar(10);
+      expect(t.visivel('bloco-fotos')).toBe(false);
+    });
+  });
+
   it('outra plataforma não mostra o bloco do banco', async () => {
     t = await tela({ 'GET /v1/loja/integracao': { status: 200, body: { plataforma: 'falso', status: 'ok', credenciais: { token: '••••' } } } });
     await t.esperar(5);
