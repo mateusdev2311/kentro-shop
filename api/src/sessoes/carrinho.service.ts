@@ -4,7 +4,7 @@ import { CatalogoService } from '../catalogo/catalogo.service';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
 import { ErroConector, NaoEncontrado } from '../conectores/nucleo/erros';
-import { Produto } from '../contratos/modelo';
+import { Produto, SituacaoPedido } from '../contratos/modelo';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { IntegracoesService } from '../integracoes/integracoes.service';
 import { arredondar, calcularTotais, freteDaRegra, moeda, unidade } from './calculo';
@@ -247,7 +247,25 @@ export class CarrinhoService {
    */
   async finalizar(token: string, dto: FinalizarDto): Promise<SessaoPublica> {
     const sessao = await this.sessoes.porToken(token);
-    if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') throw pedidoJaEnviado();
+    await this.finalizarSessao(sessao, dto, 'cliente');
+    return this.sessoes.publica(sessao.id, sessao);
+  }
+
+  /**
+   * O atendente fecha o pedido pelo painel, sem o cliente passar pelo checkout: mesmas regras (preço e estoque
+   * de agora, frete da loja, pedido na plataforma). O aviso para a IA da Kentro não sai: o atendente já está na conversa.
+   */
+  async finalizarPeloAtendente(lojaId: string, sessaoId: string, dto: FinalizarDto, atendente = ''): Promise<SessaoCompleta> {
+    const sessao = await this.prisma.sessao.findFirst({ where: { id: sessaoId, lojaId } });
+    if (!sessao) throw new ErroApi(404, 'SEM_SESSAO', 'Link não encontrado neste atendimento.');
+    await this.finalizarSessao(sessao, dto, 'atendente', atendente);
+    return this.sessoes.completa(sessao.id);
+  }
+
+  private async finalizarSessao(sessao: SessaoBanco, dto: FinalizarDto, autor: 'cliente' | 'atendente', atendente = ''): Promise<void> {
+    if (sessao.status !== 'link_enviado' && sessao.status !== 'navegando') {
+      throw autor === 'cliente' ? pedidoJaEnviado() : new ErroApi(409, 'PEDIDO_JA_ENVIADO', 'Este pedido já foi finalizado.');
+    }
     const config = await this.configLoja.obter(sessao.lojaId);
     const observacoes = texto(dto.observacoes, 500);
 
@@ -263,11 +281,12 @@ export class CarrinhoService {
     }
 
     // Pedido criado na loja (ex.: Nuvemshop): a plataforma exige o e-mail do comprador.
+    // Pedido no sistema da loja pago ao receber (ex.: ERP da farmácia): no lugar do e-mail, a forma de pagamento.
     // Pedido de orçamento (link sem preço) segue para o atendente: o checkout da loja mostraria os valores.
-    const pedidoNaLoja =
-      precosVisiveis(sessao, config.mostrarPrecos) && (await this.integracoes.criaPedidoNaPlataforma(sessao.lojaId, config.modoPedido));
+    const pedidoNaLoja = precosVisiveis(sessao, config.mostrarPrecos) ? await this.integracoes.pedidoNaPlataforma(sessao.lojaId, config.modoPedido) : null;
     const email = texto(dto.email, 120) || (sessao.cliente as unknown as Cliente).email || '';
-    if (pedidoNaLoja && !email) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'Informe o seu e-mail para receber o pedido.');
+    if (pedidoNaLoja && !pedidoNaLoja.pagamentoNaEntrega && !email) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'Informe o seu e-mail para receber o pedido.');
+    if (pedidoNaLoja?.pagamentoNaEntrega && !dto.pagamento) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'Escolha a forma de pagamento.');
 
     const existentes = await this.prisma.itemCarrinho.findMany({ where: { sessaoId: sessao.id }, orderBy: { revalidadoEm: 'asc' } });
     if (!existentes.length) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'O carrinho está vazio.');
@@ -316,6 +335,13 @@ export class CarrinhoService {
     const subtotal = calcularTotais(finais, null).subtotal;
     const frete = checkout.tipo === 'entrega' ? freteDaRegra(config.frete, subtotal).valor : 0;
     const totais = calcularTotais(finais, frete);
+    if (pedidoNaLoja?.pagamentoNaEntrega && dto.pagamento) {
+      const trocoPara = dto.pagamento.forma === 'dinheiro' && dto.pagamento.trocoPara ? arredondar(dto.pagamento.trocoPara) : 0;
+      if (trocoPara && trocoPara < totais.total) {
+        throw new ErroApi(400, 'ENTRADA_INVALIDA', `O troco precisa ser para um valor igual ou maior que o total (${moeda(totais.total)}).`);
+      }
+      checkout.pagamento = { forma: dto.pagamento.forma, ...(trocoPara > totais.total ? { trocoPara } : {}) };
+    }
     // Nome e telefone do checkout valem para o pedido; o resto do pré-cadastro (e-mail, documento) continua.
     const clienteAntes = sessao.cliente as unknown as Cliente;
     const { endereco: _enderecoDoContato, ...semEndereco } = clienteAntes;
@@ -333,15 +359,52 @@ export class CarrinhoService {
           totais: totais as unknown as Prisma.InputJsonValue,
         },
       });
-      await this.sessoes.registrar(sessao.id, 'finalizou', `Cliente finalizou o pedido (${checkout.tipo}) — ${moeda(totais.total)}`, 'cliente', tx);
+      const quem = autor === 'cliente' ? 'Cliente finalizou o pedido' : `${atendente || 'Atendente'} finalizou o pedido pelo painel`;
+      await this.sessoes.registrar(sessao.id, 'finalizou', `${quem} (${checkout.tipo}) — ${moeda(totais.total)}`, autor, tx);
     });
 
     let completa = await this.sessoes.completa(sessao.id);
     // Histórico pelo telefone original (o da Kentro); o do checkout só se não houver.
     await this.clientes.registrarFinalizacao(sessao.lojaId, clienteAntes.telefone, completa).catch(() => undefined);
     if (pedidoNaLoja) completa = await this.criarNaPlataforma(sessao.lojaId, completa);
-    for (const acao of this.aoFinalizar) await acao(completa, sessao.lojaId).catch(() => undefined);
-    return this.sessoes.publica(sessao.id, sessao);
+    if (autor === 'cliente') for (const acao of this.aoFinalizar) await acao(completa, sessao.lojaId).catch(() => undefined);
+  }
+
+  /** O pedido que a finalização criou na plataforma, com o conector e o contexto para falar com ela. */
+  private async pedidoDaSessao(lojaId: string, sessaoId: string) {
+    const sessao = await this.prisma.sessao.findFirst({ where: { id: sessaoId, lojaId }, select: { id: true, pedido: true } });
+    if (!sessao) throw new ErroApi(404, 'SEM_SESSAO', 'Link não encontrado neste atendimento.');
+    const pedido = (sessao.pedido as unknown as PedidoNaLoja | null) ?? null;
+    if (!pedido) throw new ErroApi(409, 'SEM_PEDIDO', 'Este atendimento não tem pedido criado na loja.');
+    const { conector, ctx } = await this.integracoes.contexto(lojaId);
+    return { sessao, pedido, conector, ctx };
+  }
+
+  private async gravarSituacao(sessaoId: string, pedido: PedidoNaLoja, situacao: SituacaoPedido, evento: string | null): Promise<void> {
+    const novo: PedidoNaLoja = { ...pedido, status: situacao.status, descricao: situacao.descricao, cancelavel: situacao.cancelavel, atualizadoEm: new Date().toISOString() };
+    await this.prisma.$transaction(async (tx) => {
+      await tx.sessao.update({ where: { id: sessaoId }, data: { pedido: novo as unknown as Prisma.InputJsonValue } });
+      if (evento) await this.sessoes.registrar(sessaoId, 'pedido', evento, 'sistema', tx);
+    });
+  }
+
+  /** Lê a situação do pedido na plataforma (ex.: em separação na loja). Mudou = fica na atividade. */
+  async atualizarPedido(lojaId: string, sessaoId: string): Promise<SessaoCompleta> {
+    const { sessao, pedido, conector, ctx } = await this.pedidoDaSessao(lojaId, sessaoId);
+    if (!conector.situacaoPedido) throw new ErroApi(409, 'SEM_ACOMPANHAMENTO', `A ${conector.nome} não informa a situação do pedido.`);
+    const situacao = await conector.situacaoPedido(ctx, pedido.idExterno);
+    const mudou = situacao.status !== pedido.status;
+    await this.gravarSituacao(sessao.id, pedido, situacao, mudou ? `Pedido nº ${pedido.numero} na loja: ${situacao.descricao}` : null);
+    return this.sessoes.completa(sessao.id);
+  }
+
+  /** Cancela o pedido na plataforma, enquanto ela ainda deixa (no ERP: antes de a loja começar a separar). */
+  async cancelarPedido(lojaId: string, sessaoId: string, atendente = ''): Promise<SessaoCompleta> {
+    const { sessao, pedido, conector, ctx } = await this.pedidoDaSessao(lojaId, sessaoId);
+    if (!conector.cancelarPedido) throw new ErroApi(409, 'SEM_CANCELAMENTO', `O cancelamento é feito direto na ${conector.nome}.`);
+    const situacao = await conector.cancelarPedido(ctx, pedido.idExterno);
+    await this.gravarSituacao(sessao.id, pedido, situacao, `Pedido nº ${pedido.numero} cancelado na loja${atendente ? ` por ${atendente}` : ''}`);
+    return this.sessoes.completa(sessao.id);
   }
 
   /**
@@ -352,19 +415,29 @@ export class CarrinhoService {
     const checkout = completa.checkout!;
     try {
       const { conector, ctx } = await this.integracoes.contexto(lojaId);
-      const pedido: PedidoNaLoja = await conector.criarPedido!(ctx, {
+      const criado: PedidoNaLoja = await conector.criarPedido!(ctx, {
         cliente: { nome: completa.cliente.nome, telefone: completa.cliente.telefone, email: completa.cliente.email, documento: completa.cliente.documento },
         entrega:
           checkout.tipo === 'entrega'
             ? { tipo: 'entrega', endereco: { ...checkout.entrega, complemento: checkout.entrega.complemento || undefined, referencia: checkout.entrega.referencia || undefined } }
             : { tipo: 'retirada', lojaRetiradaId: checkout.loja.id },
-        itens: completa.itens.map((i) => ({ produtoId: i.produtoId, variacaoId: i.variacaoId ?? undefined, sku: i.sku, quantidade: i.quantidade, precoUnitario: i.precoUnitario })),
+        itens: completa.itens.map((i) => ({
+          produtoId: i.produtoId,
+          variacaoId: i.variacaoId ?? undefined,
+          sku: i.sku,
+          nome: nomeCompleto(i),
+          quantidade: i.quantidade,
+          precoUnitario: i.precoUnitario,
+        })),
         ...(checkout.tipo === 'entrega' && completa.totais.frete !== null ? { frete: { titulo: 'Frete', valor: completa.totais.frete } } : {}),
+        ...(completa.totais.desconto > 0 ? { desconto: { valor: completa.totais.desconto, motivo: 'Desconto do atendimento' } } : {}),
+        ...(checkout.pagamento ? { pagamento: checkout.pagamento } : {}),
         observacoes: [checkout.observacoes, checkout.tipo === 'retirada' ? `Retirada em ${checkout.loja.nome} — ${checkout.loja.endereco}` : '']
           .filter(Boolean)
           .join('\n'),
         referenciaExterna: completa.id,
       });
+      const pedido: PedidoNaLoja = conector.situacaoPedido ? { ...criado, acompanhar: true, cancelavel: !!conector.cancelarPedido } : criado;
       await this.prisma.$transaction(async (tx) => {
         await tx.sessao.update({ where: { id: completa.id }, data: { status: 'pedido_criado', pedido: pedido as unknown as Prisma.InputJsonValue } });
         const link = pedido.url ? ', com link de pagamento para o cliente' : '';

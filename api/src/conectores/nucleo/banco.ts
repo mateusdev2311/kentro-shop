@@ -7,7 +7,8 @@ import { hostPublico, ipPrivado, Resolvedor } from './destino';
 import { CredencialInvalida, ErroConector, PlataformaIndisponivel, RecusadoPelaPlataforma } from './erros';
 
 // Conectores que leem o banco de dados do ERP da loja (ex.: views liberadas para o e-commerce).
-// A sessão é sempre somente leitura e a API só conecta em endereço público (proteção contra SSRF).
+// A consulta abre a sessão somente leitura. Gravar (ex.: o pedido) é só por `gravar`: uma transação, com INSERT e
+// UPDATE apenas nas tabelas que o conector declara. A API só conecta em endereço público (proteção contra SSRF).
 
 export type MotorBanco = 'mysql';
 
@@ -18,9 +19,40 @@ export interface OpcoesConsulta {
   timeoutMs?: number;
 }
 
+export interface ResultadoGravacao {
+  /** AUTO_INCREMENT gerado pelo INSERT (0 se não houver). */
+  idInserido: number;
+  linhasAfetadas: number;
+}
+
+/** Dentro da transação de `gravar`. Valores sempre por parâmetro (?), nunca concatenados no SQL. */
+export interface TransacaoBanco {
+  consultar(sql: string, parametros?: unknown[]): Promise<Linha[]>;
+  /** Só INSERT INTO ou UPDATE de uma das tabelas liberadas em `gravar`. */
+  executar(sql: string, parametros?: unknown[]): Promise<ResultadoGravacao>;
+}
+
 export interface ClienteBanco {
   /** Só leitura. Valores sempre por parâmetro (?), nunca concatenados no SQL. */
   consultar(operacao: string, sql: string, parametros?: unknown[], opcoes?: OpcoesConsulta): Promise<Linha[]>;
+  /**
+   * Uma transação: confirma se `passos` terminar, desfaz tudo se qualquer passo falhar. Grava só em `tabelas`.
+   * Ausente = o cliente não grava.
+   */
+  gravar?<T>(operacao: string, tabelas: readonly string[], passos: (tx: TransacaoBanco) => Promise<T>, opcoes?: OpcoesConsulta): Promise<T>;
+}
+
+const COMANDO_GRAVACAO = /^\s*(?:INSERT\s+INTO|UPDATE)\s+`?([A-Za-z0-9_$]+)`?[\s(]/i;
+
+/** A tabela que o comando grava, se ele for um INSERT INTO ou UPDATE simples; senão, null. */
+export function tabelaGravada(sql: string): string | null {
+  return COMANDO_GRAVACAO.exec(sql)?.[1] ?? null;
+}
+
+/** Recusa (sem executar) o que não for INSERT/UPDATE de uma tabela liberada. Erro de programação, não do banco. */
+export function conferirGravacao(sql: string, tabelas: readonly string[]): void {
+  const tabela = tabelaGravada(sql);
+  if (!tabela || !tabelas.includes(tabela)) throw new RecusadoPelaPlataforma('O Kentro Shop só grava os pedidos no banco de dados da loja.');
 }
 
 export interface CredenciaisBanco {
@@ -118,6 +150,17 @@ export function traduzirErroMysql(e: unknown): ErroConector {
       return new RecusadoPelaPlataforma(SEM_ACESSO);
     case 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION':
       return new RecusadoPelaPlataforma('O Kentro Shop só lê o banco de dados da loja.');
+    case 'ER_BAD_NULL_ERROR':
+    case 'ER_NO_DEFAULT_FOR_FIELD':
+    case 'ER_DATA_TOO_LONG':
+    case 'ER_TRUNCATED_WRONG_VALUE':
+    case 'ER_TRUNCATED_WRONG_VALUE_FOR_FIELD':
+    case 'ER_WARN_DATA_OUT_OF_RANGE':
+    case 'ER_DUP_ENTRY':
+      return new RecusadoPelaPlataforma('O banco de dados da loja recusou os dados do pedido.');
+    case 'ER_LOCK_WAIT_TIMEOUT':
+    case 'ER_LOCK_DEADLOCK':
+      return new PlataformaIndisponivel();
     case 'ER_HOST_NOT_PRIVILEGED':
     case 'ER_HOST_IS_BLOCKED':
       return new RecusadoPelaPlataforma('O servidor do banco não aceita conexões do Kentro Shop. Peça para liberar o acesso externo desse usuário.');
@@ -141,49 +184,86 @@ export interface DependenciasMysql {
 
 const resolverDns: Resolvedor = async (host) => (await lookup(host, { all: true })).map((r) => r.address);
 
-/** Uma conexão por consulta: as leituras são poucas (teste e sincronização), sem pool aberto por loja. */
+/** Uma conexão por operação: as idas ao banco são poucas (teste, sincronização e pedido), sem pool aberto por loja. */
 export function criarClienteMysql(opcoes: OpcoesClienteBanco, deps: DependenciasMysql = {}): ClienteBanco {
   const conectar = deps.conectar ?? (async (config) => (await createConnection(config)) as unknown as ConexaoMysql);
   const resolver = deps.resolver ?? resolverDns;
 
-  return {
-    async consultar(operacao, sql, parametros = [], { timeoutMs = 15_000 } = {}) {
-      const inicio = Date.now();
-      const registrar = (erroCodigo: string | null) =>
-        opcoes
-          .registrar({ lojaId: opcoes.lojaId, plataforma: opcoes.plataforma, operacao, statusHttp: null, ms: Date.now() - inicio, erroCodigo })
-          .catch(() => undefined); // o registro nunca derruba a consulta
+  /** Abre a conexão, roda `usar`, registra a chamada (aba Saúde) e fecha; erro do driver vira erro padrão. */
+  async function comConexao<T>(operacao: string, usar: (conexao: ConexaoMysql) => Promise<T>): Promise<T> {
+    const inicio = Date.now();
+    const registrar = (erroCodigo: string | null) =>
+      opcoes
+        .registrar({ lojaId: opcoes.lojaId, plataforma: opcoes.plataforma, operacao, statusHttp: null, ms: Date.now() - inicio, erroCodigo })
+        .catch(() => undefined); // o registro nunca derruba a consulta
 
-      let conexao: ConexaoMysql | null = null;
-      try {
-        const credenciais = lerCredenciaisBanco(opcoes.credenciais, opcoes.bancoPadrao);
-        if (typeof credenciais === 'string') throw new RecusadoPelaPlataforma(credenciais);
-        conexao = await conectar({
-          host: await resolverHostPublico(credenciais.host, resolver),
-          port: credenciais.porta,
-          user: credenciais.usuario,
-          password: credenciais.senha,
-          database: credenciais.banco,
-          connectTimeout: 10_000,
-          charset: 'UTF8MB4_GENERAL_CI',
-          // Data e decimal como texto: o conector decide como ler (sem fuso nem arredondamento do driver).
-          dateStrings: true,
-          supportBigNumbers: true,
-          bigNumberStrings: true,
-          multipleStatements: false,
-        });
-        // O usuário pode ter permissão de escrita no ERP; o Kentro Shop só lê.
+    let conexao: ConexaoMysql | null = null;
+    try {
+      const credenciais = lerCredenciaisBanco(opcoes.credenciais, opcoes.bancoPadrao);
+      if (typeof credenciais === 'string') throw new RecusadoPelaPlataforma(credenciais);
+      conexao = await conectar({
+        host: await resolverHostPublico(credenciais.host, resolver),
+        port: credenciais.porta,
+        user: credenciais.usuario,
+        password: credenciais.senha,
+        database: credenciais.banco,
+        connectTimeout: 10_000,
+        charset: 'UTF8MB4_GENERAL_CI',
+        // Data e decimal como texto: o conector decide como ler (sem fuso nem arredondamento do driver).
+        dateStrings: true,
+        supportBigNumbers: true,
+        bigNumberStrings: true,
+        multipleStatements: false,
+      });
+      const resultado = await usar(conexao);
+      await registrar(null);
+      return resultado;
+    } catch (e) {
+      const erro = traduzirErroMysql(e);
+      await registrar(erro.codigo);
+      throw erro;
+    } finally {
+      if (conexao) await conexao.end().catch(() => conexao?.destroy());
+    }
+  }
+
+  const linhasDe = (resposta: unknown): Linha[] => (Array.isArray(resposta) ? (resposta as Linha[]) : []);
+
+  return {
+    consultar(operacao, sql, parametros = [], { timeoutMs = 15_000 } = {}) {
+      return comConexao(operacao, async (conexao) => {
+        // O usuário pode ter permissão de escrita no ERP; a consulta só lê.
         await conexao.query({ sql: 'SET SESSION TRANSACTION READ ONLY', timeout: timeoutMs });
         const [linhas] = await conexao.query({ sql, values: parametros, timeout: timeoutMs });
-        await registrar(null);
-        return Array.isArray(linhas) ? (linhas as Linha[]) : [];
-      } catch (e) {
-        const erro = traduzirErroMysql(e);
-        await registrar(erro.codigo);
-        throw erro;
-      } finally {
-        if (conexao) await conexao.end().catch(() => conexao?.destroy());
-      }
+        return linhasDe(linhas);
+      });
+    },
+
+    gravar(operacao, tabelas, passos, { timeoutMs = 15_000 } = {}) {
+      return comConexao(operacao, async (conexao) => {
+        await conexao.query({ sql: 'START TRANSACTION', timeout: timeoutMs });
+        const tx: TransacaoBanco = {
+          async consultar(sql, parametros = []) {
+            const [linhas] = await conexao.query({ sql, values: parametros, timeout: timeoutMs });
+            return linhasDe(linhas);
+          },
+          async executar(sql, parametros = []) {
+            conferirGravacao(sql, tabelas);
+            const [r] = await conexao.query({ sql, values: parametros, timeout: timeoutMs });
+            const info = (r ?? {}) as { insertId?: unknown; affectedRows?: unknown };
+            return { idInserido: Number(info.insertId ?? 0) || 0, linhasAfetadas: Number(info.affectedRows ?? 0) || 0 };
+          },
+        };
+        try {
+          const resultado = await passos(tx);
+          await conexao.query({ sql: 'COMMIT', timeout: timeoutMs });
+          return resultado;
+        } catch (e) {
+          // Se nem o ROLLBACK passar, fechar a conexão sem COMMIT também desfaz a transação.
+          await conexao.query({ sql: 'ROLLBACK', timeout: timeoutMs }).catch(() => undefined);
+          throw e;
+        }
+      });
     },
   };
 }

@@ -27,9 +27,19 @@ export interface DadosEntrega {
   referencia: string;
 }
 
-export type Checkout =
+export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
+
+/** Pago ao receber (pedido que vai direto para o sistema da loja). */
+export interface PagamentoNaEntrega {
+  forma: FormaPagamento;
+  /** Dinheiro: a nota com que o cliente vai pagar (ausente = sem troco). */
+  trocoPara?: number;
+}
+
+export type Checkout = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
-  | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string };
+  | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string }
+) & { pagamento?: PagamentoNaEntrega };
 
 export interface Totais {
   itens: number;
@@ -140,6 +150,8 @@ export interface Abertura {
   sessao: Sessao;
   /** O pedido é criado na loja (ex.: Nuvemshop): o checkout pede o e-mail e termina no link de pagamento. */
   pedidoNaLoja?: boolean;
+  /** Com pedidoNaLoja: o pedido entra direto no sistema da loja (ex.: ERP) e é pago ao receber; sem e-mail. */
+  pagamentoNaEntrega?: boolean;
   /** Endereços e pedidos anteriores do mesmo telefone nesta loja. */
   historico: { enderecos: EnderecoSalvo[]; pedidos: PedidoAnterior[] };
   /** Link montado pelo atendente (categoria, busca ou produtos escolhidos). */
@@ -178,6 +190,6 @@ export interface PedidoDeItem {
 export type CorpoFinalizar = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
   | { tipo: 'retirada'; lojaRetiradaId: string; observacoes: string }
-) & { email?: string };
+) & { email?: string; pagamento?: PagamentoNaEntrega };
 
 export const pedidoAberto = (s: Sessao | null) => !s || s.status === 'link_enviado' || s.status === 'navegando';

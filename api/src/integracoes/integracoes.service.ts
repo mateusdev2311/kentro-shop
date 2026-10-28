@@ -122,13 +122,18 @@ export class IntegracoesService {
     if (anterior && anterior.plataforma !== conector.id) await this.catalogoKentro.apagar(lojaId);
   }
 
-  /** A loja cria o pedido na plataforma ao finalizar? (modo "criar pedido" + conector que sabe criar). */
-  async criaPedidoNaPlataforma(lojaId: string, modoPedido: string): Promise<boolean> {
-    if (modoPedido !== 'criar_pedido') return false;
-    const linha = await this.prisma.integracao.findUnique({ where: { lojaId }, select: { plataforma: true } });
-    if (!linha) return false;
+  /**
+   * Como o pedido é criado na plataforma ao finalizar, ou null (o atendente fecha a venda): modo "criar pedido",
+   * conector que sabe criar e, se ele pede configuração (ex.: código de parceiro do ERP), já configurado.
+   */
+  async pedidoNaPlataforma(lojaId: string, modoPedido: string): Promise<{ pagamentoNaEntrega: boolean } | null> {
+    if (modoPedido !== 'criar_pedido') return null;
+    const linha = await this.prisma.integracao.findUnique({ where: { lojaId } });
+    if (!linha) return null;
     const conector = this.registro.listar().find((c) => c.id === linha.plataforma);
-    return !!conector?.capacidades.criarPedido && !!conector.criarPedido;
+    if (!conector?.capacidades.criarPedido || !conector.criarPedido) return null;
+    if (conector.criaPedido && !conector.criaPedido(this.decifrarCredenciais(linha.credenciaisCifradas, linha.iv))) return null;
+    return { pagamentoNaEntrega: !!conector.pagamentoNaEntrega };
   }
 
   /** Depois da autorização: o que o conector precisa fazer na plataforma (ex.: registrar webhooks). */

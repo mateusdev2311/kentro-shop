@@ -329,6 +329,9 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 
 .opcoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .opcoes.uma { grid-template-columns: 1fr; }
+/* Forma de pagamento (pedido pago ao receber): três opções lado a lado. */
+.opcoes.tres { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.opcoes.tres .opcao { padding: 12px 8px; text-align: center; }
 .opcao { padding: 14px 12px; border-radius: calc(12px * var(--canto)); border: 1px solid var(--borda); background: #fff; text-align: left; }
 .opcao strong { display: block; font-size: 15px; }
 .opcao small { color: var(--texto-suave); font-size: 12.5px; }

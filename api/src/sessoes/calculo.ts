@@ -1,4 +1,5 @@
 import { RegraFrete } from '../config-loja/config-loja.service';
+import { PagamentoNaEntrega } from '../contratos/modelo';
 import { Checkout, Cliente, Totais } from './tipos';
 
 // Funções puras do carrinho: totais, frete pela regra da loja e o texto do resumo (handoff).
@@ -102,6 +103,15 @@ export function resumoDoPedido(dados: { cliente: Cliente; checkout: Checkout | n
   }
   if (totais.desconto > 0) linhas.push(`Desconto: -${moeda(totais.desconto)}`);
   linhas.push(`Total: ${moeda(totais.total)}`);
+  if (checkout?.pagamento) linhas.push(`Pagamento: ${textoDoPagamento(checkout.pagamento, checkout.tipo)}`);
   if (checkout?.observacoes) linhas.push('', `Observações: ${checkout.observacoes}`);
   return linhas.join('\n');
+}
+
+const FORMAS: Record<PagamentoNaEntrega['forma'], string> = { dinheiro: 'Dinheiro', cartao: 'Cartão', pix: 'PIX' };
+
+/** "Dinheiro na entrega (troco para R$ 50,00)". */
+export function textoDoPagamento(pagamento: PagamentoNaEntrega, tipo: 'entrega' | 'retirada'): string {
+  const troco = pagamento.trocoPara ? ` (troco para ${moeda(pagamento.trocoPara)})` : '';
+  return `${FORMAS[pagamento.forma]} na ${tipo}${troco}`;
 }

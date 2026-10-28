@@ -221,6 +221,22 @@
   details.link-novo > summary { cursor: pointer; font-size: .9em; font-weight: 600; color: var(--ks-primaria-texto); }
   details.link-novo[open] > summary { margin-bottom: 2px; }
   #aviso-link-novo { margin: 10px 0 0; }
+
+  /* ── Ajuste do carrinho pelo atendente ── */
+  .ajuste { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+  .ajuste button.icone { width: 24px; min-height: 24px; border-color: var(--ks-linha); font-size: 1em; }
+  .ajuste .qtd { min-width: 22px; text-align: center; font-size: .86em; font-variant-numeric: tabular-nums; }
+  .ajuste button.link { margin-left: 6px; }
+
+  /* ── Fechar o pedido pelo painel ── */
+  .form-pedido label.rotulo { display: block; margin: 9px 0 3px; font-size: .84em; font-weight: 600; color: var(--ext-color-text-muted); }
+  .form-pedido .grade2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 8px; }
+  .form-pedido .tipos { display: flex; gap: 14px; margin-bottom: 4px; }
+  .form-pedido .tipos label { display: flex; align-items: center; gap: 6px; font-size: .9em; cursor: pointer; }
+  .form-pedido select { width: 100%; }
+  #fp-aviso { margin: 10px 0 0; }
+  .acoes-pedido { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .acoes-pedido button { flex: 1; }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -287,6 +303,10 @@
   <section class="cartao sucesso" id="secao-handoff" hidden>
     <div class="titulo"><h2><svg class="ic"><use href="#i-check"/></svg>Pedido para finalizar</h2></div>
     <dl class="dados" id="handoff"></dl>
+    <div class="acoes-pedido" id="acoes-pedido" hidden>
+      <button type="button" class="suave" id="btn-situacao"><svg class="ic"><use href="#i-recarregar"/></svg>Atualizar situação</button>
+      <button type="button" id="btn-cancelar-pedido" hidden>Cancelar pedido</button>
+    </div>
     <button type="button" class="principal largo" id="btn-copiar-resumo"><svg class="ic"><use href="#i-copiar"/></svg>Copiar resumo do atendimento</button>
     <button type="button" class="largo" id="btn-carrinho-kentro" hidden><svg class="ic"><use href="#i-carrinho"/></svg>Enviar ao carrinho da Kentro</button>
     <p class="muted" id="carrinho-kentro"></p>
@@ -298,6 +318,60 @@
     <p class="vazio-linha" id="carrinho-vazio">O cliente ainda não adicionou produtos.</p>
     <div class="totais" id="totais" hidden></div>
   </section>
+
+  <!-- O atendente fecha o pedido aqui, sem o cliente passar pelo checkout do link -->
+  <details class="cartao dobravel" id="secao-fechar" hidden>
+    <summary>
+      <span class="bolha"><svg class="ic"><use href="#i-check"/></svg></span>
+      <span><strong>Fechar o pedido aqui</strong><small id="fp-subtitulo">Finalize pelo painel, sem o cliente passar pelo checkout</small></span>
+      <svg class="ic seta"><use href="#i-seta"/></svg>
+    </summary>
+    <div class="dobravel-corpo form-pedido">
+      <div class="tipos" id="fp-tipos">
+        <label id="fp-op-entrega"><input type="radio" name="fp-tipo" id="fp-entrega" value="entrega"> Entrega</label>
+        <label id="fp-op-retirada"><input type="radio" name="fp-tipo" id="fp-retirada" value="retirada"> Retirada</label>
+      </div>
+      <div id="fp-bloco-entrega" hidden>
+        <div class="grade2">
+          <div><label class="rotulo" for="fp-nome">Nome</label><input id="fp-nome" maxlength="120" autocomplete="off"></div>
+          <div><label class="rotulo" for="fp-telefone">Telefone</label><input id="fp-telefone" maxlength="30" autocomplete="off"></div>
+          <div><label class="rotulo" for="fp-cep">CEP</label><input id="fp-cep" maxlength="9" inputmode="numeric" autocomplete="off"></div>
+          <div><label class="rotulo" for="fp-estado">UF</label><input id="fp-estado" maxlength="2" autocomplete="off"></div>
+        </div>
+        <label class="rotulo" for="fp-cidade">Cidade</label><input id="fp-cidade" maxlength="80" autocomplete="off">
+        <label class="rotulo" for="fp-bairro">Bairro</label><input id="fp-bairro" maxlength="80" autocomplete="off">
+        <div class="grade2">
+          <div><label class="rotulo" for="fp-rua">Rua</label><input id="fp-rua" maxlength="120" autocomplete="off"></div>
+          <div><label class="rotulo" for="fp-numero">Número</label><input id="fp-numero" maxlength="20" autocomplete="off"></div>
+        </div>
+        <label class="rotulo" for="fp-complemento">Complemento</label><input id="fp-complemento" maxlength="80" autocomplete="off">
+        <label class="rotulo" for="fp-referencia">Referência</label><input id="fp-referencia" maxlength="160" autocomplete="off">
+      </div>
+      <div id="fp-bloco-retirada" hidden>
+        <label class="rotulo" for="fp-loja">Loja para retirada</label>
+        <select id="fp-loja"><option value="">Escolha…</option></select>
+      </div>
+      <div id="fp-bloco-pagamento" hidden>
+        <label class="rotulo" for="fp-forma">Pagamento (o cliente paga ao receber)</label>
+        <select id="fp-forma">
+          <option value="">Escolha…</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="cartao">Cartão</option>
+          <option value="pix">PIX</option>
+        </select>
+        <div id="fp-bloco-troco" hidden>
+          <label class="rotulo" for="fp-troco">Troco para (opcional)</label><input id="fp-troco" maxlength="12" inputmode="decimal" placeholder="Ex.: 100,00" autocomplete="off">
+        </div>
+      </div>
+      <div id="fp-bloco-email" hidden>
+        <label class="rotulo" for="fp-email">E-mail do cliente</label><input id="fp-email" type="email" maxlength="120" autocomplete="off">
+      </div>
+      <label class="rotulo" for="fp-observacoes">Observações</label><input id="fp-observacoes" maxlength="500" autocomplete="off">
+      <div id="fp-aviso" class="aviso" hidden></div>
+      <button type="button" class="principal largo" id="btn-finalizar"><svg class="ic"><use href="#i-check"/></svg><span id="fp-botao">Finalizar pedido</span></button>
+      <p class="muted dica-acao" id="fp-dica"></p>
+    </div>
+  </details>
 
   <section class="cartao">
     <div class="titulo">
@@ -341,6 +415,12 @@
       <div id="acao-carrinho" hidden>
         <button type="button" class="principal largo" id="btn-adicionar-carrinho"><svg class="ic"><use href="#i-carrinho"/></svg>Adicionar ao carrinho do cliente</button>
         <p class="muted dica-acao">Vai para o link que ele já tem, sem perder o que ele escolheu. Ele vê ao voltar para o catálogo.</p>
+      </div>
+
+      <!-- Sem link aberto: o atendente monta o carrinho e fecha o pedido pelo painel -->
+      <div id="acao-montar-aqui" hidden>
+        <button type="button" class="principal largo" id="btn-montar-aqui"><svg class="ic"><use href="#i-carrinho"/></svg>Montar o pedido aqui</button>
+        <p class="muted dica-acao">Os itens vão para o carrinho do atendimento e você fecha o pedido pelo painel, sem mandar link. Se precisar, o link sai depois com o mesmo carrinho.</p>
       </div>
 
       <details class="link-novo" id="link-novo">
@@ -388,6 +468,11 @@
   var timer = null;
   var buscando = false;
   var conhecidos = {};  // itens já vistos (para destacar o que o cliente acabou de adicionar)
+  var opcoesPedido = null;     // entrega, retirada e como o pedido vai para a loja (GET /v1/sessoes/opcoes-pedido)
+  var preenchidoPara = null;   // sessão cujo formulário "Fechar o pedido" já veio preenchido
+  var situacaoLidaPara = null; // sessão cuja situação do pedido na loja já foi lida ao abrir
+  var finalizadoAqui = false;  // o atendente acabou de finalizar pelo painel (não é o cliente)
+  var ajustando = false;       // ajuste de quantidade do carrinho em andamento
 
   function mostrarAviso(texto) {
     $('aviso').textContent = texto || '';
@@ -395,10 +480,10 @@
   }
 
   function erroDe(status, texto) {
-    var erro = { status: status || 0, codigo: '', mensagem: '' };
+    var erro = { status: status || 0, codigo: '', mensagem: '', corpo: null };
     try {
       var corpo = JSON.parse(texto);
-      if (corpo && corpo.erro) { erro.codigo = corpo.erro.codigo || ''; erro.mensagem = corpo.erro.mensagem || ''; }
+      if (corpo && corpo.erro) { erro.codigo = corpo.erro.codigo || ''; erro.mensagem = corpo.erro.mensagem || ''; erro.corpo = corpo; }
     } catch (x) { /* corpo sem o formato padrão */ }
     return erro;
   }
@@ -538,20 +623,31 @@
     var etapa = s.status === 'navegando' && s.itens.length ? 3 : st.etapa;
     $('status-sessao').textContent = st.rotulo;
     $('status-sessao').className = 'selo ' + chaveStatus;
-    $('status-texto').textContent = st.texto + (s.abertaEm && !encerrado && !expirado ? ' Abriu às ' + hora(s.abertaEm) + '.' : '');
+    // Pedido que entrou direto no sistema da loja (ex.: ERP): sem link de pagamento.
+    var texto = s.status === 'pedido_criado' && s.pedido && !s.pedido.url ? 'O pedido entrou no sistema da loja.' : st.texto;
+    var peloPainel = (s.eventos || []).some(function (ev) { return ev.autor === 'atendente' && /finalizou o pedido pelo painel/.test(ev.texto); });
+    if (s.status === 'finalizado' && peloPainel) texto = 'Pedido finalizado pelo painel. Confira o resumo e conclua a venda.';
+    $('status-texto').textContent = texto + (s.abertaEm && !encerrado && !expirado ? ' Abriu às ' + hora(s.abertaEm) + '.' : '');
     for (var i = 1; i <= 4; i++) $('etapa-' + i).className = encerrado || i < etapa ? 'feita' : i === etapa ? 'atual' : '';
     $('btn-novo-link').hidden = !expirado;
 
     renderItens(s);
     renderHandoff(s);
     renderEventos(s);
+    renderFechar(s);
     atualizarAcoesMontar();
     if (!anterior || anterior.id !== s.id) $('carrinho-kentro').textContent = '';
     // Aviso só quando o painel viu o pedido em aberto e ele acabou de ser finalizado (ou virou pedido na loja).
     if (anterior && anterior.id === s.id && aberta(anterior) && (s.status === 'finalizado' || s.status === 'pedido_criado')) {
-      toast('O cliente finalizou o pedido: ' + brl(s.totais.total));
+      if (!finalizadoAqui) toast('O cliente finalizou o pedido: ' + brl(s.totais.total));
       // Catálogo da Kentro: o pedido vai também para o carrinho nativo do atendimento.
       if (usaCarrinhoKentro()) lancarNoCarrinhoKentro(s);
+    }
+    finalizadoAqui = false;
+    // Pedido que a loja acompanha (ex.: ERP): lê a situação uma vez ao abrir; depois, pelo botão.
+    if (s.pedido && s.pedido.acompanhar && situacaoLidaPara !== s.id) {
+      situacaoLidaPara = s.id;
+      atualizarSituacao(null);
     }
   }
 
@@ -560,7 +656,8 @@
     limpar(ul);
     var primeiraVez = !Object.keys(conhecidos).length;
     var vistos = {};
-    s.itens.forEach(function (i) {
+    var ajustavel = aberta(s);
+    s.itens.forEach(function (i, n) {
       var chave = i.produtoId + '|' + (i.variacaoId || '') + ':' + i.quantidade;
       vistos[chave] = true;
       var detalhe = i.quantidade + ' ' + unidade(i.unidade, i.quantidade) + ' × ' + brl(i.precoUnitario) + (i.m2 ? ' · ' + num(i.m2) + ' m²' : '');
@@ -572,9 +669,17 @@
       } else {
         filhos.push(el('span', { className: 'miniatura', 'aria-hidden': 'true' }, [icone('i-montar')]));
       }
+      // Com o pedido em aberto, o atendente ajusta a quantidade ou tira o item (vale para o link do cliente também).
+      var ajuste = ajustavel ? el('div', { className: 'ajuste' }, [
+        el('button', { type: 'button', className: 'icone', 'data-qtd-item': String(n), 'data-delta': '-1', 'aria-label': 'Diminuir ' + i.nome, text: '−' }),
+        el('span', { className: 'qtd', text: String(i.quantidade) }),
+        el('button', { type: 'button', className: 'icone', 'data-qtd-item': String(n), 'data-delta': '1', 'aria-label': 'Aumentar ' + i.nome, text: '+' }),
+        el('button', { type: 'button', className: 'link', 'data-tirar-item': String(n), text: 'remover' })
+      ]) : null;
       filhos.push(el('div', { className: 'cresce' }, [
         el('div', { className: 'nome', text: i.nome + (i.variacaoNome ? ' — ' + i.variacaoNome : '') }),
-        el('div', { className: 'muted', text: detalhe })
+        el('div', { className: 'muted', text: detalhe }),
+        ajuste
       ]));
       filhos.push(el('span', { className: 'valor', text: brl(i.subtotal) }));
       ul.appendChild(el('li', { className: primeiraVez || conhecidos[chave] ? '' : 'novo' }, filhos));
@@ -619,12 +724,22 @@
       par('Endereço', c.loja.endereco);
     }
     par('Total', brl(s.totais.total));
+    if (c.pagamento) par('Pagamento', textoDoPagamento(c.pagamento, c.tipo));
     par('Observações', c.observacoes);
     par('Finalizado', hora(s.finalizadaEm));
-    if (s.pedido) {
-      par('Pedido na loja', 'nº ' + s.pedido.numero + ' · aguardando pagamento');
-      par('Pagamento', s.pedido.url);
+    var p = s.pedido;
+    if (p) {
+      par('Pedido na loja', 'nº ' + p.numero + ' · ' + (p.descricao || (p.url ? 'aguardando pagamento' : 'enviado para a loja')));
+      par('Link de pagamento', p.url);
     }
+    // Pedido que a loja acompanha (ex.: ERP): atualizar a situação e cancelar enquanto a loja ainda não separou.
+    $('acoes-pedido').hidden = !(p && p.acompanhar);
+    $('btn-cancelar-pedido').hidden = !(p && p.acompanhar && p.cancelavel);
+  }
+
+  var FORMAS = { dinheiro: 'Dinheiro', cartao: 'Cartão', pix: 'PIX' };
+  function textoDoPagamento(pg, tipo) {
+    return (FORMAS[pg.forma] || pg.forma) + ' na ' + tipo + (pg.trocoPara ? ' (troco para ' + brl(pg.trocoPara) + ')' : '');
   }
 
   function renderEventos(s) {
@@ -634,6 +749,233 @@
       ul.appendChild(el('li', null, [el('time', { text: hora(ev.em) }), el('span', { text: ev.texto })]));
     });
   }
+
+  // ── Ajuste do carrinho pelo atendente (pedido em aberto) ────────────────
+  /** Troca o carrinho inteiro (o servidor revalida preço e estoque de cada item). */
+  function salvarCarrinho(itens) {
+    if (!chat || !sessao || ajustando) return;
+    var id = chat.id;
+    ajustando = true;
+    api('/v1/sessoes/' + encodeURIComponent(sessao.id) + '/carrinho', { method: 'PUT', body: { itens: itens } }).then(function (r) {
+      if (!chat || chat.id !== id) return;
+      mostrarAviso(r.avisos && r.avisos.length ? r.avisos.join(' ') : null);
+      mostrarSessao(r.sessao);
+    }, function (e) {
+      mostrarAviso(mensagemDeErro(e));
+    }).then(function () { ajustando = false; });
+  }
+
+  function itensDaSessao() {
+    return sessao.itens.map(function (i) {
+      var item = { produtoId: i.produtoId, quantidade: i.quantidade };
+      if (i.variacaoId) item.variacaoId = i.variacaoId;
+      return item;
+    });
+  }
+
+  $('itens').addEventListener('click', function (ev) {
+    var alvo = ev.target && ev.target.closest ? ev.target.closest('[data-qtd-item],[data-tirar-item]') : null;
+    if (!alvo || !sessao || !aberta(sessao)) return;
+    var itens = itensDaSessao();
+    if (alvo.hasAttribute('data-tirar-item')) {
+      itens.splice(Number(alvo.getAttribute('data-tirar-item')), 1);
+    } else {
+      var item = itens[Number(alvo.getAttribute('data-qtd-item'))];
+      if (!item) return;
+      item.quantidade = Math.max(0, Math.min(999, item.quantidade + Number(alvo.getAttribute('data-delta'))));
+      if (!item.quantidade) itens.splice(itens.indexOf(item), 1);
+    }
+    salvarCarrinho(itens);
+  });
+
+  // ── Fechar o pedido pelo painel ─────────────────────────────────────────
+  function carregarOpcoesPedido() {
+    if (opcoesPedido) return Promise.resolve(opcoesPedido);
+    return api('/v1/sessoes/opcoes-pedido').then(function (o) {
+      opcoesPedido = o;
+      var sel = $('fp-loja');
+      while (sel.options.length > 1) sel.remove(1);
+      ((o.retirada && o.retirada.lojas) || []).forEach(function (l) { sel.appendChild(el('option', { value: l.id, text: l.nome })); });
+      if (sessao) renderFechar(sessao);
+      return o;
+    }, function () { return null; });
+  }
+
+  function avisoFechar(texto, tipo) {
+    var a = $('fp-aviso');
+    a.textContent = texto || '';
+    a.className = 'aviso' + (tipo === 'info' ? ' info' : '');
+    a.hidden = !texto;
+  }
+
+  function tipoEscolhido() { return $('fp-entrega').checked ? 'entrega' : $('fp-retirada').checked ? 'retirada' : ''; }
+
+  function mostrarBlocosFechar() {
+    var o = opcoesPedido || {};
+    var tipo = tipoEscolhido();
+    $('fp-bloco-entrega').hidden = tipo !== 'entrega';
+    $('fp-bloco-retirada').hidden = tipo !== 'retirada';
+    $('fp-bloco-pagamento').hidden = !o.pagamentoNaEntrega;
+    $('fp-bloco-troco').hidden = $('fp-forma').value !== 'dinheiro';
+    $('fp-bloco-email').hidden = !(o.pedidoNaLoja && !o.pagamentoNaEntrega);
+  }
+
+  /** Preenche o que estiver vazio: o que o checkout tem, o cadastro do contato na Kentro e o último endereço. */
+  function preencherFechar(s) {
+    var cliente = s.cliente || {};
+    var endereco = cliente.endereco || (chat && chat.endereco) || {};
+    var salvo = historicoAtual && historicoAtual.enderecos && historicoAtual.enderecos[0];
+    if (!Object.keys(endereco).length && salvo) endereco = salvo;
+    var valores = {
+      nome: cliente.nome || (chat && chat.nome) || '',
+      telefone: telefone(cliente.telefone || (chat && chat.telefone) || ''),
+      email: cliente.email || (chat && chat.email) || '',
+      cep: endereco.cep || '', estado: endereco.estado || '', cidade: endereco.cidade || '', bairro: endereco.bairro || '',
+      rua: endereco.rua || '', numero: endereco.numero || '', complemento: endereco.complemento || '', referencia: endereco.referencia || ''
+    };
+    Object.keys(valores).forEach(function (k) { var campo = $('fp-' + k); if (campo && !campo.value) campo.value = valores[k]; });
+  }
+
+  function limparFechar() {
+    ['nome', 'telefone', 'cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento', 'referencia', 'email', 'troco', 'observacoes'].forEach(function (k) { $('fp-' + k).value = ''; });
+    $('fp-forma').value = '';
+    $('fp-loja').value = '';
+    $('fp-entrega').checked = false;
+    $('fp-retirada').checked = false;
+    $('secao-fechar').open = false;
+    preenchidoPara = null;
+    avisoFechar('');
+  }
+
+  function renderFechar(s) {
+    var o = opcoesPedido;
+    var entrega = !!(o && o.entrega && o.entrega.habilitada);
+    var retirada = !!(o && o.retirada && o.retirada.habilitada && o.retirada.lojas.length);
+    var mostrar = !!o && aberta(s) && s.itens.length > 0 && (entrega || retirada);
+    $('secao-fechar').hidden = !mostrar;
+    if (!mostrar) return;
+    $('fp-op-entrega').hidden = !entrega;
+    $('fp-op-retirada').hidden = !retirada;
+    if (!tipoEscolhido() && entrega !== retirada) $(entrega ? 'fp-entrega' : 'fp-retirada').checked = true;
+    if (preenchidoPara !== s.id) { preenchidoPara = s.id; preencherFechar(s); }
+    $('fp-botao').textContent = o.pagamentoNaEntrega ? 'Finalizar e enviar para a loja' : o.pedidoNaLoja ? 'Finalizar e criar o pedido na loja' : 'Finalizar pedido';
+    $('fp-dica').textContent = o.pagamentoNaEntrega
+      ? 'O pedido entra direto no sistema da loja, com o carrinho acima. O cliente paga ao receber.'
+      : o.pedidoNaLoja
+        ? 'O pedido é criado na loja e o link de pagamento aparece aqui para mandar ao cliente.'
+        : 'O pedido fica finalizado com o carrinho acima; o resumo aparece para você concluir a venda.';
+    mostrarBlocosFechar();
+  }
+
+  ['fp-entrega', 'fp-retirada', 'fp-forma'].forEach(function (id) { $(id).addEventListener('change', mostrarBlocosFechar); });
+
+  /** "50", "50,00" ou "1.000,50" → número; vazio = 0; inválido = NaN. */
+  function lerValor(texto) {
+    var limpo = String(texto || '').trim().replace(/^R\$\s*/i, '');
+    if (!limpo) return 0;
+    if (!/^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+([.,]\d{1,2})?$/.test(limpo)) return NaN;
+    var milhar = limpo.indexOf(',') >= 0 || /^\d{1,3}(\.\d{3})+$/.test(limpo);
+    return Number(milhar ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+  }
+
+  function textoDasDiferencas(lista) {
+    return (lista || []).map(function (d) {
+      if (!d.depois) return d.nome + ' saiu (indisponível)';
+      if (d.depois.quantidade !== d.antes.quantidade) return d.nome + ': só ' + d.depois.quantidade;
+      return d.nome + ': ' + brl(d.antes.preco) + ' → ' + brl(d.depois.preco);
+    }).join('; ');
+  }
+
+  $('btn-finalizar').addEventListener('click', function () {
+    if (!chat || !sessao || !aberta(sessao) || !opcoesPedido) return;
+    var o = opcoesPedido;
+    var tipo = tipoEscolhido();
+    if (!tipo) { avisoFechar('Escolha entrega ou retirada.'); return; }
+    var corpo = { tipo: tipo, observacoes: $('fp-observacoes').value.trim() };
+    if (tipo === 'entrega') {
+      corpo.entrega = {};
+      ['nome', 'telefone', 'cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento', 'referencia'].forEach(function (k) { corpo.entrega[k] = $('fp-' + k).value.trim(); });
+    } else {
+      if (!$('fp-loja').value) { avisoFechar('Escolha a loja para retirada.'); return; }
+      corpo.lojaRetiradaId = $('fp-loja').value;
+    }
+    if (o.pagamentoNaEntrega) {
+      var forma = $('fp-forma').value;
+      if (!forma) { avisoFechar('Escolha a forma de pagamento.'); return; }
+      var troco = forma === 'dinheiro' ? lerValor($('fp-troco').value) : 0;
+      if (isNaN(troco)) { avisoFechar('Confira o valor do troco (ex.: 50 ou 100,00).'); return; }
+      corpo.pagamento = { forma: forma };
+      if (troco) corpo.pagamento.trocoPara = troco;
+    } else if (o.pedidoNaLoja) {
+      var email = $('fp-email').value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(email)) { avisoFechar('Informe o e-mail do cliente: a loja manda o pedido e o pagamento para ele.'); return; }
+      corpo.email = email;
+    }
+    var botao = this;
+    var id = chat.id;
+    botao.disabled = true;
+    avisoFechar('');
+    api('/v1/sessoes/' + encodeURIComponent(sessao.id) + '/finalizar', { method: 'POST', body: corpo }).then(function (s) {
+      if (!chat || chat.id !== id) return;
+      finalizadoAqui = true;
+      mostrarAviso(null);
+      mostrarSessao(s);
+      limparFechar();
+      if (s.pedido) toast('Pedido nº ' + s.pedido.numero + ' enviado para a loja.');
+      else if (o.pedidoNaLoja) mostrarAviso('O pedido foi finalizado, mas a loja não o recebeu (veja a atividade). Conclua a venda pelo resumo.');
+      else toast('Pedido finalizado.');
+    }, function (e) {
+      if (e.codigo === 'PRECOS_ALTERADOS') {
+        avisoFechar('Mudou desde que o carrinho foi montado: ' + textoDasDiferencas(e.corpo && e.corpo.diferencas) + '. O carrinho foi atualizado; confira e finalize de novo.');
+        atualizar();
+      } else {
+        avisoFechar(mensagemDeErro(e));
+      }
+    }).then(function () { botao.disabled = false; });
+  });
+
+  // ── Pedido na loja: situação e cancelamento ─────────────────────────────
+  function atualizarSituacao(botao) {
+    if (!chat || !sessao || !sessao.pedido) return Promise.resolve();
+    var id = chat.id;
+    if (botao) botao.disabled = true;
+    return api('/v1/sessoes/' + encodeURIComponent(sessao.id) + '/pedido/atualizar', { method: 'POST' }).then(function (s) {
+      if (!chat || chat.id !== id) return;
+      mostrarSessao(s);
+      if (botao) toast('Situação na loja: ' + (s.pedido.descricao || s.pedido.status));
+    }, function (e) {
+      if (botao) mostrarAviso(mensagemDeErro(e));
+    }).then(function () { if (botao) botao.disabled = false; });
+  }
+
+  $('btn-situacao').addEventListener('click', function () { atualizarSituacao(this); });
+
+  $('btn-cancelar-pedido').addEventListener('click', function () {
+    if (!chat || !sessao || !sessao.pedido) return;
+    var botao = this;
+    var id = chat.id;
+    var numero = sessao.pedido.numero;
+    var pergunta = omni.ui.confirm
+      ? Promise.resolve(omni.ui.confirm({
+        title: 'Cancelar o pedido nº ' + numero,
+        message: 'O pedido é cancelado no sistema da loja e não pode ser reaberto. Para vender de novo, monte um pedido novo.',
+        okLabel: 'Cancelar pedido',
+        cancelLabel: 'Voltar'
+      }))
+      : Promise.resolve({ confirmed: true });
+    pergunta.then(function (r) {
+      if (!r || !r.confirmed) return;
+      botao.disabled = true;
+      return api('/v1/sessoes/' + encodeURIComponent(sessao.id) + '/pedido/cancelar', { method: 'POST' }).then(function (s) {
+        if (!chat || chat.id !== id) return;
+        mostrarAviso(null);
+        mostrarSessao(s);
+        toast('Pedido nº ' + numero + ' cancelado na loja.');
+      }, function (e) {
+        mostrarAviso(mensagemDeErro(e));
+      }).then(function () { botao.disabled = false; });
+    });
+  });
 
   // ── Carrinho nativo da Kentro (loja com o catálogo da Kentro) ───────────
   // O SDK do carrinho só existe na extensão: por isso o lançamento é feito por este painel.
@@ -923,6 +1265,7 @@
   function atualizarAcoesMontar() {
     var temLink = !!(sessao && aberta(sessao));
     $('acao-carrinho').hidden = !temLink;
+    $('acao-montar-aqui').hidden = temLink;
     $('aviso-link-novo').hidden = !temLink;
     $('link-novo-titulo').textContent = temLink ? 'Ou mandar um link novo, com outras opções' : 'Opções do link';
     $('btn-gerar-montado').className = temLink ? 'largo' : 'principal largo';
@@ -944,6 +1287,30 @@
       renderMontagem();
       avisoMontar(r.avisos && r.avisos.length ? r.avisos.join(' ') : 'Adicionado ao carrinho do cliente. Ele vê ao voltar para o catálogo.', 'info');
       toast('Itens adicionados ao carrinho do cliente.');
+    }, function (e) {
+      avisoMontar(mensagemDeErro(e));
+    }).then(function () { botao.disabled = false; });
+  });
+
+  // Sem link aberto: cria o carrinho do atendimento com os escolhidos, sem copiar link (o atendente fecha pelo painel).
+  $('btn-montar-aqui').addEventListener('click', function () {
+    if (!chat) return;
+    if (!montagem.length) { avisoMontar('Escolha os produtos do pedido.'); return; }
+    var corpo = corpoDoLink(chat);
+    corpo.itens = itensDaMontagem();
+    var botao = this;
+    var id = chat.id;
+    botao.disabled = true;
+    avisoMontar('');
+    api('/v1/sessoes', { method: 'POST', body: corpo }).then(function (s) {
+      if (!chat || chat.id !== id) return;
+      mostrarAviso(null);
+      mostrarSessao(s);
+      agendar();
+      montagem = [];
+      renderMontagem();
+      avisoMontar(s.avisos && s.avisos.length ? s.avisos.join(' ') : 'Carrinho montado. Ajuste as quantidades e feche o pedido em "Fechar o pedido aqui".', 'info');
+      return carregarOpcoesPedido().then(function () { if (!$('secao-fechar').hidden) $('secao-fechar').open = true; });
     }, function (e) {
       avisoMontar(mensagemDeErro(e));
     }).then(function () { botao.disabled = false; });
@@ -1074,6 +1441,8 @@
     $('sem-sessao').hidden = true;
     $('fora-da-fila').hidden = true;
     limparMontagem();
+    limparFechar();
+    situacaoLidaPara = null;
     atualizarAcoesMontar();
     $('secao-historico').hidden = true;
     $('ferramentas').hidden = !id;
@@ -1088,6 +1457,7 @@
     var base = c.contact || {};
     chat = { id: id, nome: base.name || '', telefone: String(base.phone || '').replace(/\D/g, '') };
     carregarCategorias();
+    carregarOpcoesPedido();
     if (c.contactId) {
       Promise.resolve(omni.contacts.get(c.contactId)).then(function (contato) {
         if (!chat || chat.id !== id) return;

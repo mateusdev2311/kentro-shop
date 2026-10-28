@@ -249,7 +249,9 @@ export class SessoesService {
       totais,
       checkout,
       eventos: s.eventos.map((e) => ({ em: e.em.toISOString(), texto: e.texto, autor: e.autor })),
-      resumo: pedido ? `${resumo}\n\nPedido na loja: nº ${pedido.numero}${pedido.url ? `\nLink de pagamento: ${pedido.url}` : ''}` : resumo,
+      resumo: pedido
+        ? `${resumo}\n\nPedido na loja: nº ${pedido.numero}${pedido.descricao ? ` (${pedido.descricao})` : ''}${pedido.url ? `\nLink de pagamento: ${pedido.url}` : ''}`
+        : resumo,
       abertaEm: s.abertaEm?.toISOString() ?? null,
       finalizadaEm: s.finalizadaEm?.toISOString() ?? null,
       expiraEm: s.expiraEm.toISOString(),

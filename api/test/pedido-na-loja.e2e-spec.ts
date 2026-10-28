@@ -134,6 +134,25 @@ describe('pedido criado na loja e itens adicionados pelo atendente', () => {
     expect(pedidos).toHaveLength(0);
   });
 
+  it('o atendente fecha o pedido pelo painel: cria na loja (com o e-mail) e o link do cliente vira a confirmação', async () => {
+    await modo('criar_pedido');
+    const { id } = await sessaoDoChat();
+    await adicionar(id, [{ produtoId: 'id-A1', quantidade: 2 }]);
+    const fechar = (corpo: object) =>
+      http().post(`/v1/sessoes/${id}/finalizar`).set('X-Loja-Chave', loja.chaveAtendimento).set('X-Kentro-Usuario-Nome', 'Bruna').send({ tipo: 'entrega', entrega: ENTREGA, ...corpo });
+    expect((await fechar({})).body.erro.mensagem).toBe('Informe o seu e-mail para receber o pedido.');
+    const r = await fechar({ email: 'ana@exemplo.com' });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ status: 'pedido_criado', pedido: { numero: '1042', url: 'https://loja.teste/checkout/9001' } });
+    expect(r.body.pedido.acompanhar).toBeUndefined(); // a plataforma falsa não informa a situação
+    expect(r.body.eventos.map((e: { texto: string }) => e.texto)).toContain('Bruna finalizou o pedido pelo painel (entrega) — R$ 259,80');
+    expect(pedidos).toHaveLength(1);
+    // O cliente que abrir o link vê o pedido feito, sem poder mexer.
+    const carrinho = await http().put(`/v1/catalogo/${token}/carrinho`).set('X-Forwarded-For', cliente()).send({ itens: [] });
+    expect(carrinho.body.erro.codigo).toBe('PEDIDO_JA_ENVIADO');
+    expect((await http().post(`/v1/sessoes/${id}/pedido/atualizar`).set('X-Loja-Chave', loja.chaveAtendimento)).body.erro.codigo).toBe('SEM_ACOMPANHAMENTO');
+  });
+
   it('o catálogo usa o cache, mas finalizar confere o preço de agora', async () => {
     const produto = () => http().get(`/v1/catalogo/${token}/produtos/id-A1`).set('X-Forwarded-For', cliente());
     expect((await produto()).body.preco).toBe(129.9);

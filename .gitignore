@@ -3,3 +3,4 @@ dist/
 .env
 api/.db-local/
 .superpowers/
+estrutura-pedidos-automatiza.json

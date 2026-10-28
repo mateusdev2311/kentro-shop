@@ -128,12 +128,15 @@ async function servidorBase(url: string, init?: RequestInit): Promise<Response> 
       });
     }
     const s = sessao('finalizado');
-    const c = corpo as { tipo: string; entrega?: Record<string, string>; email?: string };
+    const c = corpo as { tipo: string; entrega?: Record<string, string>; email?: string; pagamento?: object };
+    const pagamento = c.pagamento ? { pagamento: c.pagamento } : {};
     return json(200, {
       ...s,
-      checkout: c.tipo === 'entrega' ? { tipo: 'entrega', entrega: { ...c.entrega, cep: '39400-000' }, observacoes: '' } : null,
+      checkout: c.tipo === 'entrega' ? { tipo: 'entrega', entrega: { ...c.entrega, cep: '39400-000' }, observacoes: '', ...pagamento } : null,
       // Pedido criado na loja (modo "criar pedido"): número e link de pagamento.
       ...(c.email ? { status: 'pedido_criado', pedido: { numero: '1042', url: 'https://loja.teste/pagar/1042', status: 'aguardando_pagamento' } } : {}),
+      // Pedido direto no sistema da loja (ERP), pago ao receber: número, sem link.
+      ...(c.pagamento ? { status: 'pedido_criado', pedido: { numero: '107834', status: 'ATIVO' } } : {}),
     });
   }
   return json(404, { erro: { codigo: 'NAO_ENCONTRADO', mensagem: 'Recurso não encontrado.' } });
@@ -545,6 +548,36 @@ describe('catálogo do cliente', () => {
     await ate(() => tem('Pedido nº 1042 criado!'));
     expect(chamadas('/finalizar')[0].corpo).toEqual({ tipo: 'retirada', lojaRetiradaId: 'centro', observacoes: '', email: 'ana@exemplo.com' });
     expect(elemento<HTMLAnchorElement>('a.pagar').href).toBe('https://loja.teste/pagar/1042');
+  });
+
+  it('pedido direto no sistema da loja: sem e-mail, pede a forma de pagamento e o troco', async () => {
+    estado.carrinho = [{ produtoId: 'PISO', quantidade: 1 }];
+    estado.abertura.pedidoNaLoja = true;
+    estado.abertura.pagamentoNaEntrega = true;
+    await montar();
+    clicar(elemento('button', 'Ver carrinho'));
+    await ate(() => tem('Continuar'));
+    clicar(elemento('button', 'Continuar'));
+    clicar(elemento('.opcao', 'Entrega'));
+    expect(raiz.querySelector('#f-email')).toBeNull();
+    for (const [campo, valor] of Object.entries({ cep: '39400-000', estado: 'MG', cidade: 'Curvelo', bairro: 'Centro', rua: 'Rua A', numero: '10' })) {
+      digitar(elemento<HTMLInputElement>(`#f-${campo}`), valor);
+    }
+    clicar(elemento('button', 'Enviar pedido para a loja'));
+    expect(elemento('[role=alert]').textContent).toBe('Escolha a forma de pagamento.');
+
+    clicar(elemento('.opcao', 'Dinheiro'));
+    expect(tem('Você paga ao receber o pedido.')).toBe(true);
+    digitar(elemento<HTMLInputElement>('#f-troco'), '50');
+    clicar(elemento('button', 'Enviar pedido para a loja'));
+    expect(elemento('[role=alert]').textContent!.replace(/ /g, ' ')).toBe('O troco precisa ser para um valor igual ou maior que o total (R$ 100,00).');
+    digitar(elemento<HTMLInputElement>('#f-troco'), '1.000');
+    clicar(elemento('button', 'Enviar pedido para a loja'));
+    await ate(() => tem('Pedido nº 107834 recebido pela loja!'));
+    expect(chamadas('/finalizar')[0].corpo).toMatchObject({ tipo: 'entrega', pagamento: { forma: 'dinheiro', trocoPara: 1000 } });
+    expect(chamadas('/finalizar')[0].corpo).not.toHaveProperty('email');
+    expect(raiz.textContent!.replace(/ /g, ' ')).toContain('Dinheiro na entrega (troco para R$ 1.000,00)');
+    expect(raiz.querySelector('a.pagar')).toBeNull();
   });
 
   it('link inválido mostra a tela amigável', async () => {

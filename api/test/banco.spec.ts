@@ -90,6 +90,60 @@ describe('cliente de banco MySQL', () => {
     }
   });
 
+  it('gravar: transação sem a trava de só leitura, devolve o AUTO_INCREMENT e confirma no fim', async () => {
+    const valores: unknown[][] = [];
+    const sqls: string[] = [];
+    const m = montar({
+      query: async ({ sql, values }) => {
+        sqls.push(sql);
+        valores.push(values ?? []);
+        return [sql.startsWith('INSERT') ? { insertId: 107900, affectedRows: 1 } : [], []];
+      },
+    });
+    const r = await m.cliente.gravar!('criar_pedido', ['pedido_ecommerce'], async (tx) => {
+      await tx.consultar('SELECT codigo_filial FROM view_ecommerce_delivery_filial_logada LIMIT 1');
+      return tx.executar('INSERT INTO pedido_ecommerce (peecNome_Cliente) VALUES (?)', ['Ana']);
+    });
+    expect(r).toEqual({ idInserido: 107900, linhasAfetadas: 1 });
+    expect(sqls).toEqual([
+      'START TRANSACTION',
+      'SELECT codigo_filial FROM view_ecommerce_delivery_filial_logada LIMIT 1',
+      'INSERT INTO pedido_ecommerce (peecNome_Cliente) VALUES (?)',
+      'COMMIT',
+    ]);
+    expect(valores[2]).toEqual(['Ana']);
+    expect(m.chamadas).toEqual([expect.objectContaining({ operacao: 'criar_pedido', erroCodigo: null })]);
+    expect(m.encerradas()).toBe(1);
+  });
+
+  it('gravar: erro no meio desfaz (ROLLBACK), traduz o erro e fecha a conexão', async () => {
+    const sqls: string[] = [];
+    const m = montar({
+      query: async ({ sql }) => {
+        sqls.push(sql);
+        if (sql.includes('itens_pedido_ecommerce_pagamento')) throw Object.assign(new Error("Column 'x' cannot be null"), { code: 'ER_BAD_NULL_ERROR' });
+        return [{ insertId: 1, affectedRows: 1 }, []];
+      },
+    });
+    const gravar = m.cliente.gravar!('criar_pedido', ['pedido_ecommerce', 'itens_pedido_ecommerce_pagamento'], async (tx) => {
+      await tx.executar('INSERT INTO pedido_ecommerce (a) VALUES (?)', [1]);
+      await tx.executar('INSERT INTO itens_pedido_ecommerce_pagamento (a) VALUES (?)', [1]);
+    });
+    await expect(gravar).rejects.toThrow('O banco de dados da loja recusou os dados do pedido.');
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+    expect(m.chamadas[0].erroCodigo).toBe('RECUSADO_PELA_PLATAFORMA');
+    expect(m.encerradas()).toBe(1);
+  });
+
+  it('gravar: comando fora das tabelas liberadas não chega ao banco', async () => {
+    for (const sql of ['DELETE FROM pedido_ecommerce', 'UPDATE produtos SET preco = ?', 'INSERT INTO pedido_ecommerce_backup (a) VALUES (?)', 'DROP TABLE pedido_ecommerce']) {
+      const m = montar();
+      await expect(m.cliente.gravar!('x', ['pedido_ecommerce'], (tx) => tx.executar(sql, []))).rejects.toBeInstanceOf(RecusadoPelaPlataforma);
+      expect(m.sqls).toEqual(['START TRANSACTION', 'ROLLBACK']);
+    }
+  });
+
   it('lê as credenciais: porta padrão, banco padrão e host normalizado', () => {
     expect(lerCredenciaisBanco({ ...CREDENCIAIS, host: ' Banco.ERP.teste ', porta: '' }, 'automatiza')).toEqual({
       host: 'banco.erp.teste',

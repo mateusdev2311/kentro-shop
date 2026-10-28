@@ -599,8 +599,8 @@
         <div class="grupo-interruptores">
           <label class="interruptor"><input type="checkbox" id="pd-precos"><span><strong>Mostrar os preços no catálogo</strong>
             <small class="ajuda">Desligado, o cliente monta a lista sem ver valores e envia um pedido de orçamento. O atendente pode mudar isso em cada link.</small></span></label>
-          <label class="interruptor" id="bloco-modo-pedido" hidden><input type="checkbox" id="pd-criar-pedido"><span><strong>Criar o pedido na <span id="pd-plataforma"></span>, com link de pagamento</strong>
-            <small class="ajuda">Ao finalizar, o pedido entra na loja e o cliente paga no checkout dela, com as formas de pagamento que você já usa. Desligado, o pedido vai para o atendente fechar a venda. Pedido de orçamento (sem preço) sempre vai para o atendente.</small></span></label>
+          <label class="interruptor" id="bloco-modo-pedido" hidden><input type="checkbox" id="pd-criar-pedido"><span><strong id="pd-criar-titulo"></strong>
+            <small class="ajuda" id="pd-criar-ajuda"></small></span></label>
         </div>
         <label for="pd-validade">Validade do link (dias)</label>
         <input id="pd-validade" class="curto" type="number" min="1" max="60">
@@ -1514,14 +1514,26 @@
     }, function () { $('bloco-filas').hidden = true; });
   }
 
-  /** "Criar o pedido na loja" só aparece quando a plataforma conectada sabe criar pedido (ex.: Nuvemshop). */
+  /** "Criar o pedido na loja" só aparece quando a plataforma conectada sabe criar pedido (ex.: Nuvemshop, ERP Automatiza). */
   function mostrarModoPedido() {
     var plataforma = estado.integracao && estado.integracao.plataforma;
     var conector = null;
     for (var i = 0; i < estado.conectores.length; i++) if (estado.conectores[i].id === plataforma) conector = estado.conectores[i];
     var pode = !!(conector && conector.capacidades.criarPedido);
     $('bloco-modo-pedido').hidden = !pode;
-    $('pd-plataforma').textContent = conector ? conector.nome : '';
+    var nome = conector ? conector.nome : '';
+    var fim = ' Desligado, o pedido vai para o atendente fechar a venda. Pedido de orçamento (sem preço) sempre vai para o atendente.';
+    if (conector && conector.pagamentoNaEntrega) {
+      // ERP: o pedido entra direto no sistema da loja e o cliente paga ao receber.
+      var credenciais = (estado.integracao && estado.integracao.credenciais) || {};
+      var semParceiro = conector.id === 'automatiza' && !credenciais.pedido_parceiro;
+      $('pd-criar-titulo').textContent = 'Enviar o pedido direto para o ' + nome;
+      $('pd-criar-ajuda').textContent = 'Ao finalizar, o cliente escolhe como vai pagar (dinheiro com troco, cartão ou PIX, ao receber) e o pedido entra no sistema da loja, na filial deste banco de dados.' + fim +
+        (semParceiro ? ' Falta o código de parceiro do ERP na aba Integração: sem ele, o pedido continua indo para o atendente.' : '');
+    } else {
+      $('pd-criar-titulo').textContent = 'Criar o pedido na ' + nome + ', com link de pagamento';
+      $('pd-criar-ajuda').textContent = 'Ao finalizar, o pedido entra na loja e o cliente paga no checkout dela, com as formas de pagamento que você já usa.' + fim;
+    }
   }
 
   function carregarConfiguracoes() {

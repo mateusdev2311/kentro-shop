@@ -6,7 +6,7 @@ import { ConfigEfetiva, ConfigLojaService } from '../config-loja/config-loja.ser
 import { ErroConector } from '../conectores/nucleo/erros';
 import { Categoria, Produto } from '../contratos/modelo';
 import { IntegracoesService } from '../integracoes/integracoes.service';
-import { moeda, telefoneBr, unidade } from '../sessoes/calculo';
+import { moeda, telefoneBr, textoDoPagamento, unidade } from '../sessoes/calculo';
 import { CarrinhoService, MAX_QUANTIDADE } from '../sessoes/carrinho.service';
 import { ClientesService } from '../sessoes/clientes.service';
 import { ItemPedidoDto } from '../sessoes/dto';
@@ -311,6 +311,7 @@ function textoDaSessao(s: SessaoCompleta, mostrar: boolean, opcoes: { eventos?: 
   } else if (s.checkout?.tipo === 'retirada') {
     linhas.push(`Retirada em: ${s.checkout.loja.nome} — ${s.checkout.loja.endereco}${s.checkout.loja.horario ? ` (${s.checkout.loja.horario})` : ''}`);
   }
+  if (s.checkout?.pagamento) linhas.push(`Pagamento: ${textoDoPagamento(s.checkout.pagamento, s.checkout.tipo)}`);
   if (s.checkout?.observacoes) linhas.push(`Observações do cliente: ${s.checkout.observacoes}`);
   if (s.pedido) linhas.push(`Pedido na loja: nº ${s.pedido.numero}${s.pedido.url ? ` — link de pagamento: ${s.pedido.url}` : ''}`);
   if (ABERTOS.includes(s.status) && !expirou && s.linksAnteriores.length) {
@@ -455,11 +456,13 @@ export class FerramentasMcpService {
     } else {
       linhas.push('Retirada na loja: não.');
     }
-    const criaPedido = config.mostrarPrecos && (await this.integracoes.criaPedidoNaPlataforma(loja.id, config.modoPedido).catch(() => false));
+    const pedido = config.mostrarPrecos ? await this.integracoes.pedidoNaPlataforma(loja.id, config.modoPedido).catch(() => null) : null;
     linhas.push(
-      criaPedido
-        ? 'Fechamento: ao finalizar no link, o pedido é criado na loja virtual e o cliente recebe um link de pagamento.'
-        : 'Fechamento: ao finalizar no link, o pedido vai para um atendente, que confirma e combina o pagamento.',
+      !pedido
+        ? 'Fechamento: ao finalizar no link, o pedido vai para um atendente, que confirma e combina o pagamento.'
+        : pedido.pagamentoNaEntrega
+          ? 'Fechamento: ao finalizar no link, o cliente escolhe a forma de pagamento (dinheiro, cartão ou PIX, pago ao receber) e o pedido entra direto no sistema da loja.'
+          : 'Fechamento: ao finalizar no link, o pedido é criado na loja virtual e o cliente recebe um link de pagamento.',
     );
     linhas.push(config.mostrarPrecos ? 'Preços: aparecem no catálogo.' : 'Preços: NÃO aparecem no catálogo (o cliente monta uma lista para orçamento).');
     linhas.push(`Validade do link: ${config.expiracaoLinkDias} dia(s).`);

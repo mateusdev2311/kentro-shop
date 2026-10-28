@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -15,6 +16,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { FORMAS_PAGAMENTO, FormaPagamento } from '../contratos/modelo';
 
 /** Endereço vindo do contato da Kentro (pré-cadastro). Tudo opcional: o cliente confere no checkout. */
 export class EnderecoContatoDto {
@@ -124,6 +126,18 @@ export class FreteDto {
   cep!: string;
 }
 
+export class PagamentoDto {
+  @IsIn(FORMAS_PAGAMENTO, { message: 'Escolha a forma de pagamento.' })
+  forma!: FormaPagamento;
+
+  /** Dinheiro: a nota com que o cliente vai pagar (ausente ou 0 = não precisa de troco). */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Confira o valor do troco.' })
+  @Min(0)
+  @Max(100_000)
+  trocoPara?: number;
+}
+
 export class FinalizarDto {
   @IsIn(['entrega', 'retirada'])
   tipo!: 'entrega' | 'retirada';
@@ -147,4 +161,10 @@ export class FinalizarDto {
   @IsEmail({}, { message: 'Confira o e-mail.' })
   @MaxLength(120)
   email?: string;
+
+  /** Obrigatório quando o pedido vai direto para o sistema da loja e é pago ao receber (ex.: ERP da farmácia). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PagamentoDto)
+  pagamento?: PagamentoDto;
 }

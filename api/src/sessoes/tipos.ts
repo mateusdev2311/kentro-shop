@@ -1,4 +1,5 @@
 import { LojaRetirada } from '../config-loja/config-loja.service';
+import { PagamentoNaEntrega } from '../contratos/modelo';
 
 export interface DadosEntrega {
   nome: string;
@@ -13,9 +14,13 @@ export interface DadosEntrega {
   referencia: string;
 }
 
-export type Checkout =
+export type Checkout = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
-  | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string };
+  | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string }
+) & {
+  /** Pedido que vai direto para o sistema da loja (pago ao receber): a forma que o cliente escolheu. */
+  pagamento?: PagamentoNaEntrega;
+};
 
 export interface Totais {
   itens: number;
@@ -98,6 +103,12 @@ export interface PedidoNaLoja {
   /** Link de pagamento (checkout da plataforma). */
   url?: string;
   status: string;
+  /** A plataforma informa a situação depois (ex.: ERP): o painel atualiza e pode cancelar. */
+  acompanhar?: boolean;
+  /** Última situação lida (ex.: "Em separação"). */
+  descricao?: string;
+  cancelavel?: boolean;
+  atualizadoEm?: string;
 }
 
 export interface FiltroLink {

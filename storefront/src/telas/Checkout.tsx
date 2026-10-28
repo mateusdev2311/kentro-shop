@@ -4,7 +4,7 @@ import { ehErroDaApi } from '../api';
 import type { EnderecoCep } from '../cep';
 import { brl, cep as formatarCep, telefone } from '../formato';
 import { precos } from '../precos';
-import type { Abertura, CorpoFinalizar, CotacaoFrete, DadosEntrega, Sessao } from '../tipos';
+import type { Abertura, CorpoFinalizar, CotacaoFrete, DadosEntrega, FormaPagamento, Sessao } from '../tipos';
 
 interface Props {
   abertura: Abertura;
@@ -18,6 +18,22 @@ interface Props {
 
 type Tipo = 'entrega' | 'retirada';
 type Campo = keyof DadosEntrega;
+
+const FORMAS: { forma: FormaPagamento; rotulo: string }[] = [
+  { forma: 'dinheiro', rotulo: 'Dinheiro' },
+  { forma: 'cartao', rotulo: 'Cartão' },
+  { forma: 'pix', rotulo: 'PIX' },
+];
+
+/** "50", "50,00" ou "1.000,50" → número; vazio = 0; inválido = NaN. */
+function lerValor(texto: string): number {
+  const limpo = texto.trim().replace(/^R\$\s*/i, '');
+  if (!limpo) return 0;
+  if (!/^\d{1,3}(\.\d{3})*(,\d{1,2})?$|^\d+([.,]\d{1,2})?$/.test(limpo)) return Number.NaN;
+  // Com vírgula, ou só com pontos de milhar ("1.000"), o ponto separa milhar; senão, é o decimal ("50.5").
+  const milhar = limpo.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(limpo);
+  return Number(milhar ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+}
 
 export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar, aoVoltar }: Props) {
   const opcoes: Tipo[] = [];
@@ -42,8 +58,13 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   const [lojaId, setLojaId] = useState('');
   const [observacoes, setObservacoes] = useState('');
   // Pedido criado na loja: a plataforma pede o e-mail do comprador (vem do cadastro da Kentro, quando há).
+  // Pago ao receber (pedido direto no sistema da loja): no lugar do e-mail, a forma de pagamento.
   const pedidoNaLoja = !!abertura.pedidoNaLoja;
+  const naEntrega = pedidoNaLoja && !!abertura.pagamentoNaEntrega;
+  const pedeEmail = pedidoNaLoja && !naEntrega;
   const [email, setEmail] = useState(sessao.cliente.email ?? '');
+  const [forma, setForma] = useState<FormaPagamento | ''>('');
+  const [troco, setTroco] = useState('');
   const aCombinar = abertura.frete.regra === 'a_combinar';
   const [frete, setFrete] = useState<CotacaoFrete | null>(aCombinar ? { titulo: 'Frete a combinar', valor: null, prazo: abertura.frete.prazo } : null);
   const [erro, setErro] = useState('');
@@ -117,9 +138,17 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
     setErro('');
     if (!tipo) return setErro('Escolha entrega ou retirada.');
     if (tipo === 'retirada' && !lojaId) return setErro('Escolha a loja para retirada.');
-    if (pedidoNaLoja && !/^\S+@\S+\.\S+$/.test(email.trim())) return setErro('Informe o seu e-mail para receber o pedido.');
+    if (pedeEmail && !/^\S+@\S+\.\S+$/.test(email.trim())) return setErro('Informe o seu e-mail para receber o pedido.');
+    if (naEntrega && !forma) return setErro('Escolha a forma de pagamento.');
+    const trocoPara = forma === 'dinheiro' ? lerValor(troco) : 0;
+    if (Number.isNaN(trocoPara)) return setErro('Confira o valor do troco (ex.: 50 ou 100,00).');
+    if (trocoPara && trocoPara < subtotal + valorFrete) return setErro(`O troco precisa ser para um valor igual ou maior que o total (${brl(subtotal + valorFrete)}).`);
     const base: CorpoFinalizar = tipo === 'entrega' ? { tipo, entrega: dados, observacoes } : { tipo, lojaRetiradaId: lojaId, observacoes };
-    const corpo: CorpoFinalizar = pedidoNaLoja ? { ...base, email: email.trim() } : base;
+    const corpo: CorpoFinalizar = pedeEmail
+      ? { ...base, email: email.trim() }
+      : naEntrega && forma
+        ? { ...base, pagamento: { forma, ...(trocoPara ? { trocoPara } : {}) } }
+        : base;
     setEnviando(true);
     try {
       await aoEnviar(corpo);
@@ -221,7 +250,36 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
 
       {tipo && (
         <>
-          {pedidoNaLoja && (
+          {naEntrega && (
+            <>
+              <label class="campo">Como você vai pagar?</label>
+              <div class="opcoes tres" role="group" aria-label="Forma de pagamento">
+                {FORMAS.map((f) => (
+                  <button type="button" key={f.forma} class={`opcao${forma === f.forma ? ' ativa' : ''}`} aria-pressed={forma === f.forma} onClick={() => setForma(f.forma)}>
+                    <strong>{f.rotulo}</strong>
+                  </button>
+                ))}
+              </div>
+              <small class="dica">Você paga {tipo === 'entrega' ? 'ao receber o pedido' : 'na retirada'}.</small>
+              {forma === 'dinheiro' && (
+                <>
+                  <label class="campo" for="f-troco">
+                    Troco para quanto? (opcional)
+                  </label>
+                  <input
+                    class="entrada"
+                    id="f-troco"
+                    inputMode="decimal"
+                    maxLength={12}
+                    placeholder="Ex.: 100,00"
+                    value={troco}
+                    onInput={(e) => setTroco(e.currentTarget.value)}
+                  />
+                </>
+              )}
+            </>
+          )}
+          {pedeEmail && (
             <>
               <label class="campo" for="f-email">
                 E-mail
@@ -290,10 +348,20 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
       {tipo && (
         <>
           <button type="button" class="botao primario largo" disabled={enviando} onClick={() => void enviar()}>
-            {enviando ? 'Enviando…' : pedidoNaLoja ? 'Fechar pedido e ir para o pagamento' : comPreco ? 'Enviar pedido para o atendente' : 'Enviar pedido de orçamento'}
+            {enviando
+              ? 'Enviando…'
+              : naEntrega
+                ? 'Enviar pedido para a loja'
+                : pedidoNaLoja
+                  ? 'Fechar pedido e ir para o pagamento'
+                  : comPreco
+                    ? 'Enviar pedido para o atendente'
+                    : 'Enviar pedido de orçamento'}
           </button>
           <p class="dica" style={{ textAlign: 'center' }}>
-            {pedidoNaLoja
+            {naEntrega
+              ? 'O pedido vai direto para a loja. O atendente acompanha pelo WhatsApp.'
+              : pedidoNaLoja
               ? 'Você paga no site da loja, com as formas de pagamento dela. O atendente acompanha pelo WhatsApp.'
               : comPreco
                 ? 'O pagamento é combinado com o atendente pelo WhatsApp.'

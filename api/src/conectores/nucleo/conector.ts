@@ -1,4 +1,4 @@
-import { Categoria, HistoricoCliente, OpcaoFrete, Pagina, PedidoCriado, PedidoParaCriar, Produto } from '../../contratos/modelo';
+import { Categoria, HistoricoCliente, OpcaoFrete, Pagina, PedidoCriado, PedidoParaCriar, Produto, SituacaoPedido } from '../../contratos/modelo';
 import { ClienteBanco, MotorBanco } from './banco';
 
 // Interface única dos conectores (spec 7.1). Adicionar uma plataforma = implementar isto e registrar.
@@ -75,7 +75,7 @@ export interface CtxConector {
   salvarCredenciais(novas: Record<string, string>): Promise<void>; // renovação de token
   /** Só para conectores que leem uma cópia sincronizada em vez da plataforma ao vivo. */
   catalogoLocal?: CatalogoLocal;
-  /** Só para conectores de banco de dados: consultas somente leitura no banco da loja. */
+  /** Só para conectores de banco de dados: consultas no banco da loja (gravação só em transação, nas tabelas liberadas). */
   banco?: ClienteBanco;
 }
 
@@ -124,6 +124,17 @@ export interface Conector {
    * EAN ou "cod_" + código interno. Só para conectores com sincronizacao (as fotos vão na cópia).
    */
   readonly fotosFtp?: { minutos: number };
+  /**
+   * O pedido entra no sistema da loja sem link de pagamento (ex.: ERP): o checkout não pede e-mail, o cliente
+   * escolhe a forma de pagamento e paga ao receber ou na retirada.
+   */
+  readonly pagamentoNaEntrega?: boolean;
+
+  /**
+   * Com criarPedido: a loja configurou o que a plataforma exige para receber pedidos (ex.: o código de parceiro
+   * do ERP). false = o pedido segue para o atendente. Ausente = sempre pode.
+   */
+  criaPedido?(credenciais: Record<string, string>): boolean;
 
   /** Conferência ao salvar, além dos campos obrigatórios. Devolve a mensagem do erro, ou null. */
   validarCredenciais?(credenciais: Record<string, string>): string | null;
@@ -148,6 +159,10 @@ export interface Conector {
   relacionados?(ctx: CtxConector, produtoId: string): Promise<Produto[]>;
   cotarFrete?(ctx: CtxConector, itens: ItemCotacao[], cep: string): Promise<OpcaoFrete[]>;
   criarPedido?(ctx: CtxConector, pedido: PedidoParaCriar): Promise<PedidoCriado>;
+  /** Situação do pedido que criarPedido criou (pelo idExterno dele). */
+  situacaoPedido?(ctx: CtxConector, idExterno: string): Promise<SituacaoPedido>;
+  /** Cancela o pedido que criarPedido criou, se a plataforma ainda deixa (senão, recusa com o motivo). */
+  cancelarPedido?(ctx: CtxConector, idExterno: string): Promise<SituacaoPedido>;
   /** null = a loja não habilitou essa consulta (ex.: Shopify sem o token da Admin API) ou o cliente não existe. */
   historicoDoCliente?(ctx: CtxConector, cliente: ConsultaCliente): Promise<HistoricoCliente | null>;
   /** OAuth: página onde o lojista autoriza. `estado` volta no retorno e identifica a loja. */

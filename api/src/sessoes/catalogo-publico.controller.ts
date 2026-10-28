@@ -48,10 +48,12 @@ export class CatalogoPublicoController {
     const [sessao, config] = await Promise.all([this.sessoes.abrir(token), this.configLoja.obter(req.sessao.lojaId)]);
     const historico = await this.clientes.historico(req.sessao.lojaId, sessao.cliente);
     const mostrarPrecos = precosVisiveis(sessao, config.mostrarPrecos);
-    // Pedido criado na loja: o checkout pede o e-mail e termina no link de pagamento da plataforma.
-    const pedidoNaLoja = mostrarPrecos && (await this.integracoes.criaPedidoNaPlataforma(req.sessao.lojaId, config.modoPedido));
+    // Pedido criado na loja: o checkout pede o e-mail e termina no link de pagamento da plataforma; ou, com
+    // pagamento na entrega (ex.: ERP da farmácia), pede a forma de pagamento e o pedido entra direto na loja.
+    const pedido = mostrarPrecos ? await this.integracoes.pedidoNaPlataforma(req.sessao.lojaId, config.modoPedido) : null;
     return {
-      pedidoNaLoja,
+      pedidoNaLoja: !!pedido,
+      pagamentoNaEntrega: !!pedido?.pagamentoNaEntrega,
       sessao: mostrarPrecos ? sessao : sessaoSemPreco(sessao),
       historico: mostrarPrecos ? historico : { ...historico, pedidos: historico.pedidos.map((p) => ({ ...p, total: 0 })) },
       filtro: sessao.filtro,

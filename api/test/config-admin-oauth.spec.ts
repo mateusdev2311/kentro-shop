@@ -92,7 +92,7 @@ describe('aba Integração: Nuvemshop (OAuth)', () => {
     await t.esperar(5);
     await t.clicar('botao-aba-pedidos');
     expect(t.visivel('bloco-modo-pedido')).toBe(true);
-    expect(t.texto('pd-plataforma')).toBe('Nuvemshop');
+    expect(t.texto('pd-criar-titulo')).toBe('Criar o pedido na Nuvemshop, com link de pagamento');
     expect((t.document.getElementById('pd-criar-pedido') as HTMLInputElement).checked).toBe(false);
     (t.document.getElementById('pd-criar-pedido') as HTMLInputElement).checked = true;
     await t.clicar('btn-salvar-pedidos');

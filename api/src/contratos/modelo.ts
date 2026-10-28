@@ -88,12 +88,24 @@ export interface HistoricoCliente {
   }[];
 }
 
+/** Como o cliente paga quando o pedido vai direto para o sistema da loja e é pago ao receber. */
+export const FORMAS_PAGAMENTO = ['dinheiro', 'cartao', 'pix'] as const;
+export type FormaPagamento = (typeof FORMAS_PAGAMENTO)[number];
+
+export interface PagamentoNaEntrega {
+  forma: FormaPagamento;
+  /** Só no dinheiro: a nota com que o cliente vai pagar (ausente = não precisa de troco). */
+  trocoPara?: number;
+}
+
 export interface PedidoParaCriar {
   cliente: { nome: string; telefone: string; email?: string; documento?: string };
   entrega: { tipo: 'entrega' | 'retirada'; endereco?: Endereco; lojaRetiradaId?: string };
-  itens: { produtoId: string; variacaoId?: string; sku: string; quantidade: number; precoUnitario: number }[];
+  itens: { produtoId: string; variacaoId?: string; sku: string; nome?: string; quantidade: number; precoUnitario: number }[];
   frete?: { titulo: string; valor: number };
   desconto?: { valor: number; motivo: string };
+  /** Conector com pagamentoNaEntrega: a forma que o cliente escolheu no checkout. */
+  pagamento?: PagamentoNaEntrega;
   observacoes?: string;
   referenciaExterna: string; // id da sessão Kentro Shop
 }
@@ -103,4 +115,14 @@ export interface PedidoCriado {
   numero: string;
   url?: string;
   status: string;
+}
+
+/** Como o pedido está na plataforma agora (ex.: em separação na loja). */
+export interface SituacaoPedido {
+  /** Como a plataforma chama (ex.: EM SEPARACAO). */
+  status: string;
+  /** Para o atendente ler (ex.: "Em separação"). */
+  descricao: string;
+  /** Ainda dá para cancelar pelo Kentro Shop. */
+  cancelavel: boolean;
 }
