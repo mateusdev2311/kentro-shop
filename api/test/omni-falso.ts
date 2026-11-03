@@ -24,6 +24,10 @@ export interface OpcoesTela {
    * - kentro: como o toError do host: 401/403 → forbidden, 404 → not_found, 429 → rate_limited, demais → http_error só com status.
    */
   proxy?: 'rejeita' | 'resolve' | 'kentro';
+  /** Rejeição do omni.http.request em toda chamada, antes de olhar as respostas. */
+  falhaHttp?: { code?: string; message?: string };
+  /** Corpo devolvido como está (status 200), em vez das respostas simuladas. */
+  corpoCru?: string;
   /** Atendimento aberto (omni.chats.getSelected); padrão: nenhum. */
   chat?: { id: number | string; queueId?: number; contactId?: number; contact?: { name?: string; phone?: string } } | null;
   /** Atendimentos completos por id (omni.chats.get); padrão: o chat aberto. */
@@ -131,6 +135,8 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     http: {
       request(req: ChamadaHttp) {
         chamadas.push(req);
+        if (opcoes.falhaHttp) return Promise.reject(opcoes.falhaHttp);
+        if (opcoes.corpoCru !== undefined) return Promise.resolve({ status: 200, headers: {}, body: opcoes.corpoCru });
         const caminho = new URL(req.url).pathname;
         const resposta = respostas[`${req.method} ${caminho}`];
         if (!resposta) return Promise.reject({ code: 'timeout', message: 'sem resposta simulada' });

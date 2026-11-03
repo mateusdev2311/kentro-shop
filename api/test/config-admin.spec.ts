@@ -3,6 +3,51 @@ import { montarTela } from './omni-falso';
 const registro = { lojaId: 'l1', chaveAdmin: 'ksa_1', chaveAtendimento: 'ksk_1', tokenMcp: 'ksm_1' };
 const semChave = { api_url: 'https://api.teste/', chave_admin: '' };
 
+describe('Motivo da falha ao abrir a loja', () => {
+  const comChave = { api_url: 'https://api.teste', chave_admin: 'ksa_1' };
+
+  it.each([
+    ['timeout', 'A chamada ao Kentro Shop, feita pelo servidor da Kentro, ficou sem resposta até o tempo limite.'],
+    ['internal', 'O servidor da Kentro falhou ao fazer a chamada ao Kentro Shop.'],
+    ['readonly', 'A Kentro bloqueou a chamada ao Kentro Shop: esta sessão está em modo somente leitura.'],
+    ['bad_args', 'A Kentro não aceitou a chamada ao Kentro Shop. Confira a URL da API na configuração da extensão.'],
+  ])('%s diz a causa, o código e a rota', async (code, causa) => {
+    const tela = await montarTela('admin/config.html', { config: comChave, falhaHttp: { code, message: 'mensagem da Kentro' } });
+    const aviso = tela.texto('aviso');
+    expect(aviso.startsWith(causa)).toBe(true);
+    expect(aviso).toMatch(new RegExp(`Detalhe: ${code} · GET /v1/loja · \\d+,\\d s · mensagem da Kentro$`));
+  });
+
+  it('falha sem código nenhum ainda mostra a mensagem recebida', async () => {
+    const tela = await montarTela('admin/config.html', { config: comChave, falhaHttp: { message: 'Network Error' } });
+    expect(tela.texto('aviso')).toMatch(/^Não foi possível falar com o Kentro Shop\. Detalhe: sem código · GET \/v1\/loja · \d+,\d s · Network Error$/);
+  });
+
+  it('resposta 200 que não é JSON avisa para conferir a URL da API', async () => {
+    const tela = await montarTela('admin/config.html', { config: comChave, corpoCru: '<html>outro site</html>' });
+    expect(tela.texto('aviso')).toMatch(/^A URL da API respondeu, mas a resposta não parece ser do Kentro Shop\..* Detalhe: RESPOSTA_INVALIDA · status 200 · GET \/v1\/loja/);
+  });
+
+  it('502 ao abrir a loja não culpa a plataforma de e-commerce', async () => {
+    const tela = await montarTela('admin/config.html', { config: comChave, respostas: { 'GET /v1/loja': { status: 502, body: {} } }, proxy: 'kentro' });
+    expect(tela.texto('aviso')).toMatch(/^O Kentro Shop respondeu com erro\. Detalhe: sem código · status 502 · GET \/v1\/loja/);
+  });
+
+  it('erro interno da API mantém a mensagem e acrescenta o detalhe', async () => {
+    const tela = await montarTela('admin/config.html', {
+      config: comChave,
+      respostas: { 'GET /v1/loja': { status: 500, body: { erro: { codigo: 'ERRO_INTERNO', mensagem: 'Erro interno. Tente de novo em instantes.' } } } },
+    });
+    expect(tela.texto('aviso')).toMatch(/^Erro interno\. Tente de novo em instantes\. Detalhe: ERRO_INTERNO · status 500 · GET \/v1\/loja/);
+  });
+
+  it('a chave nunca aparece no detalhe do erro', async () => {
+    const tela = await montarTela('admin/config.html', { config: comChave, falhaHttp: { code: 'internal', message: 'falhou com ksa_1' } });
+    expect(tela.texto('aviso')).toContain('falhou com ***');
+    expect(tela.texto('aviso')).not.toContain('ksa_1');
+  });
+});
+
 describe('Configurações do admin (Fase 0)', () => {
   it('sem chave oferece criar a loja ou informar uma chave', async () => {
     const tela = await montarTela('admin/config.html', { config: semChave });

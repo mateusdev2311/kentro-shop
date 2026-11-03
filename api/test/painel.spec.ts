@@ -33,9 +33,25 @@ describe('painel do atendimento (Fase 0)', () => {
     );
   });
 
-  it('API fora do ar mostra mensagem genérica', async () => {
-    const tela = await montarTela('atendimento/painel.html', { config, respostas: {} });
-    expect(tela.texto('aviso')).toBe('Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.');
+  it('chamada sem resposta diz o motivo e o detalhe técnico', async () => {
+    const tela = await montarTela('atendimento/painel.html', { config, falhaHttp: { code: 'timeout', message: 'sem resposta' } });
+    expect(tela.texto('aviso')).toMatch(
+      /^A chamada ao Kentro Shop, feita pelo servidor da Kentro, ficou sem resposta até o tempo limite\. Detalhe: timeout · GET \/v1\/loja · \d+,\d s · sem resposta$/,
+    );
+  });
+
+  it('falha da API (500) mostra o erro de verdade e o status', async () => {
+    const tela = await montarTela('atendimento/painel.html', {
+      config,
+      respostas: { 'GET /v1/loja': { status: 500, body: { erro: { codigo: 'ERRO_INTERNO', mensagem: 'Erro interno.' } } } },
+    });
+    expect(tela.texto('aviso')).toMatch(/^O Kentro Shop respondeu com erro\. Detalhe: ERRO_INTERNO · status 500 · GET \/v1\/loja/);
+  });
+
+  it('a chave nunca aparece no detalhe do erro', async () => {
+    const tela = await montarTela('atendimento/painel.html', { config, falhaHttp: { code: 'internal', message: 'falhou com ksk_abc' } });
+    expect(tela.texto('aviso')).toContain('falhou com ***');
+    expect(tela.texto('aviso')).not.toContain('ksk_abc');
   });
 
   it('chave de admin colada no painel não conta como conectado', async () => {

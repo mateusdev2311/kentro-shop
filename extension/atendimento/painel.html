@@ -507,16 +507,48 @@
       req.headers['Content-Type'] = 'application/json';
       req.body = JSON.stringify(opcoes.body);
     }
+    var inicio = Date.now();
+    // Guarda o que aconteceu de fato, para a tela dizer o motivo da falha.
+    function comContexto(erro, e) {
+      var texto = String((e && e.message) || '').slice(0, 200);
+      erro.rota = req.method + ' ' + caminho.split('?')[0];
+      erro.segundos = (Date.now() - inicio) / 1000;
+      erro.detalhe = cfg.chave ? texto.split(cfg.chave).join('***') : texto;
+      return erro;
+    }
     return omni.http.request(req).then(function (r) {
-      if (r && r.status >= 200 && r.status < 300) return r.body ? JSON.parse(r.body) : {};
-      throw erroDe(r && r.status, r && r.body);
+      if (r && r.status >= 200 && r.status < 300) {
+        if (!r.body) return {};
+        try { return JSON.parse(r.body); } catch (x) { throw comContexto({ status: r.status, codigo: 'RESPOSTA_INVALIDA', mensagem: '' }); }
+      }
+      throw comContexto(erroDe(r && r.status, r && r.body));
     }, function (e) {
       var codigo = e && e.code;
-      if (codigo === 'http_error') throw erroDe(e.status, e.body);
-      if (codigo === 'forbidden') throw { status: 403, codigo: 'forbidden_kentro', mensagem: '' };
-      if (codigo === 'not_found') throw { status: 404, codigo: 'NAO_ENCONTRADO', mensagem: '' };
-      throw { status: 0, codigo: codigo || '', mensagem: '' };
+      if (codigo === 'http_error') throw comContexto(erroDe(e.status, e.body), e);
+      if (codigo === 'forbidden') throw comContexto({ status: 403, codigo: 'forbidden_kentro', mensagem: '' }, e);
+      if (codigo === 'not_found') throw comContexto({ status: 404, codigo: 'NAO_ENCONTRADO', mensagem: '' }, e);
+      throw comContexto({ status: 0, codigo: codigo || '', mensagem: '' }, e);
     });
+  }
+
+  // Código, status, rota, tempo e mensagem da falha: é o que permite achar a causa ou repassar ao suporte.
+  function detalheTecnico(erro) {
+    var partes = [erro.codigo || 'sem código'];
+    if (erro.status) partes.push('status ' + erro.status);
+    if (erro.rota) partes.push(erro.rota);
+    if (typeof erro.segundos === 'number') partes.push(erro.segundos.toFixed(1).replace('.', ',') + ' s');
+    if (erro.detalhe || erro.message) partes.push(erro.detalhe || erro.message);
+    return 'Detalhe: ' + partes.join(' · ');
+  }
+
+  function causaDoErro(erro) {
+    if (erro.codigo === 'timeout') return 'A chamada ao Kentro Shop, feita pelo servidor da Kentro, ficou sem resposta até o tempo limite.';
+    if (erro.codigo === 'internal') return 'O servidor da Kentro falhou ao fazer a chamada ao Kentro Shop.';
+    if (erro.codigo === 'readonly') return 'A Kentro bloqueou a chamada ao Kentro Shop: esta sessão está em modo somente leitura.';
+    if (erro.codigo === 'bad_args' || erro.codigo === 'unknown_method') return 'A Kentro não aceitou a chamada ao Kentro Shop. Peça ao administrador para conferir a URL da API.';
+    if (erro.codigo === 'RESPOSTA_INVALIDA') return 'A URL da API respondeu, mas a resposta não parece ser do Kentro Shop. Peça ao administrador para conferir a URL da API.';
+    if (erro.status >= 500) return 'O Kentro Shop respondeu com erro.';
+    return 'Não foi possível falar com o Kentro Shop.';
   }
 
   function mensagemDeErro(erro) {
@@ -525,7 +557,7 @@
     if (erro.codigo === 'LOJA_BLOQUEADA') return 'Esta loja está bloqueada no Kentro Shop. Fale com o administrador.';
     if (erro.codigo === 'rate_limited') return 'Muitas consultas seguidas. Aguarde um minuto.';
     if (erro.status >= 400 && erro.status < 500 && erro.mensagem) return erro.mensagem;
-    return 'Não foi possível falar com o Kentro Shop agora. Tente de novo em instantes.';
+    return causaDoErro(erro) + ' ' + detalheTecnico(erro);
   }
 
   // ── Utilitários de tela ─────────────────────────────────────────────────
