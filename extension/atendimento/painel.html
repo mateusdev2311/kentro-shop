@@ -612,7 +612,8 @@
           if (erro.status >= 400) apiRespondeu();
           throw erro;
         }
-        if (leitura && n < repetidas) return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
+        // Quem já esperou o tempo limite (30 s) não espera mais duas vezes: avisa logo e a reconexão continua tentando.
+        if (leitura && n < repetidas && erro.codigo !== 'timeout') return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
         if (!opcoes.silencioso) mostrarPop(erro, !leitura);
         throw erro;
       });

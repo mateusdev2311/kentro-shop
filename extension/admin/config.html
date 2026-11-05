@@ -729,6 +729,7 @@
   var ULTIMOS_DADOS = 'ultimos_dados';
   var SEM_DADOS = 'Os dados da loja ainda não foram carregados, então nada foi salvo. Eles aparecem aqui assim que a conexão voltar.';
   var online = true;      // false: mostrando os últimos dados, sem falar com a API
+  var atualizando = false; // os últimos dados estão na tela e a primeira leitura ainda não respondeu
   var falta = { loja: false, integracao: false, configuracoes: false }; // o que ainda precisa ser lido
   var temDados = { integracao: false, configuracoes: false };           // o formulário tem dados reais (nunca salvar os valores padrão)
   var veioDaCopia = false; // o formulário foi preenchido com os últimos dados guardados
@@ -801,6 +802,7 @@
   /** Abre as abas com os últimos dados na hora; a leitura da API atualiza logo depois. */
   function mostrarUltimosDados(d) {
     online = false;
+    atualizando = true;
     veioDaCopia = true;
     estado.loja = d.loja;
     estado.conectores = d.conectores;
@@ -843,7 +845,8 @@
           if (erro.status >= 400) apiRespondeu();
           throw erro;
         }
-        if (leitura && n < repetidas) return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
+        // Quem já esperou o tempo limite (30 s) não espera mais duas vezes: avisa logo e a reconexão continua tentando.
+        if (leitura && n < repetidas && erro.codigo !== 'timeout') return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
         mostrarPop(erro, !leitura);
         throw erro;
       });
@@ -1018,7 +1021,7 @@
   // ── Aba Integração ───────────────────────────────────────────────────────
   function atualizarStatus() {
     var loja = estado.loja ? 'Loja ' + (estado.loja.nome || 'sem nome') + ' · ' : '';
-    $('status').textContent = loja + (online ? 'Integração: ' + ESTADOS[estado.situacao] : 'Sem conexão: tentando de novo…');
+    $('status').textContent = loja + (online ? 'Integração: ' + ESTADOS[estado.situacao] : atualizando ? 'Atualizando…' : 'Sem conexão: tentando de novo…');
     $('status').className = 'status-loja ' + (online ? estado.situacao : 'pendente');
     $('status').hidden = false;
   }
@@ -2207,6 +2210,7 @@
 
   function abrirLoja(opcoes) {
     return api('/v1/loja', opcoes).then(function (loja) {
+      atualizando = false;
       falta.loja = false;
       if (loja.papel !== 'admin') {
         fecharLoja();
@@ -2220,6 +2224,7 @@
       Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
       return Promise.all([carregarIntegracao(opcoes), carregarConfiguracoes(opcoes)]);
     }, function (erro) {
+      atualizando = false;
       if (erro.status === 401) {
         fecharLoja();
         mostrarAviso('A chave de admin é inválida. Cole a chave correta na configuração da extensão ou crie uma loja nova.');

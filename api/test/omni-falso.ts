@@ -42,6 +42,8 @@ export interface OpcoesTela {
   esperasRepetir?: number[];
   /** Espera até ler de novo o que falhou; padrão (0): não tenta sozinho. */
   reconexaoMs?: number;
+  /** A chamada nunca responde: o teste olha a tela durante a espera. */
+  httpPendente?: boolean;
   /** Troca a falha entre uma chamada e outra: o teste simula a API caindo e voltando. */
   falhaDinamica?: () => { code?: string; message?: string } | null;
   /** Carrinho nativo do atendimento (omni.cart). Ausente = SDK sem carrinho. */
@@ -141,6 +143,7 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     http: {
       request(req: ChamadaHttp) {
         chamadas.push(req);
+        if (opcoes.httpPendente) return new Promise(() => undefined);
         const falha = opcoes.falhaDinamica?.() ?? opcoes.falhaHttp;
         if (falha) return Promise.reject(falha);
         if (opcoes.corpoCru !== undefined) return Promise.resolve({ status: 200, headers: {}, body: opcoes.corpoCru });

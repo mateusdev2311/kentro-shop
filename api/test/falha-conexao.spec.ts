@@ -98,13 +98,27 @@ describe('tela do admin com a API fora do ar', () => {
     expect(tela.storage.ultimos_dados).toBeUndefined();
   });
 
+  it('enquanto a primeira leitura não responde, os últimos dados aparecem sem dizer que caiu', async () => {
+    const tela = await montarTela('admin/config.html', { config: configAdmin, httpPendente: true, storage: { ultimos_dados: ultimosDados } });
+    expect(tela.valor('ap-nome')).toBe('Farmácia X');
+    expect(tela.texto('status')).toBe('Loja Farmácia X · Atualizando…');
+    expect(tela.visivel('pop-erro')).toBe(false);
+  });
+
+  it('quem já esperou o tempo limite não espera de novo: avisa na primeira vez', async () => {
+    const tela = await montarTela('admin/config.html', { config: configAdmin, falhaHttp: FORA, esperasRepetir: [1, 1] });
+    await tela.esperar(20);
+    expect(tela.chamadas.filter((c) => c.url.endsWith('/v1/loja'))).toHaveLength(1);
+    expect(tela.visivel('pop-erro')).toBe(true);
+  });
+
   it('a leitura que falha por instantes é repetida sem aparecer erro nenhum', async () => {
     let falhas = 1;
     const tela = await montarTela('admin/config.html', {
       config: configAdmin,
       respostas: respostasAdmin,
       esperasRepetir: [1],
-      falhaDinamica: () => (falhas-- > 0 ? FORA : null),
+      falhaDinamica: () => (falhas-- > 0 ? { code: 'internal', message: 'falha rápida' } : null),
     });
     await tela.esperar(20);
     expect(tela.visivel('pop-erro')).toBe(false);
