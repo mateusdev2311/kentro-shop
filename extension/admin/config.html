@@ -141,6 +141,20 @@
   .aviso::before { content: ""; flex: none; width: 18px; height: 18px; margin-top: 1px; background: currentColor; -webkit-mask: var(--ks-ic-alerta) center / contain no-repeat; mask: var(--ks-ic-alerta) center / contain no-repeat; }
   .aviso.erro { color: var(--ks-erro-texto); background: var(--ks-erro-suave); border: 1px solid color-mix(in srgb, var(--ext-color-error) 28%, transparent); }
   .aviso.destaque { color: var(--ks-alerta-texto); background: var(--ks-alerta-suave); border: 1px solid color-mix(in srgb, var(--ks-alerta) 35%, transparent); font-weight: 600; }
+  /* Aviso flutuante de erro: não cobre a tela nem impede de mexer nela. */
+  .pop-erro {
+    position: fixed; right: 20px; bottom: 20px; z-index: 50; width: min(420px, calc(100vw - 32px)); padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--ext-color-error) 35%, var(--ext-color-bg)); border-radius: var(--ks-r);
+    background: var(--ext-color-bg); box-shadow: 0 12px 32px -12px color-mix(in srgb, var(--ext-color-text) 45%, transparent);
+  }
+  .pop-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; color: var(--ks-erro-texto); }
+  .pop-topo strong { font-weight: 650; }
+  .pop-topo button { min-height: 0; padding: 0 6px; border: 0; background: none; font-size: 1.3em; line-height: 1; color: var(--ext-color-text-muted); }
+  .pop-erro p { margin-top: 6px; }
+  .pop-erro details { margin-top: 8px; font-size: .86em; color: var(--ext-color-text-muted); }
+  .pop-erro summary { cursor: pointer; }
+  .pop-erro code { display: block; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-word; }
+  .pop-erro .acoes { margin-top: 12px; }
   .resultado { margin-top: 14px; padding: 10px 14px; border-radius: var(--ks-r-p); background: var(--ks-superficie); font-weight: 550; }
   .resultado:empty { display: none; }
   .copiar { position: fixed; left: -9999px; }
@@ -301,6 +315,18 @@
   </header>
   <p id="carregando" class="carregando"><span class="giro"></span>Carregando…</p>
   <div id="aviso" class="aviso erro" role="alert" hidden></div>
+  <div id="pop-erro" class="pop-erro" role="alert" hidden>
+    <div class="pop-topo">
+      <strong id="pop-titulo"></strong>
+      <button type="button" id="pop-fechar" aria-label="Fechar">&times;</button>
+    </div>
+    <p id="pop-texto"></p>
+    <details>
+      <summary>Detalhes técnicos</summary>
+      <code id="pop-detalhe"></code>
+    </details>
+    <div class="acoes"><button type="button" class="suave" id="pop-tentar">Tentar de novo</button></div>
+  </div>
 
   <!-- Loja ainda não configurada nesta instalação -->
   <section id="inicio" class="cartao boas-vindas" hidden>
@@ -695,6 +721,102 @@
   var instancia = '';
   var estado = { loja: null, conectores: [], integracao: null, situacao: 'nao', alterado: false };
 
+  // ── Falhas de conexão ─────────────────────────────────────────────────────
+  // A API pode ficar fora por instantes. A tela continua de pé com os últimos dados, o motivo vai num aviso
+  // flutuante e a leitura se repete sozinha. Os testes trocam as esperas.
+  var ESPERAS_REPETIR = window.KENTRO_SHOP_ESPERAS_REPETIR || [1000, 3000];
+  var RECONEXAO_MS = window.KENTRO_SHOP_RECONEXAO_MS === undefined ? 15000 : window.KENTRO_SHOP_RECONEXAO_MS;
+  var ULTIMOS_DADOS = 'ultimos_dados';
+  var SEM_DADOS = 'Os dados da loja ainda não foram carregados, então nada foi salvo. Eles aparecem aqui assim que a conexão voltar.';
+  var online = true;      // false: mostrando os últimos dados, sem falar com a API
+  var falta = { loja: false, integracao: false, configuracoes: false }; // o que ainda precisa ser lido
+  var temDados = { integracao: false, configuracoes: false };           // o formulário tem dados reais (nunca salvar os valores padrão)
+  var veioDaCopia = false; // o formulário foi preenchido com os últimos dados guardados
+  var editou = false;      // mexeu no formulário preenchido com a cópia: a leitura nova não apaga o que foi digitado
+  var pop = { fixo: false, dispensado: false };
+  var reconexao = null;
+
+  function esperarMs(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /** Sem resposta ou erro 5xx: vale tentar de novo. */
+  function falhaPassageira(erro) {
+    return erro.status >= 500 || (erro.status === 0 && (!erro.codigo || erro.codigo === 'timeout' || erro.codigo === 'internal'));
+  }
+
+  function fecharPop() { $('pop-erro').hidden = true; pop.fixo = false; }
+
+  /** fixo: veio de uma ação do usuário, fica até ele fechar. Sem fixo, some quando a API voltar a responder. */
+  function mostrarPop(erro, fixo) {
+    if (!fixo && (pop.dispensado || pop.fixo)) return;
+    pop.fixo = !!fixo;
+    var semConexao = erro.status === 0 || erro.status === 502 || erro.status === 503 || erro.status === 504;
+    $('pop-titulo').textContent = semConexao ? 'Sem conexão com o Kentro Shop' : 'Erro no Kentro Shop';
+    var gravacao = !!erro.rota && erro.rota.indexOf('GET ') !== 0;
+    $('pop-texto').textContent = (erro.mensagem || causaDoErro(erro)) +
+      (gravacao ? ' O que você digitou continua na tela.' : fixo ? '' : ' Você pode continuar usando a tela: a conexão é tentada de novo sozinha.');
+    $('pop-detalhe').textContent = detalheTecnico(erro);
+    $('pop-tentar').hidden = !!fixo; // gravação não se repete sozinha: a pessoa confere e clica de novo em salvar
+    $('pop-erro').hidden = false;
+  }
+
+  function apiRespondeu() {
+    pop.dispensado = false;
+    if (!pop.fixo) fecharPop();
+  }
+
+  function agendarReconexao() {
+    if (!RECONEXAO_MS || reconexao) return;
+    reconexao = setTimeout(function () { reconexao = null; tentarDeNovo(); }, RECONEXAO_MS);
+  }
+
+  function tentarDeNovo() {
+    clearTimeout(reconexao);
+    reconexao = null;
+    if (falta.loja) return abrirLoja({ semRepetir: true });
+    if (falta.integracao) carregarIntegracao({ semRepetir: true });
+    if (falta.configuracoes) carregarConfiguracoes({ semRepetir: true });
+    if (!falta.integracao && !falta.configuracoes && conectorAtual()) mostrarEstadosDaFonte(conectorAtual());
+  }
+
+  $('pop-fechar').addEventListener('click', function () { pop.dispensado = true; fecharPop(); });
+  $('pop-tentar').addEventListener('click', function () { fecharPop(); tentarDeNovo(); });
+
+  // A cópia pertence a uma chave: trocar a chave (outra loja) não pode mostrar os dados da anterior.
+  function marcaDaChave() { return cfg.chave.slice(-6); }
+
+  function lerUltimosDados() {
+    return Promise.resolve(omni.storage.get(ULTIMOS_DADOS)).catch(function () { return null; }).then(function (d) {
+      return d && d.chave === marcaDaChave() && d.loja && d.conectores ? d : null;
+    });
+  }
+
+  /** As credenciais já vêm da API com os segredos mascarados. */
+  function guardarUltimosDados() {
+    if (!estado.loja || !temDados.integracao || !temDados.configuracoes) return;
+    Promise.resolve(omni.storage.set(ULTIMOS_DADOS, {
+      chave: marcaDaChave(), loja: estado.loja, conectores: estado.conectores, integracao: estado.integracao, configuracoes: configuracoes
+    })).catch(function () {});
+  }
+
+  /** Abre as abas com os últimos dados na hora; a leitura da API atualiza logo depois. */
+  function mostrarUltimosDados(d) {
+    online = false;
+    veioDaCopia = true;
+    estado.loja = d.loja;
+    estado.conectores = d.conectores;
+    estado.integracao = d.integracao;
+    estado.situacao = d.integracao ? d.integracao.status : 'nao';
+    temDados.integracao = true;
+    temDados.configuracoes = !!d.configuracoes;
+    desenharIntegracao();
+    if (estado.situacao === 'ok') mostrarCapacidades();
+    if (d.configuracoes) preencherConfiguracoes(d.configuracoes);
+    mostrarModoPedido();
+    atualizarStatus();
+    $('loja').hidden = false;
+    $('carregando').hidden = true;
+  }
+
   function erroDe(status, texto) {
     var erro = { status: status || 0, codigo: '', mensagem: '' };
     try {
@@ -707,8 +829,29 @@
   // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
   // O proxy da Kentro pode devolver um erro da API de quatro jeitos: resolvido com status de erro,
   // rejeitado com http_error (status e corpo), ou convertido em forbidden (401/403) ou not_found (404).
+  // Leitura que falha por instantes é repetida antes de incomodar; gravação nunca (poderia gravar duas vezes).
   function api(caminho, opcoes) {
     opcoes = opcoes || {};
+    var leitura = !opcoes.method || opcoes.method === 'GET';
+    var repetidas = opcoes.semRepetir ? 0 : ESPERAS_REPETIR.length;
+    function tentar(n) {
+      return chamarApi(caminho, opcoes).then(function (r) {
+        apiRespondeu();
+        return r;
+      }, function (erro) {
+        if (!falhaPassageira(erro)) {
+          if (erro.status >= 400) apiRespondeu();
+          throw erro;
+        }
+        if (leitura && n < repetidas) return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
+        mostrarPop(erro, !leitura);
+        throw erro;
+      });
+    }
+    return tentar(0);
+  }
+
+  function chamarApi(caminho, opcoes) {
     var req = {
       url: cfg.apiUrl + caminho,
       method: opcoes.method || 'GET',
@@ -874,8 +1017,9 @@
 
   // ── Aba Integração ───────────────────────────────────────────────────────
   function atualizarStatus() {
-    $('status').textContent = 'Loja ' + (estado.loja.nome || 'sem nome') + ' · Integração: ' + ESTADOS[estado.situacao];
-    $('status').className = 'status-loja ' + estado.situacao;
+    var loja = estado.loja ? 'Loja ' + (estado.loja.nome || 'sem nome') + ' · ' : '';
+    $('status').textContent = loja + (online ? 'Integração: ' + ESTADOS[estado.situacao] : 'Sem conexão: tentando de novo…');
+    $('status').className = 'status-loja ' + (online ? estado.situacao : 'pendente');
     $('status').hidden = false;
   }
 
@@ -898,9 +1042,7 @@
     // Com OAuth não há formulário: "Salvar" apagaria o token.
     $('btn-salvar-integracao').hidden = oauth;
     if (!conector) return;
-    if (conector.id === 'kentro') mostrarEstadoKentro();
-    if (conector.sincronizacao) mostrarEstadoBanco(conector);
-    if (conector.fotosFtp) mostrarEstadoFotos();
+    mostrarEstadosDaFonte(conector);
     if (oauth) mostrarEstadoOAuth(conector);
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
@@ -915,6 +1057,18 @@
       alvo.appendChild(entrada);
       if (campo.ajuda) alvo.appendChild(el('span', campo.ajuda, 'ajuda'));
     });
+  }
+
+  /** Situação da cópia do catálogo e das fotos, lida da API. Sem conexão, espera ela voltar. */
+  function mostrarEstadosDaFonte(conector) {
+    if (!online) {
+      ['kentro-estado', 'banco-estado', 'fotos-estado'].forEach(function (id) { $(id).textContent = 'Aguardando a conexão com o Kentro Shop…'; });
+      if (conector.sincronizacao) mostrarAjudaBanco(conector);
+      return;
+    }
+    if (conector.id === 'kentro') mostrarEstadoKentro();
+    if (conector.sincronizacao) mostrarEstadoBanco(conector);
+    if (conector.fotosFtp) mostrarEstadoFotos();
   }
 
   function mostrarCapacidades() {
@@ -971,6 +1125,10 @@
   /** Salva o formulário. Resolve true se salvou. */
   function salvar() {
     var conector = conectorAtual();
+    if (!temDados.integracao) {
+      mostrarResultado(SEM_DADOS);
+      return Promise.resolve(false);
+    }
     if (!conector) return Promise.resolve(false);
     var credenciais = lerCampos();
     for (var i = 0; i < conector.camposDeCredencial.length; i++) {
@@ -987,6 +1145,7 @@
       estado.alterado = false;
       $('bloco-capacidades').hidden = true;
       atualizarStatus();
+      guardarUltimosDados();
       return true;
     }, function (erro) {
       mostrarResultado(mensagemDeErro(erro));
@@ -1215,10 +1374,13 @@
   }
 
   var versaoEstadoBanco = 0;
-  function mostrarEstadoBanco(conector) {
-    var minutos = conector.sincronizacao.minutos;
-    $('banco-ajuda').textContent = 'O Kentro Shop lê os produtos direto do banco do ERP e guarda uma cópia, atualizada sozinha a cada ' + minutos +
+  function mostrarAjudaBanco(conector) {
+    $('banco-ajuda').textContent = 'O Kentro Shop lê os produtos direto do banco do ERP e guarda uma cópia, atualizada sozinha a cada ' + conector.sincronizacao.minutos +
       ' minutos. Só entram produtos ativos, com estoque e preço; medicamentos controlados ficam de fora.';
+  }
+
+  function mostrarEstadoBanco(conector) {
+    mostrarAjudaBanco(conector);
     if (!integracaoBancoSalva()) {
       $('banco-estado').textContent = 'Salve a integração para buscar os produtos do banco de dados.';
       return Promise.resolve(null);
@@ -1371,24 +1533,37 @@
     }
   });
 
-  function carregarIntegracao() {
-    var integracao = api('/v1/loja/integracao').then(null, function (erro) {
+  function desenharIntegracao() {
+    var select = $('plataforma');
+    limpar(select);
+    estado.conectores.forEach(function (c) {
+      var opcao = el('option', c.nome);
+      opcao.value = c.id;
+      select.appendChild(opcao);
+    });
+    if (estado.integracao) select.value = estado.integracao.plataforma;
+    desenharCampos(estado.integracao ? estado.integracao.credenciais : null);
+  }
+
+  function carregarIntegracao(opcoes) {
+    var integracao = api('/v1/loja/integracao', opcoes).then(null, function (erro) {
       if (erro.status === 404) return null;
       throw erro;
     });
-    return Promise.all([api('/v1/conectores'), integracao]).then(function (r) {
+    return Promise.all([api('/v1/conectores', opcoes), integracao]).then(function (r) {
+      falta.integracao = false;
+      temDados.integracao = true;
       estado.conectores = r[0] || [];
       estado.integracao = r[1];
       estado.situacao = r[1] ? r[1].status : 'nao';
-      var select = $('plataforma');
-      limpar(select);
-      estado.conectores.forEach(function (c) {
-        var opcao = el('option', c.nome);
-        opcao.value = c.id;
-        select.appendChild(opcao);
-      });
-      if (r[1]) select.value = r[1].plataforma;
-      desenharCampos(r[1] ? r[1].credenciais : null);
+      // Quem já começou a editar os últimos dados não perde o que digitou.
+      if (veioDaCopia && editou) {
+        var conector = conectorAtual();
+        if (conector) mostrarEstadosDaFonte(conector);
+      } else {
+        desenharIntegracao();
+      }
+      guardarUltimosDados();
       // Abrir a tela atualiza a cópia do catálogo da Kentro (em segundo plano).
       if (integracaoKentroSalva()) sincronizarKentro();
       if (estado.situacao === 'ok') {
@@ -1396,6 +1571,12 @@
         return carregarPrevia();
       }
     }, function (erro) {
+      if (falhaPassageira(erro)) {
+        falta.integracao = true;
+        agendarReconexao();
+        if (!temDados.integracao) estado.situacao = 'falha';
+        return;
+      }
       estado.situacao = 'falha';
       mostrarResultado(mensagemDeErro(erro));
     }).then(function () {
@@ -1469,10 +1650,17 @@
 
   /** Salva parte das configurações (PATCH) e mostra o resultado no parágrafo da aba. */
   function salvarConfig(corpo, botao, idResultado, mensagemOk) {
+    if (!temDados.configuracoes) {
+      $(idResultado).textContent = SEM_DADOS;
+      return Promise.resolve();
+    }
     botao.disabled = true;
     $(idResultado).textContent = 'Salvando…';
     return api('/v1/loja/configuracoes', { method: 'PATCH', body: corpo }).then(function (c) {
-      if (c && c.tema) configuracoes = c;
+      if (c && c.tema) {
+        configuracoes = c;
+        guardarUltimosDados();
+      }
       $(idResultado).textContent = mensagemOk;
     }, function (erro) {
       $(idResultado).textContent = mensagemDeErro(erro);
@@ -1570,8 +1758,20 @@
     }
   }
 
-  function carregarConfiguracoes() {
-    return api('/v1/loja/configuracoes').then(preencherConfiguracoes, function (erro) {
+  function carregarConfiguracoes(opcoes) {
+    return api('/v1/loja/configuracoes', opcoes).then(function (c) {
+      falta.configuracoes = false;
+      temDados.configuracoes = true;
+      // Quem já começou a editar os últimos dados não perde o que digitou.
+      if (veioDaCopia && editou) configuracoes = c;
+      else preencherConfiguracoes(c);
+      guardarUltimosDados();
+    }, function (erro) {
+      if (falhaPassageira(erro)) {
+        falta.configuracoes = true;
+        agendarReconexao();
+        return;
+      }
       ['resultado-aparencia', 'resultado-entrega', 'resultado-pedidos', 'resultado-catalogo'].forEach(function (id) {
         $(id).textContent = mensagemDeErro(erro);
       });
@@ -1992,25 +2192,67 @@
       return;
     }
 
-    api('/v1/loja').then(function (loja) {
+    lerUltimosDados().then(function (d) {
+      if (d) mostrarUltimosDados(d);
+      return abrirLoja();
+    });
+  });
+
+  /** A chave ou a loja não valem: não há o que mostrar, os últimos dados saem da tela e do navegador. */
+  function fecharLoja() {
+    $('loja').hidden = true;
+    $('status').hidden = true;
+    Promise.resolve(omni.storage.remove(ULTIMOS_DADOS)).catch(function () {});
+  }
+
+  function abrirLoja(opcoes) {
+    return api('/v1/loja', opcoes).then(function (loja) {
+      falta.loja = false;
       if (loja.papel !== 'admin') {
+        fecharLoja();
         mostrarAviso('Você colou a chave de atendimento no campo Chave de admin. Cole a Chave de admin na configuração do Kentro Shop — Admin.');
         return semChaveValida();
       }
+      if (!online) mostrarResultado('');
+      online = true;
       estado.loja = loja;
       $('loja').hidden = false;
       Promise.resolve(omni.storage.remove(PENDENTES)).catch(function () {});
-      return Promise.all([carregarIntegracao(), carregarConfiguracoes()]);
+      return Promise.all([carregarIntegracao(opcoes), carregarConfiguracoes(opcoes)]);
     }, function (erro) {
       if (erro.status === 401) {
+        fecharLoja();
         mostrarAviso('A chave de admin é inválida. Cole a chave correta na configuração da extensão ou crie uma loja nova.');
         return semChaveValida();
       }
-      mostrarAviso(mensagemDeErro(erro));
-      if (erro.codigo === 'forbidden_kentro') return semChaveValida();
+      if (erro.codigo === 'forbidden_kentro') {
+        fecharLoja();
+        mostrarAviso(mensagemDeErro(erro));
+        return semChaveValida();
+      }
+      if (erro.codigo === 'LOJA_BLOQUEADA') {
+        fecharLoja();
+        mostrarAviso(mensagemDeErro(erro));
+        return;
+      }
+      // API fora do ar ou chamada recusada: as abas abrem mesmo assim, com os últimos dados que houver.
+      online = false;
+      if (falhaPassageira(erro)) {
+        falta.loja = true;
+        agendarReconexao();
+      } else {
+        mostrarPop(erro, true);
+      }
+      if (!temDados.integracao) mostrarResultado(SEM_DADOS);
+      atualizarStatus();
+      $('loja').hidden = false;
     }).then(function () {
       $('carregando').hidden = true;
     });
+  }
+
+  ['input', 'change'].forEach(function (evento) {
+    $('loja').addEventListener(evento, function () { editou = true; });
   });
 })();
 </script>

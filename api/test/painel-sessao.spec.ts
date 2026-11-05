@@ -297,6 +297,8 @@ describe('painel do atendimento — carrinho nativo da Kentro (loja com o catál
 
 describe('painel do atendimento — sessão do catálogo', () => {
   let tela: Tela;
+  // Estes testes não simulam as leituras secundárias (categorias, opções): o aviso de conexão delas não interessa aqui.
+  const toastsDaTela = () => tela.toasts.filter((t) => t !== 'Sem conexão com o Kentro Shop');
   const montar = async (opcoes: Partial<OpcoesTela>) => {
     tela = await montarTela('atendimento/painel.html', { config, intervaloMs: 30, ...opcoes, respostas: { 'GET /v1/loja': lojaOk, ...opcoes.respostas } });
     await tela.esperar(5);
@@ -329,7 +331,7 @@ describe('painel do atendimento — sessão do catálogo', () => {
     expect(tela.valor('link')).toBe('https://shop.teste/c/tok123');
     expect(tela.texto('status-sessao')).toBe('Link enviado');
     expect(tela.copiados).toEqual(['https://shop.teste/c/tok123']);
-    expect(tela.toasts).toEqual(['Link copiado. Cole na conversa para enviar ao cliente.']);
+    expect(toastsDaTela()).toEqual(['Link copiado. Cole na conversa para enviar ao cliente.']);
   });
 
   it('pré-cadastro: envia e-mail, documento e endereço do contato da Kentro ao gerar o link', async () => {
@@ -399,7 +401,7 @@ describe('painel do atendimento — sessão do catálogo', () => {
     expect(tela.texto('handoff')).toContain('Rua A, nº 10 — Centro — Montes Claros/MG');
     expect(tela.texto('handoff')).toContain('(38) 98888-7777');
     expect(tela.texto('handoff')).toContain('Entregar sábado');
-    expect(tela.toasts).toEqual(['O cliente finalizou o pedido: R$ 259,80']);
+    expect(toastsDaTela()).toEqual(['O cliente finalizou o pedido: R$ 259,80']);
     const depois = consultas(55);
     await tela.esperar(120);
     expect(consultas(55)).toBe(depois);
@@ -410,7 +412,7 @@ describe('painel do atendimento — sessão do catálogo', () => {
   it('abrir um atendimento já finalizado não dispara o aviso', async () => {
     await montar({ chat: { id: 55 }, respostas: { [rota(55)]: { status: 200, body: finalizada() } } });
     expect(tela.visivel('secao-handoff')).toBe(true);
-    expect(tela.toasts).toEqual([]);
+    expect(toastsDaTela()).toEqual([]);
   });
 
   it('trocar de atendimento zera a tela e consulta o novo', async () => {

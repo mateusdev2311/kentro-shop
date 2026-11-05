@@ -59,6 +59,20 @@
   .cabeca strong { display: block; font-size: 1.04em; letter-spacing: -.01em; line-height: 1.2; }
   .conexao { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: .84em; color: var(--ext-color-text-muted); }
   .conexao::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--ext-color-success); box-shadow: 0 0 0 3px var(--ks-ok-suave); }
+  .conexao.sem::before { background: #e09100; box-shadow: 0 0 0 3px var(--ks-alerta-suave); }
+  /* Aviso de erro: não cobre o painel nem impede de mexer nele. */
+  .pop-erro {
+    position: sticky; top: 8px; z-index: 20; margin-bottom: 10px; padding: 10px 12px; font-size: .92em;
+    border: 1px solid color-mix(in srgb, var(--ext-color-error) 35%, var(--ext-color-bg)); border-radius: var(--ks-r);
+    background: var(--ext-color-bg); box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--ext-color-text) 45%, transparent);
+  }
+  .pop-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--ks-erro-texto); }
+  .pop-topo button { min-height: 0; padding: 0 4px; border: 0; background: none; font-size: 1.3em; line-height: 1; color: var(--ext-color-text-muted); cursor: pointer; }
+  .pop-erro p { margin-top: 4px; }
+  .pop-erro details { margin-top: 6px; font-size: .9em; color: var(--ext-color-text-muted); }
+  .pop-erro summary { cursor: pointer; }
+  .pop-erro code { display: block; margin-top: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-word; }
+  .pop-erro .pop-acao { margin-top: 8px; }
   .carregando { display: flex; align-items: center; gap: 9px; padding: 8px 2px; color: var(--ext-color-text-muted); font-size: .9em; }
   .giro { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid var(--ks-linha); border-top-color: var(--ext-color-primary); animation: girar .8s linear infinite; }
   @keyframes girar { to { transform: rotate(360deg); } }
@@ -263,6 +277,18 @@
 </header>
 <p id="carregando" class="carregando"><span class="giro"></span>Conectando ao Kentro Shop…</p>
 <div id="aviso" class="aviso" role="alert" hidden></div>
+<div id="pop-erro" class="pop-erro" role="alert" hidden>
+  <div class="pop-topo">
+    <strong id="pop-titulo"></strong>
+    <button type="button" id="pop-fechar" aria-label="Fechar">&times;</button>
+  </div>
+  <p id="pop-texto"></p>
+  <details>
+    <summary>Detalhes técnicos</summary>
+    <code id="pop-detalhe"></code>
+  </details>
+  <button type="button" class="suave pop-acao" id="pop-tentar">Tentar de novo</button>
+</div>
 
 <div id="sem-chat" class="vazio" hidden>
   <span class="bolha"><svg class="ic"><use href="#i-chat"/></svg></span>
@@ -479,6 +505,86 @@
     $('aviso').hidden = !texto;
   }
 
+  // ── Falhas de conexão ─────────────────────────────────────────────────────
+  // A API pode ficar fora por instantes. O painel continua de pé, o motivo vai num aviso e a leitura se repete
+  // sozinha. Os testes trocam as esperas.
+  var ESPERAS_REPETIR = window.KENTRO_SHOP_ESPERAS_REPETIR || [1000, 3000];
+  var RECONEXAO_MS = window.KENTRO_SHOP_RECONEXAO_MS === undefined ? 15000 : window.KENTRO_SHOP_RECONEXAO_MS;
+  /** Consultas periódicas seguidas sem resposta antes de avisar (uma falha isolada não incomoda). */
+  var FALHAS_PARA_AVISAR = 3;
+  var ULTIMA_LOJA = 'ultima_loja';
+  var pop = { fixo: false, dispensado: false };
+  var reconexao = null;
+  var lojaPendente = false;  // ainda falta ler os dados da loja
+  var nomeDaLoja = null;     // nome conhecido, para o status
+  var lojaConectada = false;
+  var falhasSeguidas = 0;
+
+  function esperarMs(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /** Sem resposta ou erro 5xx: vale tentar de novo. */
+  function falhaPassageira(erro) {
+    return erro.status >= 500 || (erro.status === 0 && (!erro.codigo || erro.codigo === 'timeout' || erro.codigo === 'internal'));
+  }
+
+  function fecharPop() { $('pop-erro').hidden = true; pop.fixo = false; }
+
+  /** fixo: veio de uma ação do usuário, fica até ele fechar. Sem fixo, some quando a API voltar a responder. */
+  function mostrarPop(erro, fixo) {
+    if (!fixo && (pop.dispensado || pop.fixo)) return;
+    var novo = $('pop-erro').hidden;
+    pop.fixo = !!fixo;
+    var semConexao = erro.status === 0 || erro.status === 502 || erro.status === 503 || erro.status === 504;
+    var titulo = semConexao ? 'Sem conexão com o Kentro Shop' : 'Erro no Kentro Shop';
+    $('pop-titulo').textContent = titulo;
+    var gravacao = !!erro.rota && erro.rota.indexOf('GET ') !== 0;
+    $('pop-texto').textContent = (erro.mensagem || causaDoErro(erro)) +
+      (gravacao ? ' O que você preencheu continua na tela.' : fixo ? '' : ' Você pode continuar usando o painel: a conexão é tentada de novo sozinha.');
+    $('pop-detalhe').textContent = detalheTecnico(erro);
+    $('pop-tentar').hidden = !!fixo; // gravação não se repete sozinha: a pessoa confere e clica de novo
+    $('pop-erro').hidden = false;
+    // O painel rola junto com a página da Kentro: o aviso da própria Kentro aparece mesmo com o painel rolado.
+    if (novo) Promise.resolve(omni.ui.toast(titulo, 'error')).catch(function () {});
+  }
+
+  function mostrarConexao(conectado) {
+    lojaConectada = conectado;
+    if (conectado && nomeDaLoja === null) return;
+    $('status').textContent = conectado ? 'Conectado à loja ' + nomeDaLoja + '.' : 'Sem conexão: tentando de novo…';
+    $('status').className = conectado ? 'conexao' : 'conexao sem';
+    $('status').hidden = false;
+  }
+
+  function apiRespondeu() {
+    pop.dispensado = false;
+    if (!pop.fixo) fecharPop();
+    if (!lojaConectada) mostrarConexao(true);
+  }
+
+  function agendarReconexao() {
+    if (!RECONEXAO_MS || reconexao) return;
+    reconexao = setTimeout(function () { reconexao = null; tentarDeNovo(); }, RECONEXAO_MS);
+  }
+
+  function tentarDeNovo() {
+    clearTimeout(reconexao);
+    reconexao = null;
+    if (lojaPendente) return abrirLoja({ semRepetir: true });
+    if (chat) atualizar();
+  }
+
+  $('pop-fechar').addEventListener('click', function () { pop.dispensado = true; fecharPop(); });
+  $('pop-tentar').addEventListener('click', function () { fecharPop(); tentarDeNovo(); });
+
+  // A cópia pertence a uma chave: trocar a chave (outra loja) não pode usar os dados da anterior.
+  function marcaDaChave() { return cfg.chave.slice(-6); }
+
+  function lerUltimaLoja() {
+    return Promise.resolve(omni.storage.get(ULTIMA_LOJA)).catch(function () { return null; }).then(function (d) {
+      return d && d.chave === marcaDaChave() ? d : null;
+    });
+  }
+
   function erroDe(status, texto) {
     var erro = { status: status || 0, codigo: '', mensagem: '', corpo: null };
     try {
@@ -491,8 +597,30 @@
   // Chamada à API do Kentro Shop pelo servidor da Kentro (omni.http.request, sem CORS).
   // O proxy da Kentro pode devolver um erro da API de quatro jeitos: resolvido com status de erro,
   // rejeitado com http_error (status e corpo), ou convertido em forbidden (401/403) ou not_found (404).
+  // Leitura que falha por instantes é repetida antes de incomodar; gravação nunca (poderia gravar duas vezes).
+  // silencioso: quem chamou decide quando avisar (a consulta periódica).
   function api(caminho, opcoes) {
     opcoes = opcoes || {};
+    var leitura = !opcoes.method || opcoes.method === 'GET';
+    var repetidas = opcoes.semRepetir ? 0 : ESPERAS_REPETIR.length;
+    function tentar(n) {
+      return chamarApi(caminho, opcoes).then(function (r) {
+        apiRespondeu();
+        return r;
+      }, function (erro) {
+        if (!falhaPassageira(erro)) {
+          if (erro.status >= 400) apiRespondeu();
+          throw erro;
+        }
+        if (leitura && n < repetidas) return esperarMs(ESPERAS_REPETIR[n]).then(function () { return tentar(n + 1); });
+        if (!opcoes.silencioso) mostrarPop(erro, !leitura);
+        throw erro;
+      });
+    }
+    return tentar(0);
+  }
+
+  function chamarApi(caminho, opcoes) {
     var req = {
       url: cfg.apiUrl + caminho,
       method: opcoes.method || 'GET',
@@ -608,16 +736,35 @@
   function atualizar() {
     if (!chat || buscando) return;
     var id = chat.id;
+    var semResposta = false;
     buscando = true;
-    api('/v1/sessoes/chat/' + encodeURIComponent(id)).then(function (s) {
+    // Sem repetir: a repetição é a própria consulta seguinte.
+    api('/v1/sessoes/chat/' + encodeURIComponent(id), { semRepetir: true, silencioso: true }).then(function (s) {
+      falhasSeguidas = 0;
       if (!chat || chat.id !== id) return;
       mostrarAviso(null);
       mostrarSessao(s);
     }, function (e) {
+      if (falhaPassageira(e)) {
+        semResposta = true;
+        falhasSeguidas++;
+        if (falhasSeguidas >= FALHAS_PARA_AVISAR || !sessao) {
+          mostrarConexao(false);
+          mostrarPop(e);
+        }
+        return;
+      }
+      falhasSeguidas = 0;
       if (!chat || chat.id !== id) return;
       if (e.status === 404) { mostrarSemSessao(); return; }
       mostrarAviso(mensagemDeErro(e));
-    }).then(function () { buscando = false; if (chat && chat.id === id) agendar(); });
+    }).then(function () {
+      buscando = false;
+      if (!chat || chat.id !== id) return;
+      // Sem saber se há pedido em aberto, a consulta periódica não roda: tenta de novo até responder.
+      if (semResposta && !aberta(sessao)) agendarReconexao();
+      else agendar();
+    });
   }
 
   document.addEventListener('visibilitychange', function () {
@@ -1453,7 +1600,10 @@
   /** Filas que usam este catálogo (configuradas no Admin). Vazio = todas. */
   var filasDaLoja = [];
 
+  var ultimoChat = null;
+
   function carregarChat(c) {
+    ultimoChat = c;
     // Com filas configuradas, a fila do atendimento decide; o evento pode vir sem ela: lê o atendimento.
     if (filasDaLoja.length && c && c.id != null && c.queueId == null && omni.chats.get) {
       return Promise.resolve(omni.chats.get(c.id)).then(function (completo) { abrirChat(completo || c); }, function () { abrirChat(c); });
@@ -1518,28 +1668,70 @@
       return;
     }
 
-    api('/v1/loja').then(function (loja) {
+    abrirLoja();
+  });
+
+  var entrou = false;
+  var conferindoKentro = false;
+
+  /** Liga o painel aos atendimentos. Sem conexão também: o atendente vê o atendimento e continua mexendo. */
+  function entrar(loja) {
+    var filas = (loja.filasAtendimento || []).map(Number);
+    var filasMudaram = String(filas) !== String(filasDaLoja);
+    plataforma = loja.plataforma || null;
+    filasDaLoja = filas;
+    if (plataforma === 'kentro' && lojaConectada && !conferindoKentro) {
+      conferindoKentro = true;
+      manterCatalogoKentro();
+      setInterval(manterCatalogoKentro, CONFERIR_CATALOGO_MS);
+    }
+    if (!entrou) {
+      entrou = true;
+      omni.on('omniChatSelected', carregarChat);
+      return Promise.resolve(omni.chats.getSelected()).then(carregarChat, function () { $('sem-chat').hidden = false; });
+    }
+    // A conexão voltou: as filas podem decidir diferente, e o que falhou é lido de novo.
+    if (filasMudaram && ultimoChat) {
+      chat = null;
+      carregarChat(ultimoChat);
+    } else if (chat && lojaConectada) {
+      carregarCategorias();
+      carregarOpcoesPedido();
+      if (!sessao) atualizar();
+    }
+  }
+
+  function abrirLoja(opcoes) {
+    return api('/v1/loja', opcoes).then(function (loja) {
+      lojaPendente = false;
       // A chave de admin não pode ficar no painel: ela chegaria ao navegador de todos os atendentes.
       if (loja.papel !== 'atendimento') {
         mostrarAviso('Esta é a chave de admin. Peça ao administrador para colar a chave de atendimento na configuração do Kentro Shop — Atendimento.');
         return;
       }
-      plataforma = loja.plataforma || null;
-      filasDaLoja = (loja.filasAtendimento || []).map(Number);
-      if (plataforma === 'kentro') {
-        manterCatalogoKentro();
-        setInterval(manterCatalogoKentro, CONFERIR_CATALOGO_MS);
-      }
-      $('status').textContent = 'Conectado à loja ' + (loja.nome || 'sem nome') + '.';
-      $('status').hidden = false;
-      omni.on('omniChatSelected', carregarChat);
-      return Promise.resolve(omni.chats.getSelected()).then(carregarChat, function () { $('sem-chat').hidden = false; });
+      nomeDaLoja = loja.nome || 'sem nome';
+      mostrarConexao(true);
+      Promise.resolve(omni.storage.set(ULTIMA_LOJA, {
+        chave: marcaDaChave(), nome: loja.nome, plataforma: loja.plataforma, filasAtendimento: loja.filasAtendimento
+      })).catch(function () {});
+      return entrar(loja);
     }, function (erro) {
-      mostrarAviso(mensagemDeErro(erro));
+      if (erro.status === 401 || erro.status === 403) {
+        mostrarAviso(mensagemDeErro(erro));
+        return;
+      }
+      if (falhaPassageira(erro)) {
+        lojaPendente = true;
+        agendarReconexao();
+      } else {
+        mostrarPop(erro, true);
+      }
+      mostrarConexao(false);
+      return lerUltimaLoja().then(function (d) { return entrar(d || {}); });
     }).then(function () {
       $('carregando').hidden = true;
     });
-  });
+  }
 
   // O painel lateral tem largura fixa; a altura acompanha o conteúdo.
   if (window.ResizeObserver) {

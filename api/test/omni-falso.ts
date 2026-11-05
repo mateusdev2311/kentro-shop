@@ -38,6 +38,12 @@ export interface OpcoesTela {
   contatos?: Record<string, { name?: string; phone?: string }>;
   /** Intervalo da consulta periódica do painel, para o teste não esperar 5 s. */
   intervaloMs?: number;
+  /** Esperas entre as repetições de uma leitura que falhou; padrão: não repete. */
+  esperasRepetir?: number[];
+  /** Espera até ler de novo o que falhou; padrão (0): não tenta sozinho. */
+  reconexaoMs?: number;
+  /** Troca a falha entre uma chamada e outra: o teste simula a API caindo e voltando. */
+  falhaDinamica?: () => { code?: string; message?: string } | null;
   /** Carrinho nativo do atendimento (omni.cart). Ausente = SDK sem carrinho. */
   carrinho?: { disponivel?: boolean; linhas?: { productId: number; qty: number }[]; recusar?: Record<number, string> };
   /** Catálogo da Kentro (omni.products.list). Ausente = SDK sem products. */
@@ -135,7 +141,8 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     http: {
       request(req: ChamadaHttp) {
         chamadas.push(req);
-        if (opcoes.falhaHttp) return Promise.reject(opcoes.falhaHttp);
+        const falha = opcoes.falhaDinamica?.() ?? opcoes.falhaHttp;
+        if (falha) return Promise.reject(falha);
         if (opcoes.corpoCru !== undefined) return Promise.resolve({ status: 200, headers: {}, body: opcoes.corpoCru });
         const caminho = new URL(req.url).pathname;
         const resposta = respostas[`${req.method} ${caminho}`];
@@ -180,6 +187,9 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     beforeParse(window) {
       (window as unknown as { omni: typeof omni }).omni = omni;
       if (opcoes.intervaloMs) (window as unknown as { KENTRO_SHOP_INTERVALO_MS: number }).KENTRO_SHOP_INTERVALO_MS = opcoes.intervaloMs;
+      const esperas = window as unknown as { KENTRO_SHOP_ESPERAS_REPETIR: number[]; KENTRO_SHOP_RECONEXAO_MS: number };
+      esperas.KENTRO_SHOP_ESPERAS_REPETIR = opcoes.esperasRepetir ?? [];
+      esperas.KENTRO_SHOP_RECONEXAO_MS = opcoes.reconexaoMs ?? 0;
       // O jsdom não abre abas: dentro da Kentro a nova aba também pode ser bloqueada (a tela tem o link de reserva).
       window.open = () => null;
       // O jsdom considera a página sempre oculta; aqui ela começa visível e o teste controla.
