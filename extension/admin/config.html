@@ -1379,7 +1379,7 @@
   var versaoEstadoBanco = 0;
   function mostrarAjudaBanco(conector) {
     $('banco-ajuda').textContent = 'O Kentro Shop lê os produtos direto do banco do ERP e guarda uma cópia, atualizada sozinha a cada ' + conector.sincronizacao.minutos +
-      ' minutos. Só entram produtos ativos, com estoque e preço; medicamentos controlados ficam de fora.';
+      ' minutos. Só entram produtos ativos, com estoque e preço. Antibióticos e canetas como Ozempic e Mounjaro aparecem com o aviso de que a receita é retida na entrega; psicotrópicos ficam de fora (a venda a distância é proibida).';
   }
 
   function mostrarEstadoBanco(conector) {

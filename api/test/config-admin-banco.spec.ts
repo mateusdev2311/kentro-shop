@@ -56,7 +56,7 @@ describe('aba Integração: banco de dados do ERP', () => {
     expect(t.visivel('bloco-banco')).toBe(true);
     expect(t.visivel('bloco-kentro')).toBe(false);
     expect(t.texto('banco-estado')).toBe('Salve a integração para buscar os produtos do banco de dados.');
-    expect(t.texto('banco-ajuda')).toMatch(/a cada 15 minutos.*controlados ficam de fora/);
+    expect(t.texto('banco-ajuda')).toMatch(/a cada 15 minutos.*receita é retida na entrega.*psicotrópicos ficam de fora/);
     expect(sincronizacoes(t)).toHaveLength(0);
   });
 

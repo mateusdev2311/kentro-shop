@@ -39,7 +39,7 @@ export const LINHAS_VIEW: Linha[] = [
   linha(104, 'PROTETOR SOLAR FPS50 120ML', { grupo_principal: 'REFERENCIA', subgrupo: 'DERMOCOSMETICOS', preco_venda_delivery: '59.90', preco_venda: '69.90' }),
   linha(105, 'HIDRATANTE FACIAL 50G', { subgrupo: 'DERMOCOSMETICOS ', preco_venda_delivery: '45.00', preco_venda: '45.00' }),
   // Ficam de fora: controlado, fora de linha, sem estoque, sem preço de delivery e uso interno.
-  linha(201, 'ANTIBIOTICO TESTE 500MG', { grupo_principal: 'REFERENCIA', subgrupo: 'ETICO_RX', cotrole_especial: 'true', tipo_controle: 'Antibiotico' }),
+  linha(201, 'CLONAZEPAM TESTE 2MG', { grupo_principal: 'REFERENCIA', subgrupo: 'ETICO_RX', cotrole_especial: 'true', tipo_controle: 'Psicotropico' }),
   linha(202, 'PRODUTO FORA DE LINHA', { situacao: 'FORA DE LINHA' }),
   linha(203, 'PRODUTO SEM ESTOQUE', { estoque: '0.00' }),
   linha(204, 'PRODUTO SEM PRECO', { preco_venda_delivery: '0.00' }),

@@ -1,4 +1,5 @@
 import {
+  AVISO_RECEITA_RETIDA,
   categoriasDaView,
   conectorAutomatiza,
   idCategoria,
@@ -48,11 +49,20 @@ describe('conector ERP Automatiza (views do MySQL)', () => {
     expect(produtoDaView(LINHAS_VIEW[1])!.produto.precoDe).toBeUndefined(); // mesmo preço: sem "de"
   });
 
-  it('deixa de fora controlado, fora de linha, sem estoque, sem preço e uso interno (grupo ou subgrupo)', () => {
+  it('deixa de fora psicotrópico, fora de linha, sem estoque, sem preço e uso interno (grupo ou subgrupo)', () => {
     const fora = LINHAS_VIEW.filter((l) => Number(l.codigo_mercadoria) >= 200);
     expect(fora.map(produtoDaView)).toEqual(fora.map(() => null));
     expect(produtoDaView({ ...LINHAS_VIEW[0], tipo_controle: 'Psicotropico' })).toBeNull(); // mesmo sem a marca de controle
+    expect(produtoDaView({ ...LINHAS_VIEW[0], cotrole_especial: 'true' })).toBeNull(); // controle sem tipo: por cautela
     expect(produtoDaView({ ...LINHAS_VIEW[0], codigo_mercadoria: 'abc' })).toBeNull();
+  });
+
+  it('antibiótico (e as canetas de GLP-1, que o ERP marca assim) entra com o aviso de receita retida', () => {
+    const caneta = { ...LINHAS_VIEW[0], descricao: '# OZEMPIC 1MG SEMAGLUTIDA', subgrupo: 'GLP1', cotrole_especial: 'true', tipo_controle: 'Antibiotico' };
+    expect(produtoDaView(caneta)!.produto.descricao).toBe(`Laboratório: LABORATORIO TESTE LTDA\n${AVISO_RECEITA_RETIDA}`);
+    expect(produtoDaView({ ...caneta, laboratorio: '' })!.produto.descricao).toBe(AVISO_RECEITA_RETIDA);
+    expect(produtoDaView({ ...caneta, tipo_controle: ' antibiótico ' })).not.toBeNull();
+    expect(produtoDaView(LINHAS_VIEW[0])!.produto.descricao).toBe('Laboratório: LABORATORIO TESTE LTDA'); // sem controle: sem aviso
   });
 
   it('o mesmo subgrupo em grupos diferentes vira uma categoria, com nome legível', () => {

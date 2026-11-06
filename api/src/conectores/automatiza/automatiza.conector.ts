@@ -59,15 +59,25 @@ export function idCategoria(subgrupo: string): string {
 }
 
 /**
+ * Controle que pode ser vendido com entrega: a receita é retida na entrega (antimicrobianos e, desde 2025, os
+ * agonistas de GLP-1 como Ozempic e Mounjaro, que o ERP cadastra como "Antibiotico"). Psicotrópico (Portaria 344)
+ * fica de fora: a RDC 44/2009 proíbe a venda a distância. Controle sem tipo também fica de fora, por cautela.
+ */
+const CONTROLE_COM_RECEITA_RETIDA = 'ANTIBIOTICO';
+export const AVISO_RECEITA_RETIDA = 'Venda sob prescrição médica: a receita é retida na entrega.';
+
+/**
  * Linha da view de produtos no formato do contrato. Fica de fora (null): inativo, sem estoque, sem preço de
- * delivery, grupo de uso interno e controlado (antibiótico e psicotrópico exigem a retenção da receita).
+ * delivery, grupo de uso interno e controlado que não pode ser vendido a distância (psicotrópico).
  */
 export function produtoDaView(l: Linha): ProdutoSincronizado | null {
   const id = texto(l.codigo_mercadoria);
   const nome = texto(l.descricao).slice(0, 200);
   if (!/^\d{1,18}$/.test(id) || !nome) return null;
   if (chave(texto(l.situacao)) !== 'ATIVO') return null;
-  if (texto(l.cotrole_especial).toLowerCase() === 'true' || texto(l.tipo_controle)) return null;
+  const tipoControle = chave(texto(l.tipo_controle));
+  const controlado = texto(l.cotrole_especial).toLowerCase() === 'true' || !!tipoControle;
+  if (controlado && tipoControle !== CONTROLE_COM_RECEITA_RETIDA) return null;
   if (GRUPOS_FORA_DA_VENDA.has(chave(texto(l.grupo_principal))) || GRUPOS_FORA_DA_VENDA.has(chave(texto(l.subgrupo)))) return null;
 
   const preco = centavos(numero(l.preco_venda_delivery));
@@ -83,7 +93,7 @@ export function produtoDaView(l: Linha): ProdutoSincronizado | null {
     // O código da mercadoria é o que o ERP usa para lançar o pedido.
     sku: id,
     nome,
-    descricao: laboratorio ? `Laboratório: ${laboratorio}` : '',
+    descricao: [laboratorio ? `Laboratório: ${laboratorio}` : '', controlado ? AVISO_RECEITA_RETIDA : ''].filter(Boolean).join('\n'),
     imagens: [],
     preco,
     ...(precoTabela > preco ? { precoDe: precoTabela } : {}),
