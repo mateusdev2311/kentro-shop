@@ -4,7 +4,7 @@ import type { Carrinho } from '../carrinho';
 import { adicionado, brl, caixasParaArea, num, quantidadeSugerida, unidade } from '../formato';
 import { precos } from '../precos';
 import type { Produto, Variacao } from '../tipos';
-import { Imagem, primeiraVariacao, produtoVendavel, vendavel } from './comum';
+import { Imagem, PrecoDe, primeiraVariacao, produtoVendavel, vendavel } from './comum';
 
 interface Props {
   produto: Produto;
@@ -82,8 +82,9 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
           <h2 id="produto-nome">{produto.nome}</h2>
           {comPreco ? (
             <div class="preco">
-              {deAntes > 0 && <div class="preco-de">{brl(deAntes)}</div>}
+              {deAntes > 0 && <PrecoDe de={deAntes} por={fonte.preco} />}
               <div class="preco-por">
+                {deAntes > 0 && <small>por </small>}
                 {brl(fonte.preco)}{' '}
                 <small>
                   /{unidade(produto.unidade, 1)}

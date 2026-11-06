@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { iniciais } from '../formato';
+import { brl, iniciais } from '../formato';
 import { precos } from '../precos';
 import type { Produto, Variacao } from '../tipos';
 
@@ -43,6 +43,23 @@ export function faixaDePreco(p: Produto): { valor: number; de: number; aPartir: 
   const precos = (candidatas.length ? candidatas : p.variacoes).map((v) => v.preco);
   const min = Math.min(...precos);
   return { valor: min, de: 0, aPartir: Math.max(...precos) > min };
+}
+
+/** Desconto em % arredondado para baixo (nunca promete mais do que dá); a folga cobre o erro do ponto flutuante. */
+export function percentualDeDesconto(de: number, por: number): number {
+  if (!(de > por) || !(por > 0)) return 0;
+  return Math.floor(((de - por) / de) * 100 + 1e-9);
+}
+
+/** "De R$ X" riscado com o selo "-N%": o cliente vê quanto economiza. Abaixo de 1% fica só o preço riscado. */
+export function PrecoDe({ de, por }: { de: number; por: number }) {
+  const pct = percentualDeDesconto(de, por);
+  return (
+    <div class="preco-de">
+      De <s>{brl(de)}</s>
+      {pct >= 1 && <span class="preco-desconto">-{pct}%</span>}
+    </div>
+  );
 }
 
 export function classeDoSelo(selo: string): string {

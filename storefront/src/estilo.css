@@ -173,7 +173,12 @@ main { max-width: calc(1120px + 32px); margin: 0 auto; padding: 16px; }
 .produto-nome { font-weight: 600; font-size: 14.5px; line-height: 1.32; }
 .produto-m2 { color: var(--texto-suave); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .preco { margin-top: auto; padding-top: 8px; font-variant-numeric: tabular-nums; }
-.preco-de { color: var(--texto-suave); text-decoration: line-through; font-size: 12.5px; }
+.preco-de { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; color: var(--texto-suave); font-size: 12.5px; }
+.preco-de s { text-decoration: line-through; }
+.preco-desconto {
+  margin-left: 2px; padding: 1px 6px; border-radius: calc(6px * var(--canto));
+  background: var(--verde-suave); color: var(--verde); font-size: 11.5px; font-weight: 700;
+}
 .preco-por { font-size: 18px; font-weight: 700; letter-spacing: -.01em; color: var(--grafite); }
 .preco-por small { font-size: 12.5px; font-weight: 500; letter-spacing: 0; color: var(--texto-suave); }
 .no-carrinho {

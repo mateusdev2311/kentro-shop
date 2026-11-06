@@ -6,6 +6,7 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { criarApi } from '../../../storefront/src/api';
 import { App } from '../../../storefront/src/app';
+import { percentualDeDesconto } from '../../../storefront/src/telas/comum';
 import type { Abertura, Produto, Sessao } from '../../../storefront/src/tipos';
 
 // Servidor falso das rotas /v1/catalogo/:token (catálogo, carrinho e finalização).
@@ -33,7 +34,7 @@ const CATALOGO: Produto[] = [
       { id: 'v2', sku: 'TINTA-P', nome: 'Preto', atributos: {}, preco: 90, estoque: 0, disponivel: false },
     ],
   }),
-  produto({ id: 'ARG', nome: 'Argamassa AC3', preco: 30, unidade: 'SC', categoriaIds: ['2'], regras: { rendimentoM2: 4, compreJunto: [] } }),
+  produto({ id: 'ARG', nome: 'Argamassa AC3', preco: 30, precoDe: 40, unidade: 'SC', categoriaIds: ['2'], regras: { rendimentoM2: 4, compreJunto: [] } }),
 ];
 
 interface Estado {
@@ -262,6 +263,23 @@ describe('catálogo do cliente', () => {
     expect(elemento('.produto', 'Tinta Acrílica').textContent).not.toContain('a partir de');
     expect(elemento('.produto', 'Tinta Acrílica').textContent).toContain('R$ 80,00');
     expect(elemento('.produto', 'Porcelanato Bege').querySelector('.marcador')?.textContent).toBe('PB');
+    // Com preço "de": o cliente vê o desconto no card e no detalhe.
+    const argamassa = elemento('.produto', 'Argamassa AC3');
+    expect(argamassa.querySelector('.preco-de')?.textContent).toMatch(/^De R\$\s40,00-25%$/);
+    expect(argamassa.querySelector('.preco-por')?.textContent).toMatch(/^por R\$\s30,00/);
+    expect(piso.querySelector('.preco-de')).toBeNull();
+    clicar(argamassa);
+    expect(document.querySelector('.detalhe .preco-de')?.textContent).toMatch(/^De R\$\s40,00-25%$/);
+    expect(document.querySelector('.detalhe .preco-por')?.textContent).toMatch(/^por R\$\s30,00/);
+  });
+
+  it('o percentual de desconto arredonda para baixo e ignora o que não é desconto', () => {
+    expect(percentualDeDesconto(100, 80)).toBe(20); // 0,19999… no ponto flutuante
+    expect(percentualDeDesconto(4.99, 3.99)).toBe(20);
+    expect(percentualDeDesconto(10, 7.49)).toBe(25); // 25,1%: nunca arredonda para cima
+    expect(percentualDeDesconto(10, 9.95)).toBe(0); // menos de 1%: só o preço riscado
+    expect(percentualDeDesconto(10, 10)).toBe(0);
+    expect(percentualDeDesconto(10, 0)).toBe(0);
   });
 
   it('filtra por categoria e busca no servidor', async () => {

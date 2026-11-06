@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { brl, unidade } from '../formato';
 import { precos } from '../precos';
 import type { Produto } from '../tipos';
-import { classeDoSelo, faixaDePreco, Imagem, produtoVendavel } from './comum';
+import { classeDoSelo, faixaDePreco, Imagem, PrecoDe, produtoVendavel } from './comum';
 
 interface Props {
   produtos: Produto[];
@@ -84,10 +84,11 @@ function Cartao({ produto: p, quantidade, aoAbrir }: { produto: Produto; quantid
         <span class="produto-nome">{p.nome}</span>
         <span class="produto-m2">{m2 && comPreco ? `${brl(f.valor / m2)} o m²` : `Vendido por ${unidade(p.unidade, 1)}`}</span>
         <div class="preco">
-          {comPreco && f.de > 0 && <div class="preco-de">{brl(f.de)}</div>}
+          {comPreco && f.de > 0 && <PrecoDe de={f.de} por={f.valor} />}
           {comPreco ? (
             <div class="preco-por">
               {f.aPartir && <small>a partir de </small>}
+              {f.de > 0 && <small>por </small>}
               {brl(f.valor)} <small>/{unidade(p.unidade, 1)}</small>
             </div>
           ) : (
