@@ -99,6 +99,61 @@ describe('painel do atendimento — fechar o pedido pelo painel e acompanhar na 
     await tela.esperar(5);
   };
 
+  describe('carrossel pelo WhatsApp oficial', () => {
+    const produto = (id: string) => ({ id, sku: id, nome: `Produto ${id}`, preco: 10, unidade: 'UN', disponivel: true, variacoes: [], imagens: [], categoriaIds: [] });
+    const DOIS = { status: 200, body: { itens: [produto('101'), produto('102')], pagina: 1, porPagina: 24, temMais: false } };
+    const LIGADO = { 'GET /v1/sessoes/carrossel/disponivel': { status: 200, body: { disponivel: true } }, 'GET /v1/loja/catalogo/produtos': DOIS };
+    const ENVIADO = { status: 200, body: { quantidade: 2, mensagemId: 'wamid.1', url: 'https://shop.teste/c/tok123', sessao: sessao() } };
+    const envios = () => tela.chamadas.filter((c) => c.method === 'POST' && c.url.includes('/v1/sessoes/carrossel'));
+    const escolherDois = async () => {
+      await tela.clicar('btn-buscar');
+      await clicarEm('[data-adicionar="101"]');
+      await clicarEm('[data-adicionar="102"]');
+    };
+
+    it('sem o WhatsApp oficial ligado, o botão não aparece', async () => {
+      await montar({ respostas: { 'GET /v1/sessoes/carrossel/disponivel': { status: 200, body: { disponivel: false } } } });
+      expect(tela.visivel('acao-carrossel')).toBe(false);
+    });
+
+    it('envia os escolhidos para o contato do atendimento e limpa a seleção', async () => {
+      await montar({ respostas: { ...LIGADO, 'POST /v1/sessoes/carrossel': ENVIADO } });
+      expect(tela.visivel('acao-carrossel')).toBe(true);
+      await escolherDois();
+      await tela.clicar('btn-enviar-carrossel');
+      await tela.esperar(5);
+      expect(corpo('POST', '/v1/sessoes/carrossel')).toEqual({ chatId: '57', telefone: '5538988887777', nome: 'Ana Souza', produtoIds: ['101', '102'] });
+      expect(tela.texto('montar-aviso')).toBe('Carrossel com 2 produtos enviado para o cliente.');
+      expect(tela.visivel('montar-vazio')).toBe(true);
+    });
+
+    it('com menos de 2 produtos avisa e não envia', async () => {
+      await montar({ respostas: { ...LIGADO, 'POST /v1/sessoes/carrossel': ENVIADO } });
+      await tela.clicar('btn-buscar');
+      await clicarEm('[data-adicionar="101"]');
+      await tela.clicar('btn-enviar-carrossel');
+      expect(tela.texto('montar-aviso')).toContain('2 a 10 produtos');
+      expect(envios()).toHaveLength(0);
+    });
+
+    it('cancelar a confirmação não envia', async () => {
+      await montar({ confirmar: false, respostas: { ...LIGADO, 'POST /v1/sessoes/carrossel': ENVIADO } });
+      await escolherDois();
+      await tela.clicar('btn-enviar-carrossel');
+      await tela.esperar(5);
+      expect(envios()).toHaveLength(0);
+    });
+
+    it('mostra o motivo da recusa e mantém os produtos escolhidos', async () => {
+      await montar({ respostas: { ...LIGADO, 'POST /v1/sessoes/carrossel': { status: 200, body: { ok: false, codigo: 'CARROSSEL_INVALIDO', mensagem: 'Troque estes produtos: Produto 102 (sem foto).' } } } });
+      await escolherDois();
+      await tela.clicar('btn-enviar-carrossel');
+      await tela.esperar(5);
+      expect(tela.texto('montar-aviso')).toBe('Troque estes produtos: Produto 102 (sem foto).');
+      expect(tela.visivel('montar-vazio')).toBe(false);
+    });
+  });
+
   it('sem link: monta o carrinho, ajusta a quantidade e fecha o pedido com o pagamento, sem copiar link', async () => {
     await montar();
     expect(tela.visivel('acao-montar-aqui')).toBe(true);

@@ -6,6 +6,7 @@ import { ConfigEfetiva, ConfigLojaService } from '../config-loja/config-loja.ser
 import { ErroConector } from '../conectores/nucleo/erros';
 import { Categoria, Produto } from '../contratos/modelo';
 import { IntegracoesService } from '../integracoes/integracoes.service';
+import { WhatsappMetaService } from '../whatsapp-meta/whatsapp-meta.service';
 import { moeda, telefoneBr, textoDoPagamento, unidade } from '../sessoes/calculo';
 import { CarrinhoService, MAX_QUANTIDADE } from '../sessoes/carrinho.service';
 import { ClientesService } from '../sessoes/clientes.service';
@@ -214,6 +215,25 @@ export const FERRAMENTAS: DefinicaoFerramenta[] = [
     },
     annotations: { readOnlyHint: true },
   },
+  {
+    name: 'enviar_carrossel',
+    title: 'Enviar carrossel no WhatsApp',
+    description:
+      'Envia AGORA ao cliente, pelo WhatsApp oficial, um carrossel de 2 a 10 produtos: foto, nome, preço e o botão "Ver produto", ' +
+      'que abre o catálogo com esses produtos, no carrinho deste atendimento. Pegue os produto_id em buscar_produtos e use só produtos ' +
+      'com foto e estoque. Use quando o cliente quer ver opções; cada envio tem custo na Meta, então não envie sem motivo nem repita. ' +
+      'Se o WhatsApp oficial não estiver ligado, use gerar_link_catalogo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        chat_id: CHAT_ID,
+        telefone: { type: 'string', description: 'Telefone do cliente com DDD. Omitir = usa o telefone já guardado neste atendimento.' },
+        nome: { type: 'string', description: 'Nome do cliente.' },
+        produto_ids: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 10, description: 'Os produtos, na ordem dos cartões.' },
+      },
+      required: ['chat_id', 'produto_ids'],
+    },
+  },
 ];
 
 export const INSTRUCOES =
@@ -347,6 +367,7 @@ export class FerramentasMcpService {
     private readonly carrinho: CarrinhoService,
     private readonly clientes: ClientesService,
     private readonly integracoes: IntegracoesService,
+    private readonly whatsapp: WhatsappMetaService,
   ) {}
 
   async chamar(loja: Loja, nome: string, args: Record<string, unknown>): Promise<ResultadoFerramenta> {
@@ -381,6 +402,8 @@ export class FerramentasMcpService {
         return this.consultar(loja.id, obrigatorio(args, 'chat_id', 64));
       case 'pedidos_anteriores':
         return this.pedidosAnteriores(loja.id, obrigatorio(args, 'telefone', 30));
+      case 'enviar_carrossel':
+        return this.enviarCarrossel(loja.id, args);
       default:
         throw new Recusa(`Ferramenta desconhecida: ${nome}.`);
     }
@@ -509,6 +532,17 @@ export class FerramentasMcpService {
       '',
       `Envie ao cliente exatamente este link: ${sessao.url}`,
     ].join('\n');
+  }
+
+  private async enviarCarrossel(lojaId: string, args: Record<string, unknown>): Promise<string> {
+    const r = await this.whatsapp.enviar(lojaId, {
+      chatId: obrigatorio(args, 'chat_id', 64),
+      telefone: texto(args.telefone, 30),
+      nome: texto(args.nome, 120),
+      produtoIds: listaDeTextos(args.produto_ids, 10),
+      autor: 'ia',
+    });
+    return `Carrossel com ${r.quantidade} produtos enviado ao cliente pelo WhatsApp. Não reenvie nem mande o link: o botão de cada cartão já abre o catálogo com esses produtos, neste mesmo carrinho.`;
   }
 
   /** Sessão aberta do chat, ou recusa explicando o que fazer. */

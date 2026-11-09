@@ -61,6 +61,7 @@ describe('servidor MCP (/mcp) da assistente de IA', () => {
       'alterar_item_carrinho',
       'consultar_carrinho',
       'pedidos_anteriores',
+      'enviar_carrossel',
     ]);
     expect((await rpc({ jsonrpc: '2.0', id: 4, method: 'resources/list' })).body.error.code).toBe(-32601);
     expect((await rpc({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'nao_existe' } })).body.error.code).toBe(-32602);

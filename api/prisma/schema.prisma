@@ -34,6 +34,7 @@ model Loja {
   catalogoKentro CatalogoKentro?
   produtosKentro ProdutoKentro[]
   banners        BannerLoja[]
+  whatsappMeta   WhatsappMeta?
 
   @@map("lojas")
 }
@@ -211,6 +212,20 @@ model ConfigLoja {
   loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
 
   @@map("configuracoes_loja")
+}
+
+/// Conta oficial do WhatsApp (Meta) da loja, usada para enviar carrosséis. O token fica cifrado e nunca sai da API.
+model WhatsappMeta {
+  lojaId       String   @id @map("loja_id") @db.Uuid
+  wabaId       String   @map("waba_id")
+  telefoneId   String   @map("telefone_id")
+  tokenCifrado Bytes    @map("token_cifrado")
+  iv           Bytes
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  loja Loja @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_meta")
 }
 
 enum StatusSessao {

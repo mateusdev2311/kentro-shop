@@ -396,6 +396,7 @@
       <button type="button" id="botao-aba-pedidos" data-aba="pedidos"><svg class="ic"><use href="#i-recibo"/></svg>Pedidos</button>
       <button type="button" id="botao-aba-catalogo" data-aba="catalogo"><svg class="ic"><use href="#i-grade"/></svg>Catálogo</button>
       <button type="button" id="botao-aba-ia" data-aba="ia"><svg class="ic"><use href="#i-faisca"/></svg>IA</button>
+      <button type="button" id="botao-aba-whatsapp" data-aba="whatsapp"><svg class="ic"><use href="#i-plug"/></svg>WhatsApp</button>
     </nav>
 
     <section id="aba-integracao" class="cartao">
@@ -671,6 +672,41 @@
       <ul id="lista-categorias" class="lista-simples"></ul>
       <p id="resultado-catalogo" class="resultado"></p>
       <div class="acoes"><button type="button" class="principal" id="btn-salvar-catalogo">Salvar catálogo</button></div>
+    </section>
+
+    <section id="aba-whatsapp" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>WhatsApp oficial (carrossel)</h2>
+        <p>Liga a conta oficial da Meta para o atendente e a IA enviarem carrosséis de produtos. O token fica guardado cifrado no servidor e não vai para o navegador dos atendentes.</p>
+      </div>
+      <div class="formulario">
+        <label for="wa-waba">ID da conta do WhatsApp Business</label>
+        <input id="wa-waba" inputmode="numeric" maxlength="30" autocomplete="off">
+        <span class="ajuda">Gerenciador do WhatsApp → Visão geral da conta.</span>
+        <label for="wa-telefone">ID do número de telefone</label>
+        <input id="wa-telefone" inputmode="numeric" maxlength="30" autocomplete="off">
+        <span class="ajuda">Gerenciador do WhatsApp → Números de telefone. Não é o número em si.</span>
+        <label for="wa-token">Token de acesso</label>
+        <input id="wa-token" type="password" maxlength="1000" autocomplete="off">
+        <span class="ajuda" id="wa-token-ajuda">Token de Usuário do Sistema, com whatsapp_business_management e whatsapp_business_messaging.</span>
+      </div>
+      <p id="wa-conectado" class="muted" hidden></p>
+      <p id="resultado-whatsapp" class="resultado"></p>
+      <div class="acoes">
+        <button type="button" class="principal" id="btn-salvar-whatsapp">Salvar e testar</button>
+        <button type="button" class="perigo" id="btn-remover-whatsapp" hidden>Desconectar</button>
+      </div>
+
+      <div id="wa-bloco-templates" hidden>
+        <h3>Templates do carrossel</h3>
+        <p class="muted">A Meta aprova um modelo para cada quantidade de produtos, de 2 a 10. Crie uma vez e acompanhe aqui; a resposta costuma sair em minutos e pode levar até 24 horas.</p>
+        <ul id="wa-templates" class="vitrine-lista"></ul>
+        <p id="resultado-templates" class="resultado"></p>
+        <div class="acoes">
+          <button type="button" class="principal" id="btn-criar-templates">Criar templates</button>
+          <button type="button" id="btn-atualizar-templates">Atualizar situação</button>
+        </div>
+      </div>
     </section>
 
     <section id="aba-ia" class="cartao" hidden>
@@ -1612,7 +1648,7 @@
   }
 
   // ── Abas ────────────────────────────────────────────────────────────────
-  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia'];
+  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp'];
   var configuracoes = null;
 
   function abrirAba(nome) {
@@ -2051,6 +2087,90 @@
     };
     leitor.readAsDataURL(arquivo);
   });
+
+  // ── Aba WhatsApp oficial ─────────────────────────────────────────────────
+  var SITUACAO_TEMPLATE = {
+    APPROVED: 'Aprovado', PENDING: 'Em análise', IN_APPEAL: 'Em recurso', REJECTED: 'Reprovado', PAUSED: 'Pausado',
+    DISABLED: 'Desativado', LIMIT_EXCEEDED: 'Limite excedido', PENDING_DELETION: 'Sendo excluído', DELETED: 'Excluído', NAO_CRIADO: 'Não criado'
+  };
+
+  function mostrarContaWhatsapp(c) {
+    $('wa-waba').value = c.wabaId || '';
+    $('wa-telefone').value = c.telefoneId || '';
+    $('wa-token').value = '';
+    $('wa-token').placeholder = c.configurado ? 'Deixe em branco para manter o token atual' : '';
+    $('btn-remover-whatsapp').hidden = !c.configurado;
+    $('wa-bloco-templates').hidden = !c.configurado;
+    $('wa-conectado').hidden = !c.conta;
+    $('wa-conectado').textContent = c.conta ? 'Conectado: ' + c.conta + ' · ' + c.numero : '';
+  }
+
+  function desenharTemplates(lista) {
+    var ul = $('wa-templates');
+    limpar(ul);
+    lista.forEach(function (t) {
+      var li = el('li');
+      li.setAttribute('data-template', String(t.cartoes));
+      li.appendChild(el('div', t.cartoes + ' produtos', 'vitrine-nome'));
+      li.appendChild(el('div', (SITUACAO_TEMPLATE[t.status] || t.status) + (t.motivo ? ' (' + t.motivo + ')' : '')));
+      ul.appendChild(li);
+    });
+    $('btn-criar-templates').disabled = !lista.some(function (t) { return t.status === 'NAO_CRIADO'; });
+  }
+
+  // Recusa da API vem com status 200 e { ok: false }: o proxy da Kentro pode perder o corpo dos erros.
+  function tratarTemplates(promessa, idResultado, mensagemOk, botaoQueLibera) {
+    function recusou(texto) {
+      $(idResultado).textContent = texto;
+      if (botaoQueLibera) botaoQueLibera.disabled = false;
+    }
+    return promessa.then(function (r) {
+      if (r.ok === false) { recusou(r.mensagem); return; }
+      desenharTemplates(r.templates);
+      $(idResultado).textContent = mensagemOk;
+    }, function (erro) { recusou(mensagemDeErro(erro)); });
+  }
+
+  function lerTemplates(mensagemOk) {
+    return tratarTemplates(api('/v1/loja/whatsapp-meta/templates'), 'resultado-templates', mensagemOk);
+  }
+
+  $('botao-aba-whatsapp').addEventListener('click', function () {
+    api('/v1/loja/whatsapp-meta').then(function (c) {
+      mostrarContaWhatsapp(c);
+      if (c.configurado) lerTemplates('');
+    }, function (erro) { $('resultado-whatsapp').textContent = mensagemDeErro(erro); });
+  });
+
+  $('btn-salvar-whatsapp').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    $('resultado-whatsapp').textContent = 'Conferindo com a Meta…';
+    var corpo = { wabaId: $('wa-waba').value.trim(), telefoneId: $('wa-telefone').value.trim() };
+    if ($('wa-token').value.trim()) corpo.token = $('wa-token').value.trim();
+    api('/v1/loja/whatsapp-meta', { method: 'PUT', body: corpo }).then(function (c) {
+      if (c.ok === false) { $('resultado-whatsapp').textContent = c.mensagem; return; }
+      mostrarContaWhatsapp(c);
+      $('resultado-whatsapp').textContent = 'WhatsApp oficial conectado.';
+      return lerTemplates('');
+    }, function (erro) { $('resultado-whatsapp').textContent = mensagemDeErro(erro); }).then(function () { botao.disabled = false; });
+  });
+
+  $('btn-remover-whatsapp').addEventListener('click', function () {
+    api('/v1/loja/whatsapp-meta', { method: 'DELETE' }).then(function () {
+      mostrarContaWhatsapp({ configurado: false });
+      $('resultado-whatsapp').textContent = 'WhatsApp oficial desconectado.';
+    }, function (erro) { $('resultado-whatsapp').textContent = mensagemDeErro(erro); });
+  });
+
+  $('btn-criar-templates').addEventListener('click', function () {
+    var botao = this;
+    botao.disabled = true;
+    $('resultado-templates').textContent = 'Enviando para a Meta…';
+    tratarTemplates(api('/v1/loja/whatsapp-meta/templates', { method: 'POST' }), 'resultado-templates', 'Templates enviados para aprovação.', botao);
+  });
+
+  $('btn-atualizar-templates').addEventListener('click', function () { lerTemplates('Situação atualizada.'); });
 
   // ── Vitrine da página inicial ────────────────────────────────────────────
   var MAX_VITRINE = 12;

@@ -231,6 +231,97 @@ describe('abas de configuração do Admin', () => {
     expect(previa.style.getPropertyValue('--previa-titulo')).toContain('Oswald');
   });
 
+  describe('WhatsApp oficial', () => {
+    const TEMPLATES = [
+      { cartoes: 2, nome: 'kshop_carrossel_2', status: 'APPROVED' },
+      { cartoes: 3, nome: 'kshop_carrossel_3', status: 'NAO_CRIADO' },
+    ];
+    const CONECTADO = { configurado: true, wabaId: '111111', telefoneId: '222222' };
+    const chamadasDe = (metodo: string, trecho: string) => t.chamadas.filter((c) => c.method === metodo && c.url.endsWith(trecho));
+
+    it('conecta conferindo com a Meta, limpa o token da tela e mostra os templates', async () => {
+      t = await abrir({
+        'GET /v1/loja/whatsapp-meta': { status: 200, body: { configurado: false } },
+        'PUT /v1/loja/whatsapp-meta': { status: 200, body: { ...CONECTADO, conta: 'Rede Biomax', numero: '+55 38 99999-0000' } },
+        'GET /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: TEMPLATES } },
+      });
+      await t.clicar('botao-aba-whatsapp');
+      await t.esperar(5);
+      expect(t.visivel('aba-whatsapp')).toBe(true);
+      expect(t.visivel('wa-bloco-templates')).toBe(false);
+      t.preencher('wa-waba', '111111');
+      t.preencher('wa-telefone', '222222');
+      t.preencher('wa-token', 'EAAG-secreto');
+      await t.clicar('btn-salvar-whatsapp');
+      await t.esperar(5);
+      expect(JSON.parse(chamadasDe('PUT', '/v1/loja/whatsapp-meta')[0].body!)).toEqual({ wabaId: '111111', telefoneId: '222222', token: 'EAAG-secreto' });
+      expect((t.document.getElementById('wa-token') as HTMLInputElement).value).toBe('');
+      expect(t.texto('wa-conectado')).toBe('Conectado: Rede Biomax · +55 38 99999-0000');
+      expect(t.texto('wa-templates')).toContain('Aprovado');
+      expect(t.texto('wa-templates')).toContain('Não criado');
+    });
+
+    it('com a conta ligada, salvar sem token não manda o campo; a recusa mostra o motivo', async () => {
+      t = await abrir({
+        'GET /v1/loja/whatsapp-meta': { status: 200, body: CONECTADO },
+        'PUT /v1/loja/whatsapp-meta': { status: 200, body: { ok: false, mensagem: 'O token da Meta é inválido ou expirou.' } },
+        'GET /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: TEMPLATES } },
+      });
+      await t.clicar('botao-aba-whatsapp');
+      await t.esperar(5);
+      expect((t.document.getElementById('wa-waba') as HTMLInputElement).value).toBe('111111');
+      await t.clicar('btn-salvar-whatsapp');
+      await t.esperar(5);
+      expect(JSON.parse(chamadasDe('PUT', '/v1/loja/whatsapp-meta')[0].body!)).toEqual({ wabaId: '111111', telefoneId: '222222' });
+      expect(t.texto('resultado-whatsapp')).toBe('O token da Meta é inválido ou expirou.');
+    });
+
+    it('cria os templates e trava o botão quando não falta nenhum', async () => {
+      t = await abrir({
+        'GET /v1/loja/whatsapp-meta': { status: 200, body: CONECTADO },
+        'GET /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: TEMPLATES } },
+        'POST /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: [TEMPLATES[0], { ...TEMPLATES[1], status: 'PENDING' }] } },
+      });
+      await t.clicar('botao-aba-whatsapp');
+      await t.esperar(5);
+      const criar = t.document.getElementById('btn-criar-templates') as HTMLButtonElement;
+      expect(criar.disabled).toBe(false);
+      await t.clicar('btn-criar-templates');
+      await t.esperar(5);
+      expect(t.texto('wa-templates')).toContain('Em análise');
+      expect(t.texto('resultado-templates')).toBe('Templates enviados para aprovação.');
+      expect(criar.disabled).toBe(true);
+    });
+
+    it('recusa ao criar mostra o motivo e deixa tentar de novo', async () => {
+      t = await abrir({
+        'GET /v1/loja/whatsapp-meta': { status: 200, body: CONECTADO },
+        'GET /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: TEMPLATES } },
+        'POST /v1/loja/whatsapp-meta/templates': { status: 200, body: { ok: false, mensagem: 'Sem foto de exemplo.' } },
+      });
+      await t.clicar('botao-aba-whatsapp');
+      await t.esperar(5);
+      await t.clicar('btn-criar-templates');
+      await t.esperar(5);
+      expect(t.texto('resultado-templates')).toBe('Sem foto de exemplo.');
+      expect((t.document.getElementById('btn-criar-templates') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('desconectar esconde os templates', async () => {
+      t = await abrir({
+        'GET /v1/loja/whatsapp-meta': { status: 200, body: CONECTADO },
+        'GET /v1/loja/whatsapp-meta/templates': { status: 200, body: { templates: TEMPLATES } },
+        'DELETE /v1/loja/whatsapp-meta': { status: 200, body: { ok: true } },
+      });
+      await t.clicar('botao-aba-whatsapp');
+      await t.esperar(5);
+      await t.clicar('btn-remover-whatsapp');
+      await t.esperar(5);
+      expect(t.visivel('wa-bloco-templates')).toBe(false);
+      expect(t.texto('resultado-whatsapp')).toBe('WhatsApp oficial desconectado.');
+    });
+  });
+
   describe('Aparência: vitrine da página inicial', () => {
     const produto = (id: string, nome: string) => ({ id, nome, sku: `S${id}`, imagens: [] });
     const comVitrine = (ids: string[], titulo?: string) => ({

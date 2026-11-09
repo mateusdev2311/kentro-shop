@@ -11,7 +11,7 @@ import { CriarSessaoDto, FinalizarDto, SalvarCarrinhoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 
 /** Nome do atendente para a atividade (só auditoria; vem do navegador, codificado). Inválido → vazio. */
-function nomeDoAtendente(req: RequisicaoDaLoja): string {
+export function nomeDoAtendente(req: RequisicaoDaLoja): string {
   const bruto = req.headers['x-kentro-usuario-nome'];
   if (typeof bruto !== 'string' || !bruto) return '';
   try {

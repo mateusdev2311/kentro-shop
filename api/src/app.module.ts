@@ -19,6 +19,8 @@ import { McpModule } from './mcp/mcp.module';
 import { SaudeController } from './saude/saude.controller';
 import { ENVIO_AVISO, EnvioAviso, enviarAvisoHttp } from './sessoes/aviso-kentro';
 import { SessoesModule } from './sessoes/sessoes.module';
+import { CLIENTE_META, ClienteMeta, clienteMetaHttp } from './whatsapp-meta/cliente-meta';
+import { WhatsappMetaModule } from './whatsapp-meta/whatsapp-meta.module';
 
 export interface OpcoesApp {
   /** Substitui os conectores de produção (usado nos testes). */
@@ -29,6 +31,8 @@ export interface OpcoesApp {
   abrirBanco?: AbrirBanco;
   /** Substitui o acesso aos FTPs de fotos das lojas (usado nos testes). */
   abrirFtp?: AbrirFtp;
+  /** Substitui as chamadas à API oficial do WhatsApp (usado nos testes). */
+  clienteMeta?: ClienteMeta;
   /** false desliga a sincronização periódica dos catálogos (testes). Padrão: ligada. */
   sincronizacaoAutomatica?: boolean;
 }
@@ -45,16 +49,17 @@ export class AppModule {
           { name: 'registro', limit: 5, ttl: 3_600_000 },
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
-        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule],
+        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule, WhatsappMetaModule],
       providers: [
         { provide: CONFIG_APP, useValue: config },
         { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp },
         { provide: ABRIR_BANCO, useValue: opcoes.abrirBanco ?? abrirBancoPadrao },
         { provide: ABRIR_FTP, useValue: opcoes.abrirFtp ?? abrirFtpPadrao },
+        { provide: CLIENTE_META, useValue: opcoes.clienteMeta ?? clienteMetaHttp },
         { provide: OPCOES_SINCRONIZACAO, useValue: { automatica: opcoes.sincronizacaoAutomatica ?? true } },
         PrismaService,
       ],
-      exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, ABRIR_FTP, OPCOES_SINCRONIZACAO, PrismaService],
+      exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, ABRIR_FTP, CLIENTE_META, OPCOES_SINCRONIZACAO, PrismaService],
       controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
     };
   }

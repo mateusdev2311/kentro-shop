@@ -449,6 +449,12 @@
         <p class="muted dica-acao">Os itens vão para o carrinho do atendimento e você fecha o pedido pelo painel, sem mandar link. Se precisar, o link sai depois com o mesmo carrinho.</p>
       </div>
 
+      <!-- WhatsApp oficial ligado: os escolhidos vão como carrossel, direto para o cliente -->
+      <div id="acao-carrossel" hidden>
+        <button type="button" class="suave largo" id="btn-enviar-carrossel"><svg class="ic"><use href="#i-link"/></svg>Enviar carrossel no WhatsApp</button>
+        <p class="muted dica-acao">Vai direto para o cliente, com foto, nome, preço e o botão para comprar. Escolha de 2 a 10 produtos com foto.</p>
+      </div>
+
       <details class="link-novo" id="link-novo">
         <summary id="link-novo-titulo">Opções do link</summary>
         <p class="subtitulo">Onde o link abre</p>
@@ -1430,6 +1436,52 @@
   $('montar-busca').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
   $('montar-categoria').addEventListener('change', function () { if (this.value) $('op-ver-categoria').checked = true; });
 
+  // ── Carrossel pelo WhatsApp oficial ─────────────────────────────────────
+  var carrosselVerificado = false;
+  function verificarCarrossel() {
+    if (carrosselVerificado) return;
+    carrosselVerificado = true;
+    api('/v1/sessoes/carrossel/disponivel').then(function (r) {
+      $('acao-carrossel').hidden = !(r && r.disponivel);
+    }, function () { carrosselVerificado = false; });
+  }
+
+  $('btn-enviar-carrossel').addEventListener('click', function () {
+    if (!chat) return;
+    var ids = [];
+    montagem.forEach(function (i) { if (ids.indexOf(i.produtoId) < 0) ids.push(i.produtoId); });
+    if (ids.length < 2 || ids.length > 10) {
+      avisoMontar('O carrossel precisa de 2 a 10 produtos diferentes.');
+      return;
+    }
+    var botao = this;
+    var id = chat.id;
+    var pergunta = omni.ui.confirm
+      ? Promise.resolve(omni.ui.confirm({
+        title: 'Enviar carrossel',
+        message: 'O carrossel com ' + ids.length + ' produtos vai agora para o WhatsApp do cliente. Esta mensagem é de marketing e tem custo na Meta.',
+        okLabel: 'Enviar',
+        cancelLabel: 'Voltar'
+      }))
+      : Promise.resolve({ confirmed: true });
+    pergunta.then(function (r) {
+      if (!r || !r.confirmed) return;
+      botao.disabled = true;
+      avisoMontar('Enviando o carrossel…', 'info');
+      return api('/v1/sessoes/carrossel', { method: 'POST', body: { chatId: id, telefone: chat.telefone || '', nome: chat.nome || '', produtoIds: ids } }).then(function (s) {
+        if (!chat || chat.id !== id) return;
+        if (s.ok === false) { avisoMontar(s.mensagem); return; }
+        mostrarSessao(s.sessao);
+        agendar();
+        montagem = [];
+        renderMontagem();
+        avisoMontar('Carrossel com ' + s.quantidade + ' produtos enviado para o cliente.', 'info');
+      }, function (e) {
+        avisoMontar(mensagemDeErro(e));
+      }).then(function () { botao.disabled = false; });
+    });
+  });
+
   function itensDaMontagem() {
     return montagem.map(function (i) {
       var item = { produtoId: i.produtoId, quantidade: i.quantidade };
@@ -1640,6 +1692,7 @@
     var base = c.contact || {};
     chat = { id: id, nome: base.name || '', telefone: String(base.phone || '').replace(/\D/g, '') };
     carregarCategorias();
+    verificarCarrossel();
     carregarOpcoesPedido();
     if (c.contactId) {
       Promise.resolve(omni.contacts.get(c.contactId)).then(function (contato) {
@@ -1697,6 +1750,7 @@
       carregarChat(ultimoChat);
     } else if (chat && lojaConectada) {
       carregarCategorias();
+      verificarCarrossel();
       carregarOpcoesPedido();
       if (!sessao) atualizar();
     }
