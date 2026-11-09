@@ -282,6 +282,13 @@
   .banners-lista .banner-campos input, .banners-lista .banner-campos select { width: 100%; }
   .banners-lista .banner-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
   @media (max-width: 560px) { .banners-lista li { grid-template-columns: minmax(0, 1fr); } .banners-lista img { width: 100%; } }
+  .vitrine-lista { display: grid; gap: 8px; margin: 8px 0 12px; padding: 0; list-style: none; }
+  .vitrine-lista:empty { display: none; }
+  .vitrine-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+  .vitrine-lista img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--ks-superficie); }
+  .vitrine-lista .vitrine-nome { flex: 1 1 180px; min-width: 0; }
+  .vitrine-lista .vitrine-nome small { display: block; opacity: .7; }
+  .vitrine-lista .vitrine-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
   .lista-simples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
   .lista-simples label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-weight: 400; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); cursor: pointer; }
   .lista-simples label:has(input:checked) { background: var(--ks-superficie); color: var(--ext-color-text-muted); }
@@ -579,6 +586,22 @@
         </select>
       </div>
       <p id="resultado-banners" class="resultado"></p>
+
+      <h3>Vitrine da página inicial</h3>
+      <p class="muted">Aparece logo depois dos banners, com até 12 produtos na ordem abaixo: um bom lugar para os mais vendidos. Sem nenhum produto escolhido, a área não aparece. Produto sem estoque sai da área sozinho e volta quando tiver estoque.</p>
+      <div class="formulario">
+        <label for="ap-vitrine-titulo">Título da área</label>
+        <input id="ap-vitrine-titulo" maxlength="60" placeholder="Mais vendidos">
+        <label for="ap-vitrine-busca">Adicionar produto</label>
+        <input id="ap-vitrine-busca" type="search" maxlength="100" placeholder="Nome do produto" autocomplete="off">
+      </div>
+      <div class="acoes"><button type="button" id="btn-vitrine-buscar">Buscar</button></div>
+      <ul id="ap-vitrine-resultados" class="vitrine-lista"></ul>
+      <p id="ap-vitrine-contagem" class="muted"></p>
+      <ul id="ap-vitrine" class="vitrine-lista"></ul>
+      <p id="ap-vitrine-vazio" class="muted">Nenhum produto escolhido ainda.</p>
+      <p id="resultado-vitrine" class="resultado"></p>
+      <div class="acoes"><button type="button" class="principal" id="btn-salvar-vitrine">Salvar vitrine</button></div>
     </section>
 
     <section id="aba-entrega" class="cartao" hidden>
@@ -1696,6 +1719,8 @@
     $('ap-banner-segundos').value = String(c.tema.bannerSegundos || 5);
     mostrarLogo(c.tema.logoUrl);
     desenharBanners(c.tema.banners || []);
+    $('ap-vitrine-titulo').value = c.tema.vitrineTitulo || '';
+    carregarVitrine(c.tema.vitrineProdutos || []);
     atualizarPrevia();
     // Entrega e frete
     $('ent-entrega').checked = c.entrega.habilitada;
@@ -2025,6 +2050,141 @@
       }, falhaBanner);
     };
     leitor.readAsDataURL(arquivo);
+  });
+
+  // ── Vitrine da página inicial ────────────────────────────────────────────
+  var MAX_VITRINE = 12;
+  var vitrine = []; // { id, nome, sku, imagem, fora }
+  var resultadosVitrine = [];
+  var leituraVitrine = 0;
+  var buscaVitrine = 0;
+
+  function resumoDoProduto(p) {
+    return { id: p.id, nome: p.nome, sku: p.sku, imagem: (p.imagens && p.imagens[0]) || '' };
+  }
+
+  // Os códigos entram na hora, antes dos nomes: salvar durante a leitura (ou com ela falhando) não perde a seleção.
+  function carregarVitrine(ids) {
+    var minha = ++leituraVitrine;
+    vitrine = ids.map(function (id) { return { id: id }; });
+    desenharVitrine();
+    if (!ids.length) return;
+    api('/v1/loja/catalogo/produtos-por-id?ids=' + encodeURIComponent(ids.join(','))).then(function (achados) {
+      if (minha !== leituraVitrine) return;
+      var porId = new Map((achados || []).map(function (p) { return [p.id, p]; }));
+      vitrine.forEach(function (item) {
+        var p = porId.get(item.id);
+        if (p) Object.assign(item, resumoDoProduto(p));
+        else if (!item.nome) item.fora = true;
+      });
+      desenharVitrine();
+    }, function () { /* a lista fica com os códigos */ });
+  }
+
+  function botaoVitrine(lista, texto, rotulo, aoClicar, desligado) {
+    var b = el('button', texto);
+    b.type = 'button';
+    b.disabled = !!desligado;
+    b.setAttribute('aria-label', rotulo);
+    b.addEventListener('click', aoClicar);
+    lista.appendChild(b);
+  }
+
+  function nomeDoItem(item) {
+    var nome = el('div', item.nome || 'Produto ' + item.id, 'vitrine-nome');
+    nome.appendChild(el('small', item.fora ? 'Não encontrado no catálogo: não aparece para o cliente.' : item.sku ? 'Cód. ' + item.sku : ''));
+    return nome;
+  }
+
+  function fotoDoItem(li, item) {
+    if (!item.imagem) return;
+    var img = document.createElement('img');
+    img.src = item.imagem;
+    img.alt = '';
+    li.appendChild(img);
+  }
+
+  function moverVitrine(i, passo) {
+    var item = vitrine.splice(i, 1)[0];
+    vitrine.splice(i + passo, 0, item);
+    desenharVitrine();
+  }
+
+  function desenharVitrine() {
+    var ul = $('ap-vitrine');
+    limpar(ul);
+    $('ap-vitrine-vazio').hidden = vitrine.length > 0;
+    $('ap-vitrine-contagem').textContent = vitrine.length ? vitrine.length + ' de ' + MAX_VITRINE + ' produtos escolhidos' : '';
+    vitrine.forEach(function (item, i) {
+      var li = el('li');
+      li.setAttribute('data-vitrine', item.id);
+      fotoDoItem(li, item);
+      li.appendChild(nomeDoItem(item));
+      var botoes = el('div', null, 'vitrine-acoes');
+      var nome = item.nome || item.id;
+      botaoVitrine(botoes, 'Subir', 'Subir ' + nome, function () { moverVitrine(i, -1); }, i === 0);
+      botaoVitrine(botoes, 'Descer', 'Descer ' + nome, function () { moverVitrine(i, 1); }, i === vitrine.length - 1);
+      botaoVitrine(botoes, 'Remover', 'Remover ' + nome, function () { vitrine.splice(i, 1); desenharVitrine(); });
+      li.appendChild(botoes);
+      ul.appendChild(li);
+    });
+    desenharResultadosVitrine();
+  }
+
+  function desenharResultadosVitrine() {
+    var ul = $('ap-vitrine-resultados');
+    limpar(ul);
+    var cheia = vitrine.length >= MAX_VITRINE;
+    resultadosVitrine.forEach(function (p) {
+      var escolhido = vitrine.some(function (item) { return item.id === p.id; });
+      var li = el('li');
+      li.setAttribute('data-vitrine-resultado', p.id);
+      fotoDoItem(li, p);
+      li.appendChild(nomeDoItem(p));
+      var botoes = el('div', null, 'vitrine-acoes');
+      botaoVitrine(botoes, escolhido ? 'Já escolhido' : 'Adicionar', 'Adicionar ' + p.nome, function () {
+        vitrine.push(p);
+        desenharVitrine();
+      }, escolhido || cheia);
+      li.appendChild(botoes);
+      ul.appendChild(li);
+    });
+  }
+
+  function buscarVitrine() {
+    var termo = $('ap-vitrine-busca').value.trim();
+    var minha = ++buscaVitrine;
+    if (!termo) {
+      resultadosVitrine = [];
+      desenharResultadosVitrine();
+      $('resultado-vitrine').textContent = 'Escreva o nome do produto.';
+      return;
+    }
+    $('resultado-vitrine').textContent = 'Buscando…';
+    api('/v1/loja/catalogo/produtos?busca=' + encodeURIComponent(termo)).then(function (pagina) {
+      if (minha !== buscaVitrine) return;
+      resultadosVitrine = (pagina.itens || []).map(resumoDoProduto);
+      desenharResultadosVitrine();
+      $('resultado-vitrine').textContent = resultadosVitrine.length ? '' : 'Nenhum produto encontrado.';
+    }, function (erro) {
+      if (minha === buscaVitrine) $('resultado-vitrine').textContent = mensagemDeErro(erro);
+    });
+  }
+
+  $('btn-vitrine-buscar').addEventListener('click', buscarVitrine);
+  $('ap-vitrine-busca').addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    buscarVitrine();
+  });
+
+  $('btn-salvar-vitrine').addEventListener('click', function () {
+    salvarConfig({
+      tema: {
+        vitrineTitulo: $('ap-vitrine-titulo').value.trim(),
+        vitrineProdutos: vitrine.map(function (item) { return item.id; })
+      }
+    }, this, 'resultado-vitrine', 'Vitrine salva.');
   });
 
   function mostrarLogo(url) {

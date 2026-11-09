@@ -123,6 +123,20 @@ export class CatalogoPublicoController {
     return (await this.mostrar(req)) ? produto : produtoSemPreco(produto);
   }
 
+  /** Área escolhida pela loja, logo depois dos banners (ex.: os mais vendidos): na ordem dela, só o que dá para comprar agora. */
+  @Get('vitrine-inicial')
+  async vitrineInicial(@Req() req: RequisicaoDoCliente) {
+    const lojaId = req.sessao.lojaId;
+    const config = await this.configLoja.obter(lojaId);
+    const ids = config.tema.vitrineProdutos ?? [];
+    if (!ids.length) return [];
+    const visivel = visivelNas(new Set(config.categoriasOcultas));
+    // Se a leitura falhar, o catálogo abre sem a área em vez de dar erro na página inicial.
+    const mapa = await this.catalogo.obterVarios(lojaId, ids).catch(() => new Map<string, Produto | null>());
+    const itens = ids.map((id) => mapa.get(id) ?? null).filter((p): p is Produto => !!p && visivel(p) && vendavel(p));
+    return precosVisiveis(req.sessao, config.mostrarPrecos) ? itens : itens.map(produtoSemPreco);
+  }
+
   /**
    * "Compre também", no fim da vitrine: produtos das mesmas categorias da seleção do link e do carrinho, que o
    * cliente ainda não tem na seleção nem no carrinho; completa com os primeiros da loja. Só produtos vendáveis.

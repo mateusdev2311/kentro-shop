@@ -16,7 +16,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { CANTOS, Cantos, Fonte, FONTES, IMAGENS_PRODUTO, ImagemProduto, MAX_BANNERS, TIPOS_DE_LOGO } from './config-loja.service';
+import { CANTOS, Cantos, Fonte, FONTES, IMAGENS_PRODUTO, ImagemProduto, MAX_BANNERS, MAX_VITRINE_INICIAL, TIPOS_DE_LOGO } from './config-loja.service';
 
 const COR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const MENSAGEM_COR = 'Use uma cor no formato #RRGGBB.';
@@ -34,6 +34,8 @@ export class TemaDto {
   @IsOptional() @IsIn(IMAGENS_PRODUTO as unknown as string[]) imagemProduto?: ImagemProduto;
   @IsOptional() @IsBoolean() compreTambem?: boolean;
   @IsOptional() @IsInt() @Min(3) @Max(15) bannerSegundos?: number;
+  @IsOptional() @IsString() @MaxLength(60) vitrineTitulo?: string;
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_VITRINE_INICIAL) @IsString({ each: true }) @MaxLength(100, { each: true }) vitrineProdutos?: string[];
 }
 
 /** Para onde o banner leva: uma categoria ou uma busca (os dois vazios = só imagem). */

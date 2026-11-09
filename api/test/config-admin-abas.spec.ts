@@ -231,6 +231,73 @@ describe('abas de configuração do Admin', () => {
     expect(previa.style.getPropertyValue('--previa-titulo')).toContain('Oswald');
   });
 
+  describe('Aparência: vitrine da página inicial', () => {
+    const produto = (id: string, nome: string) => ({ id, nome, sku: `S${id}`, imagens: [] });
+    const comVitrine = (ids: string[], titulo?: string) => ({
+      status: 200,
+      body: { ...configuracoes.body, tema: { ...configuracoes.body.tema, vitrineProdutos: ids, ...(titulo ? { vitrineTitulo: titulo } : {}) } },
+    });
+    const clicarEm = (seletor: string, indice = 0) => (t.document.querySelectorAll(seletor)[indice] as HTMLButtonElement).click();
+    const escolhidos = () => [...t.document.querySelectorAll('#ap-vitrine li')].map((li) => li.getAttribute('data-vitrine'));
+
+    it('carrega os nomes, busca, adiciona, ordena, remove e salva a lista na nova ordem', async () => {
+      t = await abrir({
+        'GET /v1/loja/configuracoes': comVitrine(['A', 'B', 'sumiu'], 'Campeões'),
+        'GET /v1/loja/catalogo/produtos-por-id': { status: 200, body: [produto('A', 'Ozempic'), produto('B', 'Dipirona')] },
+        'GET /v1/loja/catalogo/produtos': { status: 200, body: { itens: [produto('A', 'Ozempic'), produto('C', 'Mounjaro')] } },
+      });
+      await t.clicar('botao-aba-aparencia');
+      await t.esperar(5);
+      expect((t.document.getElementById('ap-vitrine-titulo') as HTMLInputElement).value).toBe('Campeões');
+      expect(escolhidos()).toEqual(['A', 'B', 'sumiu']);
+      expect(t.texto('ap-vitrine')).toContain('Ozempic');
+      expect(t.texto('ap-vitrine')).toContain('Não encontrado no catálogo');
+      expect(t.texto('ap-vitrine-contagem')).toBe('3 de 12 produtos escolhidos');
+
+      t.preencher('ap-vitrine-busca', 'o');
+      await t.clicar('btn-vitrine-buscar');
+      await t.esperar(5);
+      // O que já está escolhido não entra duas vezes.
+      expect((t.document.querySelector('[data-vitrine-resultado="A"] button') as HTMLButtonElement).disabled).toBe(true);
+      clicarEm('[data-vitrine-resultado="C"] button');
+      expect(escolhidos()).toEqual(['A', 'B', 'sumiu', 'C']);
+
+      clicarEm('[data-vitrine="sumiu"] button', 2); // Remover
+      clicarEm('[data-vitrine="B"] button', 0); // Subir
+      expect(escolhidos()).toEqual(['B', 'A', 'C']);
+
+      await t.clicar('btn-salvar-vitrine');
+      expect(patches(t)).toEqual([{ tema: { vitrineTitulo: 'Campeões', vitrineProdutos: ['B', 'A', 'C'] } }]);
+      expect(t.texto('resultado-vitrine')).toBe('Vitrine salva.');
+    });
+
+    it('com 12 escolhidos não deixa adicionar mais', async () => {
+      const doze = Array.from({ length: 12 }, (_, i) => `p${i}`);
+      t = await abrir({
+        'GET /v1/loja/configuracoes': comVitrine(doze),
+        'GET /v1/loja/catalogo/produtos-por-id': { status: 200, body: doze.map((id) => produto(id, id)) },
+        'GET /v1/loja/catalogo/produtos': { status: 200, body: { itens: [produto('novo', 'Novo')] } },
+      });
+      await t.clicar('botao-aba-aparencia');
+      t.preencher('ap-vitrine-busca', 'novo');
+      await t.clicar('btn-vitrine-buscar');
+      await t.esperar(5);
+      expect((t.document.querySelector('[data-vitrine-resultado="novo"] button') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('se os nomes não carregarem, salvar não perde a seleção', async () => {
+      t = await abrir({
+        'GET /v1/loja/configuracoes': comVitrine(['A', 'B']),
+        'GET /v1/loja/catalogo/produtos-por-id': { status: 500, body: { erro: { codigo: 'ERRO', mensagem: 'x' } } },
+      });
+      await t.clicar('botao-aba-aparencia');
+      await t.esperar(5);
+      expect(t.texto('ap-vitrine')).toContain('Produto A');
+      await t.clicar('btn-salvar-vitrine');
+      expect(patches(t)).toEqual([{ tema: { vitrineTitulo: '', vitrineProdutos: ['A', 'B'] } }]);
+    });
+  });
+
   it('Aparência: banners gravados aparecem na lista; salvar a ação e remover vão direto para a API', async () => {
     const banner = { id: 'b1', url: 'https://api.teste/b1.png', titulo: 'Verão' };
     t = await abrir({

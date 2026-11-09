@@ -34,6 +34,32 @@ export function Vitrine({ produtos, noCarrinho, aoAbrir, temMais, carregando, er
   );
 }
 
+/** Área escolhida pela loja, logo depois dos banners (ex.: os mais vendidos). */
+export function VitrineInicial({
+  titulo,
+  produtos,
+  noCarrinho,
+  aoAbrir,
+  layout = 'grade',
+}: {
+  titulo: string;
+  produtos: Produto[];
+  noCarrinho: (produtoId: string) => number;
+  aoAbrir: (produto: Produto) => void;
+  layout?: 'grade' | 'lista';
+}) {
+  return (
+    <section class="vitrine-inicial" aria-labelledby="vitrine-inicial-titulo">
+      <h2 id="vitrine-inicial-titulo">{titulo}</h2>
+      <div class={layout === 'lista' ? 'grade lista' : 'grade'}>
+        {produtos.map((p) => (
+          <Cartao key={p.id} produto={p} quantidade={noCarrinho(p.id)} aoAbrir={aoAbrir} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Fim da vitrine de um link: "Compre também" (mesmas categorias, fora da seleção e do carrinho) e "Ver todos". */
 export function CompreTambem({
   produtos,

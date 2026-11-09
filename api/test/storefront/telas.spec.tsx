@@ -106,6 +106,7 @@ async function servidorBase(url: string, init?: RequestInit): Promise<Response> 
   if (caminho === '/abrir') return json(200, { ...estado.abertura, sessao: sessao(estado.abertura.sessao.status) });
   if (caminho === '/categorias') return json(200, [{ id: '1', nome: 'Pisos' }, { id: '2', nome: 'Argamassas' }]);
   if (caminho === '/sugestoes') return json(200, CATALOGO.filter((p) => !(estado.abertura.filtro?.produtoIds ?? []).includes(p.id)));
+  if (caminho === '/vitrine-inicial') return json(200, (estado.abertura.tema.vitrineProdutos ?? []).map((id) => CATALOGO.find((p) => p.id === id)));
   if (caminho.startsWith('/produtos/')) return json(200, CATALOGO.find((p) => p.id === decodeURIComponent(caminho.slice(10))));
   if (caminho.startsWith('/produtos')) {
     const q = new URLSearchParams(caminho.split('?')[1] ?? '');
@@ -431,6 +432,61 @@ describe('catálogo do cliente', () => {
         { produtoId: 'TINTA', variacaoId: 'v1', quantidade: 1 },
       ],
     });
+  });
+
+  const nomesEm = (seletor: string) => [...raiz.querySelectorAll(`${seletor} .produto-nome`)].map((n) => n.textContent);
+
+  it('vitrine inicial: vem depois dos banners, na ordem da loja, sem repetir na lista e só no início', async () => {
+    estado.abertura.tema.vitrineProdutos = ['ARG', 'PISO'];
+    estado.abertura.tema.banners = [{ id: 'b1', url: 'https://shop.teste/b1.png' }];
+    await montar();
+    await ate(() => !!raiz.querySelector('.vitrine-inicial'));
+    expect(elemento('.vitrine-inicial h2').textContent).toBe('Mais vendidos');
+    expect(raiz.querySelector('.banners')!.nextElementSibling).toBe(raiz.querySelector('.vitrine-inicial'));
+    expect(nomesEm('.vitrine-inicial')).toEqual(['Argamassa AC3', 'Porcelanato Bege']);
+    expect(nomesEm('main > .grade')).toEqual(['Tinta Acrílica']);
+    // Buscando, a área sai da frente e o produto volta para a lista.
+    digitar(elemento<HTMLInputElement>('input[type=search]'), 'argamassa');
+    await ate(() => !raiz.querySelector('.vitrine-inicial'));
+    await ate(() => nomesEm('main > .grade').join() === 'Argamassa AC3');
+  });
+
+  it('vitrine inicial: título da loja; sem produtos escolhidos, nem chama a rota', async () => {
+    estado.abertura.tema.vitrineProdutos = ['PISO'];
+    estado.abertura.tema.vitrineTitulo = 'Campeões da rede';
+    await montar();
+    await ate(() => !!raiz.querySelector('.vitrine-inicial'));
+    expect(elemento('.vitrine-inicial h2').textContent).toBe('Campeões da rede');
+    expect(chamadas('/vitrine-inicial')).toHaveLength(1);
+    act(() => render(null, raiz));
+    raiz.remove();
+    estado.chamadas = [];
+    estado.abertura.tema.vitrineProdutos = undefined;
+    await montar();
+    expect(raiz.querySelector('.vitrine-inicial')).toBeNull();
+    expect(chamadas('/vitrine-inicial')).toHaveLength(0);
+  });
+
+  it('vitrine inicial: com todos os produtos na área, a lista some sem dizer "nenhum produto"', async () => {
+    estado.abertura.tema.vitrineProdutos = ['PISO', 'TINTA', 'ARG'];
+    await montar();
+    await ate(() => !!raiz.querySelector('.vitrine-inicial'));
+    expect(nomesEm('.vitrine-inicial')).toHaveLength(3);
+    expect(tem('Nenhum produto encontrado')).toBe(false);
+    expect(tem('Todos os produtos')).toBe(false);
+  });
+
+  it('vitrine inicial: não entra na frente da seleção do link', async () => {
+    estado.abertura.tema.vitrineProdutos = ['TINTA'];
+    estado.abertura.filtro = { produtoIds: ['PISO', 'ARG'] };
+    await montar();
+    expect(tem('Separados para você')).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(raiz.querySelector('.vitrine-inicial')).toBeNull();
+    clicar(elemento('button', 'Ver todo o catálogo'));
+    await ate(() => !!raiz.querySelector('.vitrine-inicial'));
   });
 
   it('link com seleção: "Separados para você" e, no fim, "Compre também" e "Ver todos os produtos"', async () => {

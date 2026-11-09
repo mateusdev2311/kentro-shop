@@ -64,6 +64,7 @@ export function criarApi(token: string, fetchFn: typeof fetch = (...a) => fetch(
     },
     produto: (id: string) => pedir<Produto>(`/produtos/${encodeURIComponent(id)}`),
     sugestoes: () => pedir<Produto[]>('/sugestoes'),
+    vitrineInicial: () => pedir<Produto[]>('/vitrine-inicial'),
     salvarCarrinho: (itens: PedidoDeItem[]) => pedir<{ sessao: Sessao; avisos: string[] }>('/carrinho', 'PUT', { itens }),
     frete: (cep: string) => pedir<CotacaoFrete>('/frete', 'POST', { cep }),
     finalizar: (corpo: CorpoFinalizar) => pedir<Sessao>('/finalizar', 'POST', corpo),

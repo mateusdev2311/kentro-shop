@@ -118,6 +118,10 @@ export interface Tema {
   banners?: Banner[];
   /** Tempo de cada banner no carrossel (padrão: 5). */
   bannerSegundos?: number;
+  /** Título da área de produtos escolhidos pela loja (ausente = "Mais vendidos"). */
+  vitrineTitulo?: string;
+  /** Produtos dessa área; ausente = a área não aparece. */
+  vitrineProdutos?: string[];
 }
 
 export interface Banner {

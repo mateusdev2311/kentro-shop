@@ -60,10 +60,15 @@ export interface Tema {
   banners: BannerPublico[];
   /** Tempo de cada banner no carrossel. */
   bannerSegundos: number;
+  /** Título da área de produtos escolhidos pela loja, logo depois dos banners (vazio = o padrão do catálogo). */
+  vitrineTitulo?: string;
+  /** Produtos dessa área, na ordem escolhida (ex.: os mais vendidos). Ausente = a área não aparece. */
+  vitrineProdutos?: string[];
 }
 
 export const MAX_BANNERS = 6;
 export const MAX_BANNER_BYTES = 400 * 1024;
+export const MAX_VITRINE_INICIAL = 12;
 const SEGUNDOS_PADRAO = 5;
 
 export interface ConfigEfetiva {
@@ -135,6 +140,12 @@ function tipoReal(bytes: Buffer): (typeof TIPOS_DE_LOGO)[number] | null {
 
 const invalido = (mensagem: string) => new ErroApi(400, 'ENTRADA_INVALIDA', mensagem);
 
+/** Sem repetição e dentro do limite, mesmo que o valor gravado venha de outra versão. */
+function idsDaVitrine(valor: unknown): string[] {
+  if (!Array.isArray(valor)) return [];
+  return [...new Set(valor.map((id) => String(id).trim()).filter(Boolean))].slice(0, MAX_VITRINE_INICIAL);
+}
+
 /** Para onde o banner leva ao ser tocado: uma categoria OU uma busca (a categoria vence). Vazio = só imagem. */
 export interface AcaoBanner {
   titulo?: string;
@@ -179,6 +190,7 @@ export class ConfigLojaService {
     const entrega = objeto(gravada?.entrega);
     const retirada = objeto(gravada?.retirada);
     const frete = objeto(gravada?.frete);
+    const vitrineProdutos = idsDaVitrine(tema.vitrineProdutos);
     const logoUrl = gravada?.logoHash ? `${this.config.urlPublica}/v1/publico/lojas/${lojaId}/logo?v=${gravada.logoHash}` : tema.logoUrl ? String(tema.logoUrl) : '';
     return {
       tema: {
@@ -202,6 +214,8 @@ export class ConfigLojaService {
           ...(b.busca ? { busca: b.busca } : {}),
         })),
         bannerSegundos: typeof tema.bannerSegundos === 'number' ? tema.bannerSegundos : SEGUNDOS_PADRAO,
+        ...(tema.vitrineTitulo ? { vitrineTitulo: String(tema.vitrineTitulo) } : {}),
+        ...(vitrineProdutos.length ? { vitrineProdutos } : {}),
       },
       entrega: { habilitada: entrega.habilitada !== false },
       retirada: { habilitada: retirada.habilitada === true },

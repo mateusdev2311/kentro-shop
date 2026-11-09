@@ -14,7 +14,7 @@ import { Confirmado } from './telas/Confirmado';
 import { Detalhe } from './telas/Detalhe';
 import { Diferencas } from './telas/Diferencas';
 import { LinkInvalido } from './telas/LinkInvalido';
-import { CompreTambem, Vitrine } from './telas/Vitrine';
+import { CompreTambem, Vitrine, VitrineInicial } from './telas/Vitrine';
 
 export interface Dependencias {
   api: Api;
@@ -25,6 +25,7 @@ export interface Dependencias {
 const ATRASO_BUSCA = 400;
 const DURACAO_AVISO = 2600;
 const COR_VALIDA = /^#[0-9a-f]{3,8}$/i;
+const TITULO_VITRINE_INICIAL = 'Mais vendidos';
 
 type Painel = null | 'carrinho' | 'checkout' | 'diferencas';
 
@@ -133,6 +134,16 @@ export function App({ api, buscarCep, documento }: Dependencias) {
     if (!carregando && temMais) void carregar(pagina + 1);
   };
 
+  // ── Área escolhida pela loja, depois dos banners ─────
+  const [vitrineInicial, setVitrineInicial] = useState<Produto[]>([]);
+  useEffect(() => {
+    if (!abertura?.tema.vitrineProdutos?.length) return;
+    api
+      .vitrineInicial()
+      .then(setVitrineInicial)
+      .catch(() => setVitrineInicial([]));
+  }, [abertura]);
+
   // ── Compre também (fim da vitrine do link) ───────────
   const [sugestoes, setSugestoes] = useState<Produto[] | null>(null);
   const noFimDaSelecao = !!abertura?.filtro && selecao && !temMais && !carregando;
@@ -208,6 +219,10 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   const ultimoPedido = abertura.historico?.pedidos[0];
   const filtroLink = abertura.filtro;
   const emSelecao = selecao && !!filtroLink;
+  const noInicio = !busca && !categoria && !emSelecao;
+  // Quem já está na área de cima não se repete em "Todos os produtos".
+  const naAreaInicial = new Set(noInicio ? vitrineInicial.map((p) => p.id) : []);
+  const listaPrincipal = produtos.filter((p) => !naAreaInicial.has(p.id));
   const nomeCategoria = filtroLink?.categoriaId ? categorias.find((c) => c.id === filtroLink.categoriaId)?.nome : undefined;
   const tituloDaSelecao = filtroLink?.produtoIds?.length
     ? 'Separados para você'
@@ -334,6 +349,15 @@ export function App({ api, buscarCep, documento }: Dependencias) {
         {!busca && !categoria && !!abertura.tema.banners?.length && (
           <Banners banners={abertura.tema.banners} segundos={abertura.tema.bannerSegundos ?? 5} aoTocar={abrirBanner} />
         )}
+        {noInicio && vitrineInicial.length > 0 && (
+          <VitrineInicial
+            titulo={abertura.tema.vitrineTitulo || TITULO_VITRINE_INICIAL}
+            produtos={vitrineInicial}
+            noCarrinho={carrinho.quantidadeDoProduto}
+            aoAbrir={setDetalhe}
+            layout={abertura.tema.layout ?? 'grade'}
+          />
+        )}
         {emSelecao && (
           <section class="selecao">
             <strong>{tituloDaSelecao}</strong>
@@ -410,7 +434,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             </button>
           </section>
         )}
-        {produtos.length > 0 && (
+        {listaPrincipal.length > 0 && (
           <div class="resultado">
             {!emSelecao && <h2>{busca ? `“${busca}”` : (catAtual?.nome ?? 'Todos os produtos')}</h2>}
             <span>
@@ -419,16 +443,19 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             </span>
           </div>
         )}
-        <Vitrine
-          produtos={produtos}
-          noCarrinho={carrinho.quantidadeDoProduto}
-          aoAbrir={setDetalhe}
-          temMais={temMais}
-          carregando={carregando}
-          erro={erroLista}
-          aoCarregarMais={carregarMais}
-          layout={abertura.tema.layout ?? 'grade'}
-        />
+        {/* Loja pequena, com todos os produtos na área de cima: nada a listar, e não é "nenhum produto encontrado". */}
+        {(listaPrincipal.length > 0 || produtos.length === 0) && (
+          <Vitrine
+            produtos={listaPrincipal}
+            noCarrinho={carrinho.quantidadeDoProduto}
+            aoAbrir={setDetalhe}
+            temMais={temMais}
+            carregando={carregando}
+            erro={erroLista}
+            aoCarregarMais={carregarMais}
+            layout={abertura.tema.layout ?? 'grade'}
+          />
+        )}
         {emSelecao && noFimDaSelecao && sugestoes !== null && (
           <CompreTambem
             produtos={sugestoes}

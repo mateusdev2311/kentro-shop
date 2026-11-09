@@ -207,6 +207,8 @@ main { max-width: calc(1120px + 32px); margin: 0 auto; padding: 16px; }
 .banners-pontos button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: calc(999px * var(--canto)); background: var(--borda); transition: width .2s, background .2s; }
 .banners-pontos button.ativo { width: 22px; background: var(--cor-primaria); }
 @media (prefers-reduced-motion: reduce) { .banners-trilho { scroll-behavior: auto; } .banners-pontos button { transition: none; } }
+.vitrine-inicial { margin: 24px 0 28px; }
+.vitrine-inicial h2 { font-size: 23px; margin-bottom: 16px; }
 .compre-tambem { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--borda); }
 .compre-tambem h2 { font-size: 21px; margin-bottom: 14px; }
 .ver-todos { display: flex; justify-content: center; padding: 22px 0 8px; }
