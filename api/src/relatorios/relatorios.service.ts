@@ -34,6 +34,8 @@ export interface Relatorio {
     abertos: number;
     ticketMedio: number;
     cancelados: number;
+    /** Valor dos cancelados (fora do valor em pedidos). */
+    valorCancelado: number;
     entrega: number;
     retirada: number;
     /** Pedidos que entraram no sistema da loja (ERP, Nuvemshop…). */
@@ -163,7 +165,7 @@ export class RelatoriosService {
       if (origemDe(g.origem) === 'atendente') doAtendente(g.geradoPor).convertidos += g._count._all;
     }
 
-    const resumo: Relatorio['resumo'] = { ...vazio(), abertos, ticketMedio: 0, cancelados: 0, entrega: 0, retirada: 0, naLoja: 0 };
+    const resumo: Relatorio['resumo'] = { ...vazio(), abertos, ticketMedio: 0, cancelados: 0, valorCancelado: 0, entrega: 0, retirada: 0, naLoja: 0 };
     const quemFinalizou: Relatorio['quemFinalizou'] = { cliente: { pedidos: 0, valor: 0 }, atendente: { pedidos: 0, valor: 0 } };
     const diaria = new Map<string, { links: number; pedidos: number; valor: number }>();
     for (let t = p.inicio.getTime(); t < p.fim.getTime(); t += DIA_MS) diaria.set(diaDe(new Date(t)), { links: 0, pedidos: 0, valor: 0 });
@@ -202,6 +204,7 @@ export class RelatoriosService {
       }
       if (cancelado) {
         resumo.cancelados += 1;
+        resumo.valorCancelado += total;
         continue;
       }
       resumo.pedidos += 1;
@@ -234,6 +237,7 @@ export class RelatoriosService {
     resumo.links = links.reduce((n, g) => n + g._count._all, 0);
     resumo.convertidos = convertidos.reduce((n, g) => n + g._count._all, 0);
     resumo.valor = centavos(resumo.valor);
+    resumo.valorCancelado = centavos(resumo.valorCancelado);
     resumo.ticketMedio = resumo.pedidos ? centavos(resumo.valor / resumo.pedidos) : 0;
     quemFinalizou.cliente.valor = centavos(quemFinalizou.cliente.valor);
     quemFinalizou.atendente.valor = centavos(quemFinalizou.atendente.valor);

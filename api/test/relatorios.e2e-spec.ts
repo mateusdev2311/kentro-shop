@@ -88,6 +88,7 @@ describe('relatórios de vendas (aba Relatórios do admin)', () => {
       abertos: 3, // os dois clientes que compraram e o da URA; o carrinho do Carlos foi montado no painel
       ticketMedio: 173.2,
       cancelados: 0,
+      valorCancelado: 0,
       entrega: 3,
       retirada: 0,
       naLoja: 0,
@@ -123,7 +124,7 @@ describe('relatórios de vendas (aba Relatórios do admin)', () => {
     const carlos = await prisma.sessao.findFirstOrThrow({ where: { lojaId: loja.lojaId, chatId: '3' } });
     await prisma.sessao.update({ where: { id: carlos.id }, data: { status: 'pedido_criado', pedido: { idExterno: '8-1', numero: '1', status: 'CANCELADO', descricao: 'Cancelado' } } });
     const { resumo, quemFinalizou, produtos, pedidos } = (await relatorio()).body;
-    expect(resumo).toMatchObject({ pedidos: 2, valor: 259.8, cancelados: 1, naLoja: 0 });
+    expect(resumo).toMatchObject({ pedidos: 2, valor: 259.8, cancelados: 1, valorCancelado: 259.8, naLoja: 0 });
     expect(quemFinalizou.atendente).toEqual({ pedidos: 0, valor: 0 });
     expect(produtos[0]).toMatchObject({ quantidade: 2, valor: 259.8, pedidos: 2 });
     expect(pedidos.find((p: { chatId: string }) => p.chatId === '3')).toMatchObject({ cancelado: true, situacao: 'Cancelado', pedidoNumero: '1' });

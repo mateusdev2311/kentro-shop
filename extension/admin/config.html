@@ -306,6 +306,16 @@
   .rel-numero span { display: block; font-size: .84em; color: var(--ext-color-text-muted); }
   .rel-numero strong { display: block; margin-top: 2px; font-size: 1.45em; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
   .rel-numero small { display: block; margin-top: 2px; font-size: .82em; color: var(--ext-color-text-muted); }
+  .rel-numero .rel-rotulo { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .rel-info {
+    flex: none; width: 22px; height: 22px; min-height: 0; padding: 0; border-radius: 50%; font-size: .78em; font-weight: 700; font-style: italic;
+    font-family: Georgia, serif; color: var(--ext-color-text-muted); background: var(--ext-color-bg); border: 1px solid var(--ks-linha);
+  }
+  .rel-info[aria-expanded="true"] { color: var(--ext-color-on-primary); background: var(--ext-color-primary); border-color: var(--ext-color-primary); }
+  .rel-explica {
+    margin-top: 10px; padding: 9px 11px; font-size: .82em; line-height: 1.45; color: var(--ext-color-text);
+    background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
+  }
   .rel-grafico { position: relative; padding: 18px 0 0; }
   .rel-eixo { display: flex; justify-content: space-between; font-size: .78em; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
   .rel-topo { position: absolute; top: 0; left: 0; font-size: .78em; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
@@ -757,7 +767,7 @@
     <section id="aba-relatorios" class="cartao" hidden>
       <div class="cartao-cabeca">
         <h2>Relatórios de vendas</h2>
-        <p>Links enviados e pedidos finalizados no período, por atendente, assistente de IA e URA. O valor é o dos pedidos que o cliente enviou pelo link ou o atendente fechou no painel, sem os cancelados; o pagamento e a entrega são confirmados pela loja. Os dias seguem o horário de Brasília.</p>
+        <p>Links enviados e pedidos finalizados no período, por atendente, assistente de IA e URA. Os dias seguem o horário de Brasília. Toque no <strong>i</strong> de cada número para ver como ele é calculado.</p>
       </div>
       <div class="rel-filtro">
         <div class="rel-atalhos" role="group" aria-label="Período">
@@ -2293,13 +2303,42 @@
     t.appendChild(corpo);
   }
 
-  function numero(rotulo, valor, detalhe) {
+  var infoSeq = 0;
+
+  /** Bloco de número; com `info`, um botão "i" abre e fecha a explicação de como ele é calculado. */
+  function numero(rotulo, valor, detalhe, info) {
     var caixa = el('div', '', 'rel-numero');
-    caixa.appendChild(el('span', rotulo));
+    var topo = el('span', '', 'rel-rotulo');
+    topo.appendChild(el('span', rotulo));
+    caixa.appendChild(topo);
     caixa.appendChild(el('strong', valor));
     if (detalhe) caixa.appendChild(el('small', detalhe));
+    if (info) {
+      infoSeq += 1;
+      var explica = el('p', info, 'rel-explica');
+      explica.id = 'rel-explica-' + infoSeq;
+      explica.hidden = true;
+      var botao = el('button', 'i', 'rel-info');
+      botao.type = 'button';
+      botao.setAttribute('aria-expanded', 'false');
+      botao.setAttribute('aria-controls', explica.id);
+      botao.setAttribute('aria-label', 'Como é calculado: ' + rotulo);
+      botao.title = 'Como é calculado';
+      botao.addEventListener('click', function () {
+        explica.hidden = !explica.hidden;
+        botao.setAttribute('aria-expanded', explica.hidden ? 'false' : 'true');
+      });
+      topo.appendChild(botao);
+      caixa.appendChild(explica);
+    }
     return caixa;
   }
+
+  var INFO_VALOR = 'Soma dos pedidos finalizados no período: o cliente clicou em "Enviar pedido" no catálogo ou o atendente fechou o pedido pelo painel. ' +
+    'O Kentro Shop não confirma pagamento nem entrega: isso a loja confere no sistema dela. Os pedidos cancelados ficam fora desta soma.';
+  var INFO_CANCELADOS = 'Pedidos que o Kentro Shop sabe que foram cancelados na loja: os cancelados pelo painel e os que apareceram como cancelados ao clicar em "Atualizar situação". ' +
+    'Se o pedido for cancelado direto no sistema da loja (ex.: Automatiza), ele só sai do valor em pedidos depois que alguém atualizar a situação dele no painel. ' +
+    'Pedido que não foi criado no sistema da loja (fechado só pelo atendente) não tem como ser marcado como cancelado.';
 
   function grafico(dias) {
     var alvo = $('rel-grafico');
@@ -2350,11 +2389,13 @@
     var s = r.resumo;
     var numeros = $('rel-numeros');
     limpar(numeros);
-    numeros.appendChild(numero('Valor em pedidos', reais(s.valor), s.cancelados ? s.cancelados + ' cancelado(s) fora da conta' : ''));
+    infoSeq = 0;
+    numeros.appendChild(numero('Valor em pedidos', reais(s.valor), 'Sem os cancelados', INFO_VALOR));
     numeros.appendChild(numero('Pedidos', inteiro(s.pedidos), 'Entrega ' + s.entrega + ' · Retirada ' + s.retirada));
     numeros.appendChild(numero('Ticket médio', reais(s.ticketMedio)));
     numeros.appendChild(numero('Links enviados', inteiro(s.links), 'Abertos pelo cliente: ' + taxa(s.abertos, s.links)));
     numeros.appendChild(numero('Conversão', taxa(s.convertidos, s.links), s.convertidos + ' dos links viraram pedido'));
+    numeros.appendChild(numero('Cancelados', inteiro(s.cancelados), reais(s.valorCancelado) + ' fora da conta', INFO_CANCELADOS));
 
     grafico(r.porDia);
 

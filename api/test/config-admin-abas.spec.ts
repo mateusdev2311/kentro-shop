@@ -326,7 +326,7 @@ describe('abas de configuração do Admin', () => {
     const dia = (d: string, valor = 0, pedidos = 0, links = 0) => ({ dia: d, valor, pedidos, links });
     const RELATORIO = {
       periodo: { de: '2026-11-10', ate: '2026-11-11', dias: 2 },
-      resumo: { links: 4, convertidos: 2, pedidos: 2, valor: 389.7, abertos: 3, ticketMedio: 194.85, cancelados: 1, entrega: 2, retirada: 0, naLoja: 1 },
+      resumo: { links: 4, convertidos: 2, pedidos: 2, valor: 389.7, abertos: 3, ticketMedio: 194.85, cancelados: 1, valorCancelado: 50, entrega: 2, retirada: 0, naLoja: 1 },
       porOrigem: [
         { origem: 'ia', links: 1, convertidos: 1, pedidos: 1, valor: 129.9 },
         { origem: 'ura', links: 1, convertidos: 0, pedidos: 0, valor: 0 },
@@ -362,9 +362,22 @@ describe('abas de configuração do Admin', () => {
       expect(t.visivel('rel-conteudo')).toBe(true);
       const numeros = t.texto('rel-numeros');
       expect(numeros).toMatch(/389,70/);
-      expect(numeros).toContain('1 cancelado(s) fora da conta');
       expect(numeros).toContain('Conversão50%');
       expect(numeros).toContain('Abertos pelo cliente: 75%');
+      expect(numeros).toMatch(/Cancelados.*1.*50,00 fora da conta/);
+
+      // Valor e cancelados explicam como são calculados: o "i" abre e fecha a explicação.
+      const infos = [...t.document.querySelectorAll<HTMLButtonElement>('#rel-numeros .rel-info')];
+      expect(infos.map((b) => b.getAttribute('aria-label'))).toEqual(['Como é calculado: Valor em pedidos', 'Como é calculado: Cancelados']);
+      const explicacao = (b: HTMLButtonElement) => t.document.getElementById(b.getAttribute('aria-controls')!)!;
+      expect(explicacao(infos[1]).hidden).toBe(true);
+      infos[1].click();
+      expect(explicacao(infos[1]).hidden).toBe(false);
+      expect(infos[1].getAttribute('aria-expanded')).toBe('true');
+      expect(explicacao(infos[1]).textContent).toContain('Atualizar situação');
+      expect(explicacao(infos[0]).textContent).toContain('não confirma pagamento nem entrega');
+      infos[1].click();
+      expect(explicacao(infos[1]).hidden).toBe(true);
 
       const barras = t.document.querySelectorAll('#rel-grafico .rel-barra');
       expect(barras).toHaveLength(2);
