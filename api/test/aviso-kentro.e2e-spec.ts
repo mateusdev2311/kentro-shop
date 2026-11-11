@@ -94,6 +94,13 @@ describe('aviso de pedido finalizado para a Kentro', () => {
       linkPagamento: '',
     });
     expect(enviados[0].aviso.resumo).toContain('Produto A1');
+    // Para o cliente conferir: o mesmo pedido, sem o título do atendimento, o nome e o telefone.
+    const paraCliente = enviados[0].aviso.resumoCliente;
+    expect(paraCliente.split('\n').slice(0, 2).map((l) => l.split(':')[0])).toEqual(['Tipo', 'Endereço']);
+    expect(paraCliente).toContain('Produto A1');
+    expect(paraCliente).toContain('Total: R$ 259,80');
+    expect(paraCliente).not.toMatch(/Resumo do atendimento|Cliente:|Telefone:|Ana Souza/);
+    expect(enviados[0].aviso.resumo.endsWith(paraCliente)).toBe(true);
     const painel = await http().get('/v1/sessoes/chat/301').set('X-Loja-Chave', loja.chaveAtendimento);
     expect(painel.body.eventos.map((e: { texto: string }) => e.texto)).toContain('Kentro avisada: a assistente de IA vai confirmar o pedido');
   });

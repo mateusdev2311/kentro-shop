@@ -254,7 +254,9 @@ describe('catálogo do cliente', () => {
   it('carrega a vitrine com a saudação, o tema e os cards', async () => {
     await montar();
     expect(tem('Loja Teste')).toBe(true);
-    expect(tem('Olá, Ana! Catálogo exclusivo')).toBe(true);
+    // O nome do contato (o do WhatsApp) não aparece no catálogo.
+    expect(tem('Catálogo exclusivo')).toBe(true);
+    expect(tem('Olá')).toBe(false);
     expect(document.documentElement.style.getPropertyValue('--cor-primaria')).toBe('#0055aa');
     expect(tem('3 produtos')).toBe(true);
     const piso = elemento('.produto', 'Porcelanato Bege');
@@ -337,7 +339,9 @@ describe('catálogo do cliente', () => {
     clicar(elemento('button', 'Continuar'));
     expect(raiz.querySelector('[aria-pressed]')?.textContent).toContain('Entrega'); // só entrega: já escolhida
     expect(tem('Retirada')).toBe(false);
-    expect(elemento<HTMLInputElement>('#f-nome').value).toBe('Ana Souza');
+    // O nome não vem do contato: o cliente digita.
+    expect(elemento<HTMLInputElement>('#f-nome').value).toBe('');
+    digitar(elemento<HTMLInputElement>('#f-nome'), 'Ana Souza');
     expect(elemento<HTMLInputElement>('#f-telefone').value).toBe('(38) 98888-7777');
     digitar(elemento<HTMLInputElement>('#f-cep'), '39400000');
     expect(elemento<HTMLInputElement>('#f-cep').value).toBe('39400-000');

@@ -73,13 +73,28 @@ export interface ItemDoResumo {
 
 /** Texto do handoff para o atendente (mesmo formato validado na demo). */
 export function resumoDoPedido(dados: { cliente: Cliente; checkout: Checkout | null; itens: ItemDoResumo[]; totais: Totais }): string {
-  const { cliente, checkout, itens, totais } = dados;
-  const linhas = [
+  const { cliente } = dados;
+  return [
     'Resumo do atendimento',
     '',
     `Cliente: ${cliente.nome || 'não informado'}`,
     `Telefone: ${telefoneBr(cliente.telefone) || 'não informado'}`,
-  ];
+    detalhesDoPedido(dados),
+  ].join('\n');
+}
+
+/**
+ * O mesmo pedido, para o próprio cliente conferir no WhatsApp (aviso de pedido finalizado): sem o título do
+ * atendimento, o nome e o telefone.
+ */
+export function resumoParaCliente(dados: { checkout: Checkout | null; itens: ItemDoResumo[]; totais: Totais }): string {
+  return detalhesDoPedido(dados);
+}
+
+/** Entrega ou retirada, produtos, totais, pagamento e observações: a parte comum aos dois resumos. */
+function detalhesDoPedido(dados: { checkout: Checkout | null; itens: ItemDoResumo[]; totais: Totais }): string {
+  const { checkout, itens, totais } = dados;
+  const linhas: string[] = [];
   if (checkout?.tipo === 'entrega') {
     const e = checkout.entrega;
     linhas.push('Tipo: Entrega');

@@ -3,7 +3,7 @@ import { ErroApi } from '../comum/erros';
 import { ConfigLojaService } from '../config-loja/config-loja.service';
 import { verificarDestino } from '../conectores/nucleo/destino';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from '../lojas/chave-loja.guard';
-import { moeda } from './calculo';
+import { moeda, resumoParaCliente } from './calculo';
 import { CarrinhoService } from './carrinho.service';
 import { SessoesService } from './sessoes.service';
 import { SessaoCompleta } from './tipos';
@@ -23,6 +23,8 @@ export interface AvisoKentro {
   totalTexto: string;
   itens: number;
   resumo: string;
+  /** O pedido para o próprio cliente conferir (sem nome e telefone): a automação manda e pede o "ok". */
+  resumoCliente: string;
   pedidoNumero: string;
   linkPagamento: string;
 }
@@ -58,6 +60,11 @@ export function avisoDe(sessao: SessaoCompleta): AvisoKentro {
     totalTexto: moeda(sessao.totais.total),
     itens: sessao.totais.itens,
     resumo: sessao.resumo,
+    resumoCliente: [
+      resumoParaCliente(sessao),
+      ...(sessao.pedido ? ['', `Pedido nº ${sessao.pedido.numero}`] : []),
+      ...(sessao.pedido?.url ? [`Link de pagamento: ${sessao.pedido.url}`] : []),
+    ].join('\n'),
     pedidoNumero: sessao.pedido?.numero ?? '',
     linkPagamento: sessao.pedido?.url ?? '',
   };
@@ -106,6 +113,7 @@ export class AvisoKentroService implements OnModuleInit {
       totalTexto: moeda(0),
       itens: 0,
       resumo: 'Teste do Kentro Shop',
+      resumoCliente: 'Teste do Kentro Shop',
       pedidoNumero: '',
       linkPagamento: '',
     }).catch(() => 0);

@@ -44,7 +44,8 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   // Pré-cadastro: o endereço que a Kentro já tem do contato entra preenchido.
   const pre = sessao.cliente.endereco ?? {};
   const [dados, setDados] = useState<DadosEntrega>({
-    nome: sessao.cliente.nome,
+    // O nome do contato na Kentro é o do WhatsApp (apelido, emoji…): o cliente digita o nome de verdade.
+    nome: '',
     telefone: telefone(sessao.cliente.telefone),
     cep: formatarCep(pre.cep ?? ''),
     estado: (pre.estado ?? '').toUpperCase(),

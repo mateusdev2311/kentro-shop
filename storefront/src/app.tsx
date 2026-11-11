@@ -4,7 +4,7 @@ import { ehErroDaApi } from './api';
 import { aplicarAparencia } from './aparencia';
 import { criarCarrinho, type DocumentoVisivel } from './carrinho';
 import type { EnderecoCep } from './cep';
-import { brl, iniciais, primeiroNome } from './formato';
+import { brl, iniciais } from './formato';
 import { precos } from './precos';
 import { pedidoAberto, type Abertura, type Banner, type Categoria, type CorpoFinalizar, type Diferenca, type Produto } from './tipos';
 import { Banners } from './telas/Banners';
@@ -215,7 +215,6 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   if (!abertura || !carrinho.sessao) return <p class="carregando">Carregando…</p>;
 
   const sessao = carrinho.sessao;
-  const nome = primeiroNome(sessao.cliente.nome);
   const ultimoPedido = abertura.historico?.pedidos[0];
   const filtroLink = abertura.filtro;
   const emSelecao = selecao && !!filtroLink;
@@ -294,7 +293,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
           )}
           <div>
             <strong>{abertura.tema.nome}</strong>
-            <small>{finalizado ? 'Pedido enviado ao atendente' : nome ? `Olá, ${nome}! Catálogo exclusivo` : 'Catálogo exclusivo'}</small>
+            <small>{finalizado ? 'Pedido enviado ao atendente' : 'Catálogo exclusivo'}</small>
           </div>
         </div>
       </header>
