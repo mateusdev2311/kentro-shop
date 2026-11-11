@@ -354,6 +354,8 @@ export class CarrinhoService {
         data: {
           status: 'finalizado',
           finalizadaEm: new Date(),
+          finalizadaPor: autor,
+          finalizadaPorNome: autor === 'atendente' ? atendente.trim().slice(0, 120) : '',
           checkout: checkout as unknown as Prisma.InputJsonValue,
           cliente: cliente as unknown as Prisma.InputJsonValue,
           totais: totais as unknown as Prisma.InputJsonValue,

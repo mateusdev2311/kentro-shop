@@ -22,6 +22,7 @@ import { SessoesModule } from './sessoes/sessoes.module';
 import { CLIENTE_META, ClienteMeta, clienteMetaHttp } from './whatsapp-meta/cliente-meta';
 import { WhatsappMetaModule } from './whatsapp-meta/whatsapp-meta.module';
 import { AutomacaoModule } from './automacao/automacao.module';
+import { RelatoriosModule } from './relatorios/relatorios.module';
 
 export interface OpcoesApp {
   /** Substitui os conectores de produção (usado nos testes). */
@@ -50,7 +51,7 @@ export class AppModule {
           { name: 'registro', limit: 5, ttl: 3_600_000 },
           { name: 'publico', limit: 120, ttl: 60_000 },
         ]),
-        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule, WhatsappMetaModule, AutomacaoModule],
+        ConectoresModule.com(opcoes.conectores ?? conectoresPadrao(config)), ConfigLojaModule, LojasModule, AdminModule, IntegracoesModule, CatalogoModule, SessoesModule, ConfiguracoesModule, McpModule, WhatsappMetaModule, AutomacaoModule, RelatoriosModule],
       providers: [
         { provide: CONFIG_APP, useValue: config },
         { provide: ENVIO_AVISO, useValue: opcoes.envioAviso ?? enviarAvisoHttp },

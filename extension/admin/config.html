@@ -293,6 +293,49 @@
   .lista-simples label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 12px; font-weight: 400; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); cursor: pointer; }
   .lista-simples label:has(input:checked) { background: var(--ks-superficie); color: var(--ext-color-text-muted); }
   .lista-simples li.muted { grid-column: 1 / -1; }
+
+  /* ── Relatórios ── */
+  .rel-filtro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+  .rel-atalhos { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: calc(var(--ks-r-p) + 3px); background: var(--ks-superficie-2); }
+  .rel-atalhos button { min-height: 32px; padding: 0 12px; border: 0; background: none; color: var(--ext-color-text-muted); font-weight: 550; }
+  .rel-atalhos button.ativa { color: var(--ext-color-text); background: var(--ext-color-bg); box-shadow: 0 1px 2px color-mix(in srgb, var(--ext-color-text) 14%, transparent); }
+  .rel-datas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .rel-datas label { margin: 0; font-weight: 550; color: var(--ext-color-text-muted); }
+  .rel-datas input { width: auto; min-height: 36px; }
+  .rel-numeros { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 18px; }
+  .rel-numero { padding: 14px 16px; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); background: var(--ks-superficie); }
+  .rel-numero span { display: block; font-size: .84em; color: var(--ext-color-text-muted); }
+  .rel-numero strong { display: block; margin-top: 2px; font-size: 1.45em; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .rel-numero small { display: block; margin-top: 2px; font-size: .82em; color: var(--ext-color-text-muted); }
+  .rel-grafico { position: relative; padding: 18px 0 0; }
+  .rel-eixo { display: flex; justify-content: space-between; font-size: .78em; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
+  .rel-topo { position: absolute; top: 0; left: 0; font-size: .78em; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
+  .rel-barras {
+    display: flex; align-items: flex-end; gap: 2px; height: 180px; margin-bottom: 6px; padding-top: 2px;
+    border-top: 1px dashed var(--ks-linha); border-bottom: 1px solid color-mix(in srgb, var(--ext-color-text) 22%, var(--ext-color-bg));
+  }
+  .rel-barras.densas { gap: 0; }
+  .rel-barra { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; padding: 0; border: 0; border-radius: 0; background: none; cursor: default; }
+  .rel-barra:hover:not(:disabled) { background: color-mix(in srgb, var(--ext-color-text) 5%, transparent); }
+  .rel-barra i { display: block; width: 100%; min-height: 0; border-radius: 4px 4px 0 0; background: var(--ext-color-primary); }
+  .rel-barras.densas .rel-barra i { border-radius: 1px 1px 0 0; }
+  .rel-barra:hover i, .rel-barra:focus-visible i { background: color-mix(in srgb, var(--ext-color-primary) 78%, #000); }
+  .rel-dica {
+    position: absolute; z-index: 5; pointer-events: none; min-width: 150px; padding: 8px 10px; border-radius: var(--ks-r-p); font-size: .84em;
+    background: var(--ext-color-bg); border: 1px solid var(--ks-linha); box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--ext-color-text) 40%, transparent);
+  }
+  .rel-dica strong { display: block; margin-bottom: 2px; }
+  .rel-dica span { display: block; color: var(--ext-color-text-muted); font-variant-numeric: tabular-nums; }
+  .rel-duas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 28px; }
+  .rel-rolagem { overflow-x: auto; border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p); }
+  .rel-tabela { width: 100%; border-collapse: collapse; font-size: .92em; }
+  .rel-tabela th, .rel-tabela td { padding: 9px 12px; text-align: left; border-top: 1px solid var(--ks-linha); white-space: nowrap; }
+  .rel-tabela thead th { border-top: 0; font-size: .86em; font-weight: 600; color: var(--ext-color-text-muted); background: var(--ks-superficie); }
+  .rel-tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rel-tabela td.quebra { white-space: normal; min-width: 180px; }
+  .rel-tabela tr.cancelado td { color: var(--ext-color-text-muted); text-decoration: line-through; }
+  .rel-tabela tr.cancelado td.situacao { text-decoration: none; color: var(--ks-erro-texto); }
+  .rel-vazio { padding: 14px 12px; color: var(--ext-color-text-muted); }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -306,6 +349,7 @@
     <symbol id="i-chave" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/></symbol>
     <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
     <symbol id="i-faisca" viewBox="0 0 24 24"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9-1.9 5.1-1.9-5.1-5.1-1.9 5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+    <symbol id="i-grafico" viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16.5v-5M12 16.5v-9M17 16.5v-7"/></symbol>
     <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-sincronizar" viewBox="0 0 24 24"><path d="M19.5 9A7.5 7.5 0 0 0 6 6.5L4.5 8"/><path d="M4.5 4v4h4"/><path d="M4.5 15A7.5 7.5 0 0 0 18 17.5l1.5-1.5"/><path d="M19.5 20v-4h-4"/></symbol>
   </defs>
@@ -398,6 +442,7 @@
       <button type="button" id="botao-aba-ia" data-aba="ia"><svg class="ic"><use href="#i-faisca"/></svg>IA</button>
       <button type="button" id="botao-aba-whatsapp" data-aba="whatsapp"><svg class="ic"><use href="#i-plug"/></svg>WhatsApp</button>
       <button type="button" id="botao-aba-automacao" data-aba="automacao"><svg class="ic"><use href="#i-chave"/></svg>URA</button>
+      <button type="button" id="botao-aba-relatorios" data-aba="relatorios"><svg class="ic"><use href="#i-grafico"/></svg>Relatórios</button>
     </nav>
 
     <section id="aba-integracao" class="cartao">
@@ -706,6 +751,60 @@
         <div class="acoes">
           <button type="button" class="principal" id="btn-criar-templates">Criar templates</button>
           <button type="button" id="btn-atualizar-templates">Atualizar situação</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="aba-relatorios" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>Relatórios de vendas</h2>
+        <p>Links enviados, pedidos e quem vendeu no período: atendentes, assistente de IA e URA. Os dias seguem o horário de Brasília.</p>
+      </div>
+      <div class="rel-filtro">
+        <div class="rel-atalhos" role="group" aria-label="Período">
+          <button type="button" data-rel-atalho="hoje">Hoje</button>
+          <button type="button" data-rel-atalho="7">7 dias</button>
+          <button type="button" data-rel-atalho="30">30 dias</button>
+          <button type="button" data-rel-atalho="mes">Este mês</button>
+        </div>
+        <div class="rel-datas">
+          <label for="rel-de">De</label>
+          <input type="date" id="rel-de">
+          <label for="rel-ate">até</label>
+          <input type="date" id="rel-ate">
+          <button type="button" class="suave" id="btn-rel-ver">Ver</button>
+        </div>
+      </div>
+      <p id="resultado-relatorio" class="resultado"></p>
+      <div id="rel-conteudo" hidden>
+        <div class="rel-numeros" id="rel-numeros"></div>
+
+        <h3>Valor vendido por dia</h3>
+        <div class="rel-grafico" id="rel-grafico"></div>
+
+        <div class="rel-duas">
+          <div>
+            <h3>De onde vieram as vendas</h3>
+            <div class="rel-rolagem"><table class="rel-tabela" id="rel-origem"></table></div>
+          </div>
+          <div>
+            <h3>Quem finalizou o pedido</h3>
+            <div class="rel-rolagem"><table class="rel-tabela" id="rel-finalizou"></table></div>
+          </div>
+        </div>
+
+        <h3>Atendentes</h3>
+        <div class="rel-rolagem"><table class="rel-tabela" id="rel-atendentes"></table></div>
+        <p class="ajuda">Links e pedidos contam para quem gerou o link. "Fechou no painel" são os pedidos que o atendente finalizou pelo painel.</p>
+
+        <h3>Produtos mais vendidos</h3>
+        <div class="rel-rolagem"><table class="rel-tabela" id="rel-produtos"></table></div>
+
+        <h3>Pedidos do período</h3>
+        <div class="rel-rolagem"><table class="rel-tabela" id="rel-pedidos"></table></div>
+        <p class="ajuda" id="rel-pedidos-nota"></p>
+        <div class="acoes">
+          <button type="button" id="btn-rel-copiar"><svg class="ic"><use href="#i-copiar"/></svg>Copiar pedidos para planilha</button>
         </div>
       </div>
     </section>
@@ -1688,7 +1787,7 @@
   }
 
   // ── Abas ────────────────────────────────────────────────────────────────
-  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp', 'automacao'];
+  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp', 'automacao', 'relatorios'];
   var configuracoes = null;
 
   function abrirAba(nome) {
@@ -1698,6 +1797,7 @@
     });
     if (nome === 'catalogo') carregarCategoriasOcultas();
     if (nome === 'automacao') lerAutomacao();
+    if (nome === 'relatorios' && !relatorio) relatorioPorAtalho('30');
     if (nome === 'ia') {
       $('ia-url').textContent = cfg.apiUrl + '/mcp';
       if (configuracoes) $('ia-captura').value = configuracoes.urlCapturaKentro || '';
@@ -2127,6 +2227,223 @@
       }, falhaBanner);
     };
     leitor.readAsDataURL(arquivo);
+  });
+
+  // ── Aba Relatórios ───────────────────────────────────────────────────────
+  // Os dias são os de Brasília, como na API. O relatório fica guardado para copiar e para a dica do gráfico.
+  var relatorio = null;
+  var DIA_MS = 86400000;
+  var ORIGENS_TEXTO = { ia: 'Assistente de IA', ura: 'URA da Kentro', atendente: 'Atendentes' };
+
+  function hojeBrasilia() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10); }
+  function somarDias(dia, n) { return new Date(Date.parse(dia + 'T00:00:00Z') + n * DIA_MS).toISOString().slice(0, 10); }
+  function diaBr(dia) { return dia.slice(8, 10) + '/' + dia.slice(5, 7); }
+  function reais(n) {
+    try { return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    catch (e) { return 'R$ ' + Number(n || 0).toFixed(2).replace('.', ','); }
+  }
+  function inteiro(n) { return Number(n || 0).toLocaleString('pt-BR'); }
+  function taxa(parte, todo) { return todo ? Math.round((parte / todo) * 100) + '%' : '—'; }
+  function dataHora(iso) {
+    try {
+      return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso.slice(0, 16).replace('T', ' '); }
+  }
+  function nomeDaOrigem(p) {
+    if (p.origem === 'atendente') return p.geradoPor || 'Atendente';
+    return ORIGENS_TEXTO[p.origem];
+  }
+  function quemFinalizou(p) {
+    return p.finalizadaPor === 'atendente' ? (p.finalizadaPorNome || 'Atendente') + ' (painel)' : 'Cliente (link)';
+  }
+
+  /** Tabela simples: colunas [{ titulo, num }] e linhas de células (texto ou { texto, classe }). */
+  function tabela(alvo, colunas, linhas, vazio) {
+    var t = $(alvo);
+    limpar(t);
+    var cabeca = el('thead');
+    var tr = el('tr');
+    colunas.forEach(function (c) { tr.appendChild(el('th', c.titulo, c.num ? 'num' : '')); });
+    cabeca.appendChild(tr);
+    t.appendChild(cabeca);
+    var corpo = el('tbody');
+    if (!linhas.length) {
+      var linhaVazia = el('tr');
+      var celula = el('td', vazio, 'rel-vazio');
+      celula.colSpan = colunas.length;
+      linhaVazia.appendChild(celula);
+      corpo.appendChild(linhaVazia);
+    }
+    linhas.forEach(function (l) {
+      var linha = el('tr');
+      if (l.classe) linha.className = l.classe;
+      l.celulas.forEach(function (v, i) {
+        var classe = (colunas[i].num ? 'num ' : '') + (v && v.classe ? v.classe : '');
+        linha.appendChild(el('td', v && typeof v === 'object' ? v.texto : String(v), classe.trim()));
+      });
+      corpo.appendChild(linha);
+    });
+    t.appendChild(corpo);
+  }
+
+  function numero(rotulo, valor, detalhe) {
+    var caixa = el('div', '', 'rel-numero');
+    caixa.appendChild(el('span', rotulo));
+    caixa.appendChild(el('strong', valor));
+    if (detalhe) caixa.appendChild(el('small', detalhe));
+    return caixa;
+  }
+
+  function grafico(dias) {
+    var alvo = $('rel-grafico');
+    limpar(alvo);
+    var maximo = dias.reduce(function (m, d) { return Math.max(m, d.valor); }, 0);
+    if (!maximo) {
+      alvo.appendChild(el('p', 'Nenhuma venda no período.', 'muted'));
+      return;
+    }
+    alvo.appendChild(el('span', reais(maximo), 'rel-topo'));
+    var barras = el('div', '', 'rel-barras' + (dias.length > 62 ? ' densas' : ''));
+    var dica = el('div', '', 'rel-dica');
+    dica.hidden = true;
+    dias.forEach(function (d) {
+      var b = el('button', '', 'rel-barra');
+      b.type = 'button';
+      b.setAttribute('aria-label', diaBr(d.dia) + ': ' + reais(d.valor) + ', ' + d.pedidos + ' pedido(s), ' + d.links + ' link(s)');
+      var marca = el('i');
+      marca.style.height = d.valor ? Math.max(2, (d.valor / maximo) * 100) + '%' : '0';
+      b.appendChild(marca);
+      function mostrar() {
+        limpar(dica);
+        dica.appendChild(el('strong', diaBr(d.dia)));
+        dica.appendChild(el('span', 'Vendido: ' + reais(d.valor)));
+        dica.appendChild(el('span', 'Pedidos: ' + d.pedidos));
+        dica.appendChild(el('span', 'Links enviados: ' + d.links));
+        dica.hidden = false;
+        var x = b.offsetLeft + b.offsetWidth / 2;
+        dica.style.left = Math.max(0, Math.min(x - 75, alvo.clientWidth - 160)) + 'px';
+        dica.style.top = '0px';
+      }
+      b.addEventListener('mouseenter', mostrar);
+      b.addEventListener('focus', mostrar);
+      b.addEventListener('mouseleave', function () { dica.hidden = true; });
+      b.addEventListener('blur', function () { dica.hidden = true; });
+      barras.appendChild(b);
+    });
+    alvo.appendChild(barras);
+    var eixo = el('div', '', 'rel-eixo');
+    eixo.appendChild(el('span', diaBr(dias[0].dia)));
+    if (dias.length > 2) eixo.appendChild(el('span', diaBr(dias[Math.floor(dias.length / 2)].dia)));
+    if (dias.length > 1) eixo.appendChild(el('span', diaBr(dias[dias.length - 1].dia)));
+    alvo.appendChild(eixo);
+    alvo.appendChild(dica);
+  }
+
+  function mostrarRelatorio(r) {
+    var s = r.resumo;
+    var numeros = $('rel-numeros');
+    limpar(numeros);
+    numeros.appendChild(numero('Vendido', reais(s.valor), s.cancelados ? s.cancelados + ' cancelado(s) fora da conta' : ''));
+    numeros.appendChild(numero('Pedidos', inteiro(s.pedidos), 'Entrega ' + s.entrega + ' · Retirada ' + s.retirada));
+    numeros.appendChild(numero('Ticket médio', reais(s.ticketMedio)));
+    numeros.appendChild(numero('Links enviados', inteiro(s.links), 'Abertos pelo cliente: ' + taxa(s.abertos, s.links)));
+    numeros.appendChild(numero('Conversão', taxa(s.convertidos, s.links), s.convertidos + ' dos links viraram pedido'));
+
+    grafico(r.porDia);
+
+    tabela('rel-origem', [{ titulo: 'Origem' }, { titulo: 'Links', num: true }, { titulo: 'Pedidos', num: true }, { titulo: 'Conversão', num: true }, { titulo: 'Valor', num: true }],
+      r.porOrigem.map(function (o) {
+        return { celulas: [ORIGENS_TEXTO[o.origem], inteiro(o.links), inteiro(o.pedidos), taxa(o.convertidos, o.links), reais(o.valor)] };
+      }), '');
+
+    var f = r.quemFinalizou;
+    tabela('rel-finalizou', [{ titulo: 'Quem finalizou' }, { titulo: 'Pedidos', num: true }, { titulo: 'Valor', num: true }], [
+      { celulas: ['Cliente, pelo link', inteiro(f.cliente.pedidos), reais(f.cliente.valor)] },
+      { celulas: ['Atendente, pelo painel', inteiro(f.atendente.pedidos), reais(f.atendente.valor)] },
+    ], '');
+
+    tabela('rel-atendentes', [
+      { titulo: 'Atendente' }, { titulo: 'Links', num: true }, { titulo: 'Pedidos', num: true }, { titulo: 'Conversão', num: true },
+      { titulo: 'Valor', num: true }, { titulo: 'Fechou no painel', num: true },
+    ], r.porAtendente.map(function (a) {
+      return { celulas: [a.nome, inteiro(a.links), inteiro(a.pedidos), taxa(a.convertidos, a.links), reais(a.valor), a.fechadosNoPainel + ' · ' + reais(a.valorNoPainel)] };
+    }), 'Nenhum atendente gerou link ou fechou pedido no período.');
+
+    tabela('rel-produtos', [{ titulo: 'Produto' }, { titulo: 'Quantidade', num: true }, { titulo: 'Pedidos', num: true }, { titulo: 'Valor', num: true }],
+      r.produtos.map(function (p) {
+        return { celulas: [{ texto: p.nome, classe: 'quebra' }, inteiro(p.quantidade), inteiro(p.pedidos), reais(p.valor)] };
+      }), 'Nenhum produto vendido no período.');
+
+    tabela('rel-pedidos', [
+      { titulo: 'Data' }, { titulo: 'Cliente' }, { titulo: 'Origem' }, { titulo: 'Finalizado por' }, { titulo: 'Tipo' },
+      { titulo: 'Total', num: true }, { titulo: 'Pedido na loja' },
+    ], r.pedidos.map(function (p) {
+      var situacao = p.pedidoNumero ? 'nº ' + p.pedidoNumero + (p.situacao ? ' — ' + p.situacao : '') : (p.situacao || '');
+      return {
+        classe: p.cancelado ? 'cancelado' : '',
+        celulas: [dataHora(p.em), p.cliente || '—', nomeDaOrigem(p), quemFinalizou(p), p.tipo === 'retirada' ? 'Retirada' : p.tipo === 'entrega' ? 'Entrega' : '—',
+          reais(p.total), { texto: situacao || '—', classe: 'situacao' }],
+      };
+    }), 'Nenhum pedido no período.');
+    $('rel-pedidos-nota').textContent = r.listaCortada ? 'Mostrando os ' + r.pedidos.length + ' pedidos mais recentes; os números acima contam o período inteiro.' : '';
+    $('btn-rel-copiar').disabled = !r.pedidos.length;
+    $('rel-conteudo').hidden = false;
+  }
+
+  function carregarRelatorio(de, ate) {
+    $('rel-de').value = de;
+    $('rel-ate').value = ate;
+    $('resultado-relatorio').textContent = 'Carregando…';
+    $('btn-rel-ver').disabled = true;
+    return api('/v1/loja/relatorios?de=' + encodeURIComponent(de) + '&ate=' + encodeURIComponent(ate)).then(function (r) {
+      relatorio = r;
+      $('resultado-relatorio').textContent = '';
+      mostrarRelatorio(r);
+    }, function (erro) {
+      $('resultado-relatorio').textContent = mensagemDeErro(erro);
+    }).then(function () { $('btn-rel-ver').disabled = false; });
+  }
+
+  function marcarAtalho(qual) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rel-atalho]'), function (b) {
+      b.className = b.getAttribute('data-rel-atalho') === qual ? 'ativa' : '';
+    });
+  }
+
+  function relatorioPorAtalho(qual) {
+    var hoje = hojeBrasilia();
+    var de = qual === 'hoje' ? hoje : qual === 'mes' ? hoje.slice(0, 8) + '01' : somarDias(hoje, -(Number(qual) - 1));
+    marcarAtalho(qual);
+    return carregarRelatorio(de, hoje);
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-rel-atalho]'), function (b) {
+    b.addEventListener('click', function () { relatorioPorAtalho(b.getAttribute('data-rel-atalho')); });
+  });
+
+  $('btn-rel-ver').addEventListener('click', function () {
+    var de = $('rel-de').value;
+    var ate = $('rel-ate').value || hojeBrasilia();
+    if (!de) {
+      $('resultado-relatorio').textContent = 'Escolha a data inicial.';
+      return;
+    }
+    marcarAtalho('');
+    carregarRelatorio(de, ate);
+  });
+
+  // Planilha: colado no Excel ou no Google Planilhas, cada campo cai numa coluna (separado por tabulação).
+  $('btn-rel-copiar').addEventListener('click', function () {
+    if (!relatorio) return;
+    var limpo = function (v) { return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' '); };
+    var linhas = [['Data', 'Cliente', 'Telefone', 'Origem', 'Finalizado por', 'Tipo', 'Total', 'Pedido na loja', 'Situação', 'Atendimento'].join('\t')];
+    relatorio.pedidos.forEach(function (p) {
+      linhas.push([
+        dataHora(p.em), p.cliente, p.telefone, nomeDaOrigem(p), quemFinalizou(p), p.tipo, Number(p.total).toFixed(2).replace('.', ','),
+        p.pedidoNumero, p.cancelado ? 'Cancelado' : p.situacao, p.chatId,
+      ].map(limpo).join('\t'));
+    });
+    copiar(linhas.join('\n'), 'Pedidos copiados. Cole na planilha.');
   });
 
   // ── Aba URA: chave de automação ──────────────────────────────────────────

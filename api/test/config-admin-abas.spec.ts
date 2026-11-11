@@ -322,6 +322,114 @@ describe('abas de configuração do Admin', () => {
     });
   });
 
+  describe('Relatórios', () => {
+    const dia = (d: string, valor = 0, pedidos = 0, links = 0) => ({ dia: d, valor, pedidos, links });
+    const RELATORIO = {
+      periodo: { de: '2026-11-10', ate: '2026-11-11', dias: 2 },
+      resumo: { links: 4, convertidos: 2, pedidos: 2, valor: 389.7, abertos: 3, ticketMedio: 194.85, cancelados: 1, entrega: 2, retirada: 0, naLoja: 1 },
+      porOrigem: [
+        { origem: 'ia', links: 1, convertidos: 1, pedidos: 1, valor: 129.9 },
+        { origem: 'ura', links: 1, convertidos: 0, pedidos: 0, valor: 0 },
+        { origem: 'atendente', links: 2, convertidos: 1, pedidos: 1, valor: 259.8 },
+      ],
+      porAtendente: [{ nome: 'Carlos', links: 2, convertidos: 1, pedidos: 1, valor: 259.8, fechadosNoPainel: 1, valorNoPainel: 259.8 }],
+      quemFinalizou: { cliente: { pedidos: 1, valor: 129.9 }, atendente: { pedidos: 1, valor: 259.8 } },
+      porDia: [dia('2026-11-10'), dia('2026-11-11', 389.7, 2, 4)],
+      produtos: [{ nome: 'Dipirona 500mg', quantidade: 3, valor: 389.7, pedidos: 2 }],
+      pedidos: [
+        { sessaoId: 's1', chatId: '41', em: '2026-11-11T15:30:00.000Z', cliente: 'Ana\tSouza', telefone: '5538988887777', tipo: 'entrega', total: 129.9, origem: 'ia', geradoPor: '', finalizadaPor: 'cliente', finalizadaPorNome: '', pedidoNumero: '', situacao: '', cancelado: false },
+        { sessaoId: 's2', chatId: '42', em: '2026-11-11T14:00:00.000Z', cliente: 'Bia', telefone: '', tipo: 'entrega', total: 259.8, origem: 'atendente', geradoPor: 'Carlos', finalizadaPor: 'atendente', finalizadaPorNome: 'Carlos', pedidoNumero: '77', situacao: 'Em separação', cancelado: false },
+        { sessaoId: 's3', chatId: '43', em: '2026-11-10T14:00:00.000Z', cliente: 'Caio', telefone: '', tipo: 'retirada', total: 50, origem: 'ura', geradoPor: '', finalizadaPor: 'cliente', finalizadaPorNome: '', pedidoNumero: '78', situacao: 'Cancelado', cancelado: true },
+      ],
+      listaCortada: false,
+    };
+    const consultas = () => t.chamadas.filter((c) => c.method === 'GET' && c.url.includes('/v1/loja/relatorios')).map((c) => new URL(c.url).searchParams);
+    const celulas = (id: string) =>
+      [...t.document.querySelectorAll(`#${id} tbody tr`)].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    const atalho = (qual: string) => t.document.querySelector<HTMLButtonElement>(`[data-rel-atalho="${qual}"]`)!;
+
+    it('abre com os últimos 30 dias e mostra números, gráfico, origens, atendentes, produtos e pedidos', async () => {
+      t = await abrir({ 'GET /v1/loja/relatorios': { status: 200, body: RELATORIO } });
+      await t.clicar('botao-aba-relatorios');
+      await t.esperar(5);
+      expect(t.visivel('aba-relatorios')).toBe(true);
+      const [q] = consultas();
+      const de = Date.parse(`${q.get('de')}T00:00:00Z`);
+      const ate = Date.parse(`${q.get('ate')}T00:00:00Z`);
+      expect((ate - de) / 86_400_000).toBe(29);
+      expect(atalho('30').className).toBe('ativa');
+
+      expect(t.visivel('rel-conteudo')).toBe(true);
+      const numeros = t.texto('rel-numeros');
+      expect(numeros).toMatch(/389,70/);
+      expect(numeros).toContain('1 cancelado(s) fora da conta');
+      expect(numeros).toContain('Conversão50%');
+      expect(numeros).toContain('Abertos pelo cliente: 75%');
+
+      const barras = t.document.querySelectorAll('#rel-grafico .rel-barra');
+      expect(barras).toHaveLength(2);
+      expect(barras[1].getAttribute('aria-label')).toMatch(/^11\/11: R\$\s389,70, 2 pedido\(s\), 4 link\(s\)$/);
+      expect((barras[0].querySelector('i') as HTMLElement).style.height).toBe('0px');
+      barras[1].dispatchEvent(new t.document.defaultView!.Event('mouseenter'));
+      expect(t.document.querySelector('#rel-grafico .rel-dica')!.textContent).toContain('Links enviados: 4');
+
+      expect(celulas('rel-origem').map((l) => [l[0], l[3]])).toEqual([
+        ['Assistente de IA', '100%'],
+        ['URA da Kentro', '0%'],
+        ['Atendentes', '50%'],
+      ]);
+      expect(celulas('rel-atendentes')[0][0]).toBe('Carlos');
+      expect(celulas('rel-atendentes')[0][5]).toMatch(/^1 · R\$\s259,80$/);
+      expect(celulas('rel-produtos')[0][0]).toBe('Dipirona 500mg');
+      expect(celulas('rel-pedidos').map((l) => [l[2], l[3], l[6]])).toEqual([
+        ['Assistente de IA', 'Cliente (link)', '—'],
+        ['Carlos', 'Carlos (painel)', 'nº 77 — Em separação'],
+        ['URA da Kentro', 'Cliente (link)', 'nº 78 — Cancelado'],
+      ]);
+      expect(t.document.querySelectorAll('#rel-pedidos tr.cancelado')).toHaveLength(1);
+    });
+
+    it('atalhos e datas escolhidas refazem a consulta; copiar leva os pedidos separados por tabulação', async () => {
+      t = await abrir({ 'GET /v1/loja/relatorios': { status: 200, body: RELATORIO } });
+      await t.clicar('botao-aba-relatorios');
+      await t.esperar(5);
+      atalho('hoje').click();
+      await t.esperar(5);
+      expect(consultas()[1].get('de')).toBe(consultas()[1].get('ate'));
+      atalho('mes').click();
+      await t.esperar(5);
+      expect(consultas()[2].get('de')).toMatch(/-01$/);
+
+      t.preencher('rel-de', '2026-10-01');
+      t.preencher('rel-ate', '2026-10-31');
+      await t.clicar('btn-rel-ver');
+      await t.esperar(5);
+      expect(consultas()[3].get('de')).toBe('2026-10-01');
+      expect(consultas()[3].get('ate')).toBe('2026-10-31');
+      expect(t.document.querySelector('.rel-atalhos .ativa')).toBeNull();
+
+      await t.clicar('btn-rel-copiar');
+      await t.esperar(5);
+      const linhas = t.copiados[0].split('\n');
+      expect(linhas).toHaveLength(4);
+      expect(linhas[0].split('\t')[0]).toBe('Data');
+      expect(linhas[1].split('\t')).toHaveLength(10);
+      expect(linhas[1].split('\t')[1]).toBe('Ana Souza'); // tabulação dentro do campo não quebra a planilha
+      expect(linhas[3].split('\t')[8]).toBe('Cancelado');
+    });
+
+    it('erro da API aparece no lugar do relatório', async () => {
+      t = await abrir(
+        { 'GET /v1/loja/relatorios': { status: 400, body: { erro: { codigo: 'ENTRADA_INVALIDA', mensagem: 'O período pode ter até 366 dias.' } } } },
+        { proxy: 'resolve' },
+      );
+      await t.clicar('botao-aba-relatorios');
+      await t.esperar(5);
+      expect(t.texto('resultado-relatorio')).toContain('366 dias');
+      expect(t.visivel('rel-conteudo')).toBe(false);
+    });
+  });
+
   describe('URA: chave de automação', () => {
     const chamadasDe = (metodo: string, trecho: string) => t.chamadas.filter((c) => c.method === metodo && c.url.endsWith(trecho));
 

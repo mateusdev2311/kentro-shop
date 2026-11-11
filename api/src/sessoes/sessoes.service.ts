@@ -56,6 +56,13 @@ function textoDoLink(autor: 'atendente' | 'ia', atendente: string): string {
   return atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado';
 }
 
+/** Origem do atendimento para os relatórios: IA, URA ou o atendente (com o nome dele). */
+export function origemDoLink(autor: 'atendente' | 'ia', atendente: string): { origem: 'atendente' | 'ia' | 'ura'; geradoPor: string } {
+  if (autor === 'ia') return { origem: 'ia', geradoPor: '' };
+  if (atendente === ATENDENTE_URA) return { origem: 'ura', geradoPor: '' };
+  return { origem: 'atendente', geradoPor: atendente.trim().slice(0, 120) };
+}
+
 const CAMPOS_ENDERECO =['cep', 'estado', 'cidade', 'bairro', 'rua', 'numero', 'complemento'] as const;
 
 /** Campo vazio não apaga o que já se sabe; um endereço novo (com algum campo) substitui o anterior inteiro. */
@@ -131,6 +138,7 @@ export class SessoesService {
         ...(filtro ? { filtro: filtro as unknown as Prisma.InputJsonValue } : {}),
         restrito: montado?.restrito ?? true,
         mostrarPrecos: montado?.mostrarPrecos ?? null,
+        ...origemDoLink(autor, atendente),
         eventos: { create: { tipo: 'link', texto: textoDoLink(autor, atendente), autor } },
       },
     });

@@ -260,6 +260,13 @@ model Sessao {
   mostrarPrecos Boolean?     @map("mostrar_precos")
   /// Pedido criado na plataforma ao finalizar (modo criar_pedido): { idExterno, numero, url, status }.
   pedido        Json?
+  /// Relatórios: quem gerou o primeiro link do atendimento — atendente (painel), ia (assistente) ou ura (automação).
+  origem            String  @default("atendente")
+  /// Nome do atendente que gerou o primeiro link (vazio na IA, na URA ou sem nome).
+  geradoPor         String  @default("") @map("gerado_por")
+  /// Relatórios: quem finalizou — cliente (pelo link) ou atendente (pelo painel). Nulo = não finalizado.
+  finalizadaPor     String? @map("finalizada_por")
+  finalizadaPorNome String  @default("") @map("finalizada_por_nome")
   criadaEm     DateTime     @default(now()) @map("criada_em")
   atualizadaEm DateTime     @updatedAt @map("atualizada_em")
 
@@ -269,6 +276,8 @@ model Sessao {
   links   LinkSessao[]
 
   @@index([lojaId, chatId])
+  @@index([lojaId, criadaEm])
+  @@index([lojaId, finalizadaEm])
   @@map("sessoes")
 }
 
