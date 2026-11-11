@@ -21,9 +21,14 @@ export const TABELA_ITENS = 'itens_pedido_ecommerce';
 export const TABELA_PAGAMENTO = 'itens_pedido_ecommerce_pagamento';
 const TABELAS_DO_PEDIDO = [TABELA_PEDIDO, TABELA_ITENS, TABELA_PAGAMENTO] as const;
 const BANCO_PADRAO = 'automatiza';
-const CANAL_PADRAO = 'KENTRO';
-/** Como o ERP marca o pedido novo (o iFood usa o mesmo campo para os eventos seguintes). */
-const EVENTO_NOVO = 'pedido_criado';
+// Modelo do fornecedor do ERP (2026-11-11): parceiro, canal e transportadora "Delivery". Com outra plataforma
+// (ex.: X = XCommerce) o pedido entra, mas a loja não consegue enviar para separação.
+const PLATAFORMA_DELIVERY = 'Delivery';
+const CANAL_PADRAO = PLATAFORMA_DELIVERY;
+/** Como o ERP marca o pedido novo (modelo do fornecedor). */
+const EVENTO_NOVO = 'Confirmado';
+/** Data de entrega "não informada" do modelo do fornecedor. */
+const SEM_DATA = '1900-01-01';
 /** Proteção de memória: a leitura traz o catálogo vendável inteiro de uma vez. */
 export const MAX_PRODUTOS = 100_000;
 
@@ -125,10 +130,10 @@ export function camposPedido(): CampoCredencial[] {
       rotulo: 'Pedidos: código de parceiro no ERP',
       tipo: 'texto',
       obrigatorio: false,
-      ajuda: 'Opcional. O código que o Automatiza usa para os pedidos do Kentro Shop (campo peecParceiro), combinado com o fornecedor do ERP. Vazio = o pedido não vai para o ERP; o atendente fecha a venda.',
+      ajuda: `Opcional. Use ${PLATAFORMA_DELIVERY} (campo peecParceiro): em outra plataforma a loja não consegue enviar o pedido para separação. Vazio = o pedido não vai para o ERP; o atendente fecha a venda.`,
     },
     { chave: 'pedido_canal', rotulo: 'Pedidos: canal', tipo: 'texto', obrigatorio: false, ajuda: `Vazio = ${CANAL_PADRAO}.` },
-    { chave: 'pedido_codigo_parceiro', rotulo: 'Pedidos: número do parceiro', tipo: 'texto', obrigatorio: false, ajuda: 'Código_Parceiro_Ecommerce, se o fornecedor do ERP pedir. Vazio = 0.' },
+    { chave: 'pedido_codigo_parceiro', rotulo: 'Pedidos: número do parceiro', tipo: 'texto', obrigatorio: false, ajuda: 'Codigo_Parceiro_Ecommerce, o número que o fornecedor do ERP passou para a loja. Vazio = 0.' },
   ];
 }
 
@@ -168,19 +173,42 @@ const NOME_DA_FORMA: Record<FormaPagamento, string> = { dinheiro: 'Dinheiro', ca
 const brl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
 
 /** Valores do pedido conferidos antes de abrir a transação (nada vai ao banco se algo estiver errado). */
-export function conferirPedido(pedido: PedidoParaCriar): { itens: { codigo: number; nome: string; quantidade: number; preco: number }[]; frete: number; desconto: number; total: number } {
+export interface ItemConferido {
+  codigo: number;
+  nome: string;
+  quantidade: number;
+  /** Preço unitário (itpeValor). */
+  preco: number;
+  /** Quantidade × preço (itpeTotalProduto). */
+  bruto: number;
+  /** Parte do desconto do pedido que cabe ao item (itpeTotalDesconto). */
+  desconto: number;
+  /** Bruto − desconto (itpeTotalLiquido). */
+  liquido: number;
+}
+
+export function conferirPedido(pedido: PedidoParaCriar): { itens: ItemConferido[]; frete: number; desconto: number; total: number } {
   if (!pedido.itens.length) throw new RecusadoPelaPlataforma('O pedido está sem produtos.');
   if (!pedido.pagamento) throw new RecusadoPelaPlataforma('O pedido está sem a forma de pagamento.');
-  const itens = pedido.itens.map((i) => {
+  const base = pedido.itens.map((i) => {
     const codigo = String(i.sku || i.produtoId).trim();
     if (!/^\d{1,9}$/.test(codigo)) throw new RecusadoPelaPlataforma('Um produto do pedido não tem código de mercadoria do ERP.');
     if (!Number.isInteger(i.quantidade) || i.quantidade <= 0) throw new RecusadoPelaPlataforma('Quantidade inválida no pedido.');
     if (!(i.precoUnitario > 0)) throw new RecusadoPelaPlataforma('Um produto do pedido está sem preço.');
-    return { codigo: Number(codigo), nome: textoBanco(i.nome, 200), quantidade: i.quantidade, preco: centavos(i.precoUnitario) };
+    const preco = centavos(i.precoUnitario);
+    return { codigo: Number(codigo), nome: textoBanco(i.nome, 200), quantidade: i.quantidade, preco, bruto: centavos(preco * i.quantidade) };
   });
+  const subtotal = centavos(base.reduce((s, i) => s + i.bruto, 0));
   const frete = centavos(Math.max(0, pedido.frete?.valor ?? 0));
-  const desconto = centavos(Math.max(0, pedido.desconto?.valor ?? 0));
-  const total = centavos(itens.reduce((s, i) => s + i.preco * i.quantidade, 0) + frete - desconto);
+  const desconto = centavos(Math.min(subtotal, Math.max(0, pedido.desconto?.valor ?? 0)));
+  // No ERP o desconto é por item (o do pedido é a soma): reparte pelo peso de cada item; o último leva a sobra dos centavos.
+  let repartido = 0;
+  const itens = base.map((i, n) => {
+    const parte = n === base.length - 1 ? centavos(desconto - repartido) : centavos((desconto * i.bruto) / subtotal);
+    repartido = centavos(repartido + parte);
+    return { ...i, desconto: parte, liquido: centavos(i.bruto - parte) };
+  });
+  const total = centavos(subtotal - desconto + frete);
   if (!(total > 0)) throw new RecusadoPelaPlataforma('O total do pedido precisa ser maior que zero.');
   return { itens, frete, desconto, total };
 }
@@ -211,14 +239,19 @@ async function gravarPedido(tx: TransacaoBanco, config: ConfigPedido, pedido: Pe
   const condicao = condicoes.find((c) => CONDICAO_DA_FORMA[pagamento.forma](chave(texto(c.descricao))));
   if (!condicao) throw new RecusadoPelaPlataforma(`A forma de pagamento ${NOME_DA_FORMA[pagamento.forma]} não está cadastrada no ERP.`);
   const codigoCondicao = textoBanco(condicao.codigo_pagamento, 36);
+  // A forma vai como o ERP chama na view (ex.: DINHEIRO), como no modelo do fornecedor.
+  const formaErp = textoBanco(condicao.descricao, 25) || NOME_DA_FORMA[pagamento.forma];
   const trocoPara = pagamento.forma === 'dinheiro' && pagamento.trocoPara && pagamento.trocoPara > total ? centavos(pagamento.trocoPara) : 0;
   const forma = NOME_DA_FORMA[pagamento.forma];
   const descricaoPagamento = textoBanco(`${forma} na ${pedido.entrega.tipo === 'entrega' ? 'entrega' : 'retirada'}${trocoPara ? ` (troco para ${brl(trocoPara)})` : ''}`, 60);
 
   const entrega = pedido.entrega.tipo === 'entrega' ? pedido.entrega.endereco : undefined;
   if (pedido.entrega.tipo === 'entrega' && !entrega) throw new RecusadoPelaPlataforma('O pedido de entrega está sem o endereço.');
-  const transporte = entrega ? 'Entrega' : 'Retirada na Loja';
-  const observacoes = textoBanco([trocoPara ? `Troco para ${brl(trocoPara)}.` : '', pedido.observacoes ?? ''].filter(Boolean).join(' '), 500);
+  // A transportadora é sempre a Delivery (modelo do fornecedor); a retirada vai escrita nas observações.
+  const observacoes = textoBanco(
+    [entrega ? '' : 'RETIRADA NA LOJA.', trocoPara ? `Troco para ${brl(trocoPara)}.` : '', pedido.observacoes ?? ''].filter(Boolean).join(' '),
+    500,
+  );
 
   const cabecalho: Record<string, unknown> = {
     filiCodigo: codigoFilial,
@@ -230,6 +263,7 @@ async function gravarPedido(tx: TransacaoBanco, config: ConfigPedido, pedido: Pe
     peecValor_Frete: frete,
     peecValor_Desconto: desconto,
     peecUltimo_Evento: EVENTO_NOVO,
+    Codigo_Cliente: 0,
     peecNome_Cliente: textoBanco(pedido.cliente.nome, 100),
     peecTelefone_Cliente: digitos(pedido.cliente.telefone, 13),
     peecEmail_Cliente: textoBanco(pedido.cliente.email, 120),
@@ -248,31 +282,33 @@ async function gravarPedido(tx: TransacaoBanco, config: ConfigPedido, pedido: Pe
     peecValor_Parcela_Pagamento: total,
     peecPagamento_Realizado: 0,
     peecTroco_Pagamento: trocoPara ? centavos(trocoPara - total) : 0,
-    peecTransporte_Servico: transporte,
-    peecTransporte_Metodo: transporte,
+    peecTransporte_Metodo: PLATAFORMA_DELIVERY,
     peecObservacoes_Entrega: observacoes,
+    peecData_Entrega: SEM_DATA,
     Situacao: 'ATIVO',
     // 'N' = ainda não transmitido para a loja (o ERP marca 'S' quando recebe).
     Status_Transmissao: 'N',
   };
   const colunas = Object.keys(cabecalho);
   const { idInserido: codigo } = await tx.executar(
-    `INSERT INTO ${TABELA_PEDIDO} (${colunas.join(', ')}, peecData_Cadastro, peecData_Atualizacao, peecData_Entrega)
-     VALUES (${colunas.map(() => '?').join(', ')}, NOW(), NOW(), CURDATE())`,
+    `INSERT INTO ${TABELA_PEDIDO} (${colunas.join(', ')}, peecData_Cadastro, peecData_Atualizacao)
+     VALUES (${colunas.map(() => '?').join(', ')}, NOW(), NOW())`,
     Object.values(cabecalho),
   );
   if (!codigo) throw new RecusadoPelaPlataforma('O banco de dados da loja não devolveu o número do pedido.');
 
   await tx.executar(
-    `INSERT INTO ${TABELA_ITENS} (Codigo_Pedido_Ecommerce, filiCodigo_Pedido_Ecommerce, Codigo_Mercadoria, itpeDescricao_Mercadoria, itpeQuantidade, itpeValor)
-     VALUES ${itens.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}`,
-    itens.flatMap((i) => [codigo, codigoFilial, i.codigo, i.nome, i.quantidade, i.preco]),
+    `INSERT INTO ${TABELA_ITENS} (Codigo_Pedido_Ecommerce, filiCodigo_Pedido_Ecommerce, Codigo_Mercadoria, itpeDescricao_Mercadoria, itpeQuantidade, itpeValor,
+       itpeTotalDesconto, itpeTotalProduto, itpeTotalLiquido)
+     VALUES ${itens.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+    itens.flatMap((i) => [codigo, codigoFilial, i.codigo, i.nome, i.quantidade, i.preco, i.desconto, i.bruto, i.liquido]),
   );
   await tx.executar(
     `INSERT INTO ${TABELA_PAGAMENTO} (Codigo_Pedido_Ecommerce, filiCodigo_Pedido_Ecommerce, ipepPagamento_Realizado, ipepCodigo_Condicao_Pagamento,
-       ipepForma_Pagamento, ipepDescricao_Pagamento, ipepValor_Total, ipepQuantidade_Parcelas_Pagamento, ipepNSU_Pagamento, ipepBandeira_Pagamento)
-     VALUES (?, ?, 0, ?, ?, ?, ?, 1, '', '')`,
-    [codigo, codigoFilial, codigoCondicao, textoBanco(forma, 25), descricaoPagamento, total],
+       ipepForma_Pagamento, ipepDescricao_Pagamento, ipepValor_Total, ipepQuantidade_Parcelas_Pagamento, ipepNSU_Pagamento, ipepBandeira_Pagamento,
+       ipepGateway_Pagamento, ipepCodigo_Transacao_Pagamento)
+     VALUES (?, ?, 0, ?, ?, ?, ?, 1, '', '', '', '')`,
+    [codigo, codigoFilial, codigoCondicao, formaErp, formaErp, total],
   );
   return criado(codigo, 'ATIVO');
 }

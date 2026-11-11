@@ -135,7 +135,7 @@ describe('conector ERP Automatiza (views do MySQL)', () => {
 });
 
 describe('conector ERP Automatiza: pedido gravado no banco', () => {
-  const COM_PEDIDO = { ...CREDENCIAIS_BANCO, pedido_parceiro: 'K' };
+  const COM_PEDIDO = { ...CREDENCIAIS_BANCO, pedido_parceiro: 'Delivery', pedido_codigo_parceiro: '12' };
   const comPedido = (banco: ClienteBanco, credenciais: Record<string, string> = COM_PEDIDO): CtxConector => ({ ...ctx(banco), credenciais });
   const PEDIDO: PedidoParaCriar = {
     cliente: { nome: 'Ana Souza 😀', telefone: '5538988887777', documento: '123.456.789-09' },
@@ -162,9 +162,12 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
       Codigo: 107834,
       filiCodigo: 7,
       peecCodigo_Ecommerce: 'sessao-0001',
-      peecParceiro: 'K',
-      peecCanal: 'KENTRO',
-      Codigo_Parceiro_Ecommerce: 0,
+      // Modelo do fornecedor do ERP: parceiro, canal e transportadora Delivery (com X = XCommerce a loja não separa).
+      peecParceiro: 'Delivery',
+      peecCanal: 'Delivery',
+      Codigo_Parceiro_Ecommerce: 12,
+      peecUltimo_Evento: 'Confirmado',
+      Codigo_Cliente: 0,
       peecValor_Total: 19.88, // 2 × 3,99 + 6,90 + 5,00 de frete
       peecValor_Frete: 5,
       peecValor_Desconto: 0,
@@ -180,19 +183,34 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
       peecPagamento_Realizado: 0,
       peecValor_Parcela_Pagamento: 19.88,
       peecTroco_Pagamento: 30.12,
-      peecTransporte_Metodo: 'Entrega',
+      peecTransporte_Metodo: 'Delivery',
       peecObservacoes_Entrega: 'Troco para R$ 50,00. Interfone quebrado',
       Situacao: 'ATIVO',
       Status_Transmissao: 'N',
       peecData_Cadastro: '<NOW>',
-      peecData_Entrega: '<CURDATE>',
+      peecData_Entrega: '1900-01-01',
     });
+    expect(banco.tabelas[TABELA_PEDIDO][0]).not.toHaveProperty('peecTransporte_Servico');
+    const item = { Codigo_Pedido_Ecommerce: 107834, filiCodigo_Pedido_Ecommerce: 7, itpeTotalDesconto: 0 };
     expect(banco.tabelas[TABELA_ITENS]).toEqual([
-      { Codigo_Pedido_Ecommerce: 107834, filiCodigo_Pedido_Ecommerce: 7, Codigo_Mercadoria: 101, itpeDescricao_Mercadoria: 'SABONETE NEUTRO 90G', itpeQuantidade: 2, itpeValor: 3.99 },
-      { Codigo_Pedido_Ecommerce: 107834, filiCodigo_Pedido_Ecommerce: 7, Codigo_Mercadoria: 103, itpeDescricao_Mercadoria: 'DIPIRONA 500MG 10 COMPRIMIDOS', itpeQuantidade: 1, itpeValor: 6.9 },
+      { ...item, Codigo_Mercadoria: 101, itpeDescricao_Mercadoria: 'SABONETE NEUTRO 90G', itpeQuantidade: 2, itpeValor: 3.99, itpeTotalProduto: 7.98, itpeTotalLiquido: 7.98 },
+      { ...item, Codigo_Mercadoria: 103, itpeDescricao_Mercadoria: 'DIPIRONA 500MG 10 COMPRIMIDOS', itpeQuantidade: 1, itpeValor: 6.9, itpeTotalProduto: 6.9, itpeTotalLiquido: 6.9 },
     ]);
     expect(banco.tabelas[TABELA_PAGAMENTO]).toEqual([
-      expect.objectContaining({ Codigo_Pedido_Ecommerce: 107834, filiCodigo_Pedido_Ecommerce: 7, ipepPagamento_Realizado: 0, ipepCodigo_Condicao_Pagamento: '1', ipepForma_Pagamento: 'Dinheiro', ipepValor_Total: 19.88 }),
+      {
+        Codigo_Pedido_Ecommerce: 107834,
+        filiCodigo_Pedido_Ecommerce: 7,
+        ipepPagamento_Realizado: 0,
+        ipepCodigo_Condicao_Pagamento: '1',
+        ipepForma_Pagamento: 'DINHEIRO', // como o ERP chama na view
+        ipepDescricao_Pagamento: 'DINHEIRO',
+        ipepValor_Total: 19.88,
+        ipepQuantidade_Parcelas_Pagamento: 1,
+        ipepNSU_Pagamento: '',
+        ipepBandeira_Pagamento: '',
+        ipepGateway_Pagamento: '',
+        ipepCodigo_Transacao_Pagamento: '',
+      },
     ]);
     expect(banco.gravacoes.map((g) => g.sql.split('(')[0].trim())).toEqual([
       'INSERT INTO pedido_ecommerce',
@@ -262,11 +280,28 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
       peecValor_Total: 14.88,
       peecCep_Entrega: '',
       peecLogradouro_Entrega: '',
-      peecTransporte_Metodo: 'Retirada na Loja',
+      peecTransporte_Metodo: 'Delivery',
+      peecObservacoes_Entrega: 'RETIRADA NA LOJA. Interfone quebrado',
       peecIdentificacao_Pagamento: '12',
       peecDescricao_Pagamento: 'Cartão na retirada',
       peecTroco_Pagamento: 0,
     });
+    expect(banco.tabelas[TABELA_PAGAMENTO][0]).toMatchObject({ ipepForma_Pagamento: 'Cartão de débito', ipepValor_Total: 14.88 });
+  });
+
+  it('desconto do pedido: repartido nos itens pelo peso de cada um, sem perder centavo', async () => {
+    const banco = bancoEmMemoria(CREDENCIAIS_BANCO);
+    await conectorAutomatiza.criarPedido!(comPedido(banco), { ...PEDIDO, desconto: { valor: 1, motivo: 'Desconto do atendimento' } });
+    const [pedido] = banco.tabelas[TABELA_PEDIDO];
+    expect(pedido).toMatchObject({ peecValor_Desconto: 1, peecValor_Total: 18.88 }); // 14,88 − 1 + 5 de frete
+    const itens = banco.tabelas[TABELA_ITENS];
+    // 7,98 e 6,90 de 14,88: 0,54 e o resto (0,46) no último.
+    expect(itens.map((i) => [i.itpeTotalProduto, i.itpeTotalDesconto, i.itpeTotalLiquido])).toEqual([
+      [7.98, 0.54, 7.44],
+      [6.9, 0.46, 6.44],
+    ]);
+    const liquido = itens.reduce((s, i) => s + Number(i.itpeTotalLiquido), 0);
+    expect(Math.round((liquido + Number(pedido.peecValor_Frete)) * 100) / 100).toBe(pedido.peecValor_Total);
   });
 
   it('sem o código de parceiro: não cria pedido (vai para o atendente) e não abre o banco', async () => {
@@ -315,11 +350,11 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
     expect(await conectorAutomatiza.cancelarPedido!(comPedido(banco), a.idExterno)).toEqual({ status: 'CANCELADO', descricao: 'Cancelado', cancelavel: false });
     expect(tabelas[TABELA_PEDIDO].map((p) => [p.Codigo, p.Situacao, p.peecUltimo_Evento])).toEqual([
       [107834, 'CANCELADO', 'pedido_cancelado'],
-      [107835, 'ATIVO', 'pedido_criado'], // o outro pedido não muda
+      [107835, 'ATIVO', 'Confirmado'], // o outro pedido não muda
     ]);
     expect(tabelas[TABELA_PEDIDO][0].peecData_Atualizacao).toBe('<NOW()>');
     const update = banco.gravacoes.find((g) => g.sql.trim().startsWith('UPDATE'))!;
-    expect(update.parametros).toEqual([107834, 7, 'K']);
+    expect(update.parametros).toEqual([107834, 7, 'Delivery']);
     // Cancelar de novo não é erro: já está cancelado.
     expect((await conectorAutomatiza.cancelarPedido!(comPedido(banco), a.idExterno)).status).toBe('CANCELADO');
 
