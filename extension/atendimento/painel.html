@@ -494,6 +494,11 @@
 
   var cfg = { apiUrl: '', chave: '' };
   var usuario = {};
+  /** Nome do atendente para a atividade e os relatórios: o campo varia; sem nome, fica vazio. */
+  function nomeDoUsuario(u) {
+    u = u || {};
+    return String(u.name || u.nome || u.fullName || u.full_name || u.displayName || u.username || u.email || '').trim();
+  }
   var plataforma = null;   // plataforma integrada da loja ("kentro" = catálogo interno da Kentro)
   var chat = null;      // { id, nome, telefone }
   var sessao = null;
@@ -635,7 +640,10 @@
         'X-Loja-Chave': cfg.chave,
         'X-Kentro-Usuario-Id': String(usuario.id || ''),
         // Cabeçalho HTTP não aceita emoji nem boa parte do Unicode: o nome vai codificado.
-        'X-Kentro-Usuario-Nome': encodeURIComponent(String(usuario.name || ''))
+        'X-Kentro-Usuario-Nome': encodeURIComponent(nomeDoUsuario(usuario)),
+        // O mesmo sem o prefixo X-Kentro-, que o proxy da Kentro pode reservar para ele.
+        'X-Atendente-Id': String(usuario.id || ''),
+        'X-Atendente-Nome': encodeURIComponent(nomeDoUsuario(usuario))
       }
     };
     if (opcoes.body) {
@@ -1722,7 +1730,21 @@
       return;
     }
 
-    abrirLoja();
+    // Sem o nome no handshake, pede à sessão da Kentro antes da primeira chamada (até 1,5 s: o painel não trava).
+    if (nomeDoUsuario(usuario) || !omni.session || !omni.session.getUser) {
+      abrirLoja();
+      return;
+    }
+    var abriu = false;
+    function abrirUmaVez() {
+      if (abriu) return;
+      abriu = true;
+      abrirLoja();
+    }
+    setTimeout(abrirUmaVez, 1500);
+    Promise.resolve(omni.session.getUser()).then(function (u) {
+      if (u && nomeDoUsuario(u)) usuario = u;
+    }).catch(function () {}).then(abrirUmaVez);
   });
 
   var entrou = false;

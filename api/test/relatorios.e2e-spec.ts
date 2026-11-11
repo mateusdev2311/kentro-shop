@@ -22,12 +22,12 @@ describe('relatórios de vendas (aba Relatórios do admin)', () => {
   const relatorio = (consulta = '', chave = loja.chaveAdmin) => http().get(`/v1/loja/relatorios${consulta}`).set('X-Loja-Chave', chave);
   const ip = () => `10.150.0.${(ipSeq += 1)}`;
 
-  /** Link gerado pelo painel, com o nome do atendente. */
+  /** Link gerado pelo painel, com o nome do atendente (a Bruna pelo cabeçalho novo, o Carlos pelo antigo). */
   const pelaAtendente = async (nome: string, chatId: string) => {
     const r = await http()
       .post('/v1/sessoes')
       .set('X-Loja-Chave', loja.chaveAtendimento)
-      .set('X-Kentro-Usuario-Nome', encodeURIComponent(nome))
+      .set(nome === 'Bruna' ? 'X-Atendente-Nome' : 'X-Kentro-Usuario-Nome', encodeURIComponent(nome))
       .send({ chatId, nome: 'Ana Souza', telefone: '5538988887777' });
     return { id: r.body.id as string, token: String(r.body.url).split('/c/')[1] };
   };

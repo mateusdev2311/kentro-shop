@@ -192,8 +192,7 @@
   #chaves .passos { margin-top: 10px; padding: 20px; }
 
   /* ── Abas ── */
-  .abas { display: flex; gap: 4px; margin-bottom: 16px; padding: 4px; overflow-x: auto; border-radius: calc(var(--ks-r-p) + 4px); background: var(--ks-superficie-2); scrollbar-width: none; }
-  .abas::-webkit-scrollbar { display: none; }
+  .abas { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border-radius: calc(var(--ks-r-p) + 4px); background: var(--ks-superficie-2); }
   .abas button { flex: 0 0 auto; min-height: 36px; padding: 0 14px; border: 0; color: var(--ext-color-text-muted); background: none; font-weight: 550; }
   .abas button:hover:not(:disabled) { color: var(--ext-color-text); background: color-mix(in srgb, var(--ext-color-bg) 55%, transparent); }
   .abas button.ativa { color: var(--ext-color-text); background: var(--ext-color-bg); font-weight: 650; box-shadow: 0 1px 2px color-mix(in srgb, var(--ext-color-text) 14%, transparent); }
@@ -434,6 +433,7 @@
   <!-- Loja configurada: abas de configuração -->
   <section id="loja" hidden>
     <nav class="abas" aria-label="Configurações">
+      <button type="button" id="botao-aba-relatorios" data-aba="relatorios"><svg class="ic"><use href="#i-grafico"/></svg>Relatórios</button>
       <button type="button" class="ativa" id="botao-aba-integracao" data-aba="integracao"><svg class="ic"><use href="#i-plug"/></svg>Integração</button>
       <button type="button" id="botao-aba-aparencia" data-aba="aparencia"><svg class="ic"><use href="#i-pincel"/></svg>Aparência</button>
       <button type="button" id="botao-aba-entrega" data-aba="entrega"><svg class="ic"><use href="#i-caminhao"/></svg>Entrega e frete</button>
@@ -442,7 +442,6 @@
       <button type="button" id="botao-aba-ia" data-aba="ia"><svg class="ic"><use href="#i-faisca"/></svg>IA</button>
       <button type="button" id="botao-aba-whatsapp" data-aba="whatsapp"><svg class="ic"><use href="#i-plug"/></svg>WhatsApp</button>
       <button type="button" id="botao-aba-automacao" data-aba="automacao"><svg class="ic"><use href="#i-chave"/></svg>URA</button>
-      <button type="button" id="botao-aba-relatorios" data-aba="relatorios"><svg class="ic"><use href="#i-grafico"/></svg>Relatórios</button>
     </nav>
 
     <section id="aba-integracao" class="cartao">
@@ -758,7 +757,7 @@
     <section id="aba-relatorios" class="cartao" hidden>
       <div class="cartao-cabeca">
         <h2>Relatórios de vendas</h2>
-        <p>Links enviados, pedidos e quem vendeu no período: atendentes, assistente de IA e URA. Os dias seguem o horário de Brasília.</p>
+        <p>Links enviados e pedidos finalizados no período, por atendente, assistente de IA e URA. O valor é o dos pedidos que o cliente enviou pelo link ou o atendente fechou no painel, sem os cancelados; o pagamento e a entrega são confirmados pela loja. Os dias seguem o horário de Brasília.</p>
       </div>
       <div class="rel-filtro">
         <div class="rel-atalhos" role="group" aria-label="Período">
@@ -779,7 +778,7 @@
       <div id="rel-conteudo" hidden>
         <div class="rel-numeros" id="rel-numeros"></div>
 
-        <h3>Valor vendido por dia</h3>
+        <h3>Valor em pedidos por dia</h3>
         <div class="rel-grafico" id="rel-grafico"></div>
 
         <div class="rel-duas">
@@ -916,6 +915,11 @@
 
   var cfg = { apiUrl: '', chave: '' };
   var usuario = {};
+  /** Nome de quem está usando a tela: o campo varia; sem nome, fica vazio. */
+  function nomeDoUsuario(u) {
+    u = u || {};
+    return String(u.name || u.nome || u.fullName || u.full_name || u.displayName || u.username || u.email || '').trim();
+  }
   var instancia = '';
   var estado = { loja: null, conectores: [], integracao: null, situacao: 'nao', alterado: false };
 
@@ -1059,7 +1063,10 @@
       headers: {
         'X-Kentro-Usuario-Id': String(usuario.id || ''),
         // Cabeçalho HTTP não aceita emoji nem boa parte do Unicode: o nome vai codificado.
-        'X-Kentro-Usuario-Nome': encodeURIComponent(String(usuario.name || '')),
+        'X-Kentro-Usuario-Nome': encodeURIComponent(nomeDoUsuario(usuario)),
+        // O mesmo sem o prefixo X-Kentro-, que o proxy da Kentro pode reservar para ele.
+        'X-Atendente-Id': String(usuario.id || ''),
+        'X-Atendente-Nome': encodeURIComponent(nomeDoUsuario(usuario)),
         // O limite de registros é por instância: todas as chamadas saem do mesmo IP da Kentro.
         'X-Kentro-Instancia': instancia
       }
@@ -1787,7 +1794,7 @@
   }
 
   // ── Abas ────────────────────────────────────────────────────────────────
-  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp', 'automacao', 'relatorios'];
+  var ABAS = ['relatorios', 'integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp', 'automacao'];
   var configuracoes = null;
 
   function abrirAba(nome) {
@@ -2316,7 +2323,7 @@
       function mostrar() {
         limpar(dica);
         dica.appendChild(el('strong', diaBr(d.dia)));
-        dica.appendChild(el('span', 'Vendido: ' + reais(d.valor)));
+        dica.appendChild(el('span', 'Valor: ' + reais(d.valor)));
         dica.appendChild(el('span', 'Pedidos: ' + d.pedidos));
         dica.appendChild(el('span', 'Links enviados: ' + d.links));
         dica.hidden = false;
@@ -2343,7 +2350,7 @@
     var s = r.resumo;
     var numeros = $('rel-numeros');
     limpar(numeros);
-    numeros.appendChild(numero('Vendido', reais(s.valor), s.cancelados ? s.cancelados + ' cancelado(s) fora da conta' : ''));
+    numeros.appendChild(numero('Valor em pedidos', reais(s.valor), s.cancelados ? s.cancelados + ' cancelado(s) fora da conta' : ''));
     numeros.appendChild(numero('Pedidos', inteiro(s.pedidos), 'Entrega ' + s.entrega + ' · Retirada ' + s.retirada));
     numeros.appendChild(numero('Ticket médio', reais(s.ticketMedio)));
     numeros.appendChild(numero('Links enviados', inteiro(s.links), 'Abertos pelo cliente: ' + taxa(s.abertos, s.links)));
@@ -2888,6 +2895,11 @@
   omni.ready(function (ctx) {
     var c = (ctx && ctx.config) || {};
     usuario = (ctx && ctx.user) || {};
+    if (!nomeDoUsuario(usuario) && omni.session && omni.session.getUser) {
+      Promise.resolve(omni.session.getUser()).then(function (u) {
+        if (u && nomeDoUsuario(u)) usuario = u;
+      }).catch(function () {});
+    }
     instancia = String((ctx && ctx.instance && ctx.instance.domain) || '');
     cfg.apiUrl = String(c.api_url || '').trim().replace(/\/+$/, '');
     cfg.chave = String(c.chave_admin || '').trim();

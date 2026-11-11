@@ -73,6 +73,20 @@ describe('painel do atendimento (Fase 0)', () => {
       respostas: { 'GET /v1/loja': lojaOk },
     });
     expect(tela.chamadas[0].headers['X-Kentro-Usuario-Nome']).toBe(encodeURIComponent('Zoë 🛍️'));
+    // Também sem o prefixo X-Kentro-, que o proxy da Kentro pode não repassar.
+    expect(tela.chamadas[0].headers['X-Atendente-Nome']).toBe(encodeURIComponent('Zoë 🛍️'));
+    expect(tela.chamadas[0].headers['X-Atendente-Id']).toBe('9');
+  });
+
+  it('handshake sem o nome: busca o atendente na sessão da Kentro', async () => {
+    const tela = await montarTela('atendimento/painel.html', {
+      config,
+      usuario: { id: 9, type: 2 },
+      usuarioSessao: { id: 9, fullName: 'Bruna Lima' },
+      respostas: { 'GET /v1/loja': lojaOk },
+    });
+    await tela.esperar(5);
+    expect(decodeURIComponent(String(tela.chamadas[0].headers['X-Atendente-Nome']))).toBe('Bruna Lima');
   });
 
   it('remove a barra final da URL e as sobras da chave colada', async () => {

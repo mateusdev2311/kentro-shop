@@ -16,7 +16,9 @@ export interface OpcoesTela {
   /** Respostas por "MÉTODO caminho", ex.: "GET /v1/loja". */
   respostas?: Record<string, { status: number; body: unknown }>;
   storage?: Record<string, unknown>;
-  usuario?: { id: number; name: string; type: number };
+  usuario?: { id: number; name?: string; type: number };
+  /** O que omni.session.getUser() devolve (a Kentro pode mandar o handshake sem o nome). */
+  usuarioSessao?: Record<string, unknown>;
   /**
    * Como o proxy da Kentro devolve respostas de erro da API:
    * - rejeita: rejeita com http_error, status e body (padrão);
@@ -119,6 +121,9 @@ export async function montarTela(arquivo: string, opcoes: OpcoesTela): Promise<T
     },
     on(evento: string, cb: (dado: unknown) => void) {
       (ouvintes[evento] ??= []).push(cb);
+    },
+    session: {
+      getUser: () => Promise.resolve(opcoes.usuarioSessao ?? null),
     },
     chats: {
       getSelected: () => Promise.resolve(opcoes.chat ?? null),

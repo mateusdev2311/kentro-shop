@@ -10,15 +10,22 @@ import { ClientesService } from './clientes.service';
 import { CriarSessaoDto, FinalizarDto, SalvarCarrinhoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 
-/** Nome do atendente para a atividade (só auditoria; vem do navegador, codificado). Inválido → vazio. */
+/**
+ * Nome do atendente para a atividade e os relatórios (só auditoria; vem do navegador, codificado). Inválido → vazio.
+ * X-Atendente-Nome primeiro: o proxy da Kentro pode não repassar cabeçalhos X-Kentro-*; o antigo fica de reserva.
+ */
 export function nomeDoAtendente(req: RequisicaoDaLoja): string {
-  const bruto = req.headers['x-kentro-usuario-nome'];
-  if (typeof bruto !== 'string' || !bruto) return '';
-  try {
-    return decodeURIComponent(bruto).replace(/\p{Cc}/gu, ' ').trim().slice(0, 80);
-  } catch {
-    return '';
+  for (const cabecalho of ['x-atendente-nome', 'x-kentro-usuario-nome']) {
+    const bruto = req.headers[cabecalho];
+    if (typeof bruto !== 'string' || !bruto) continue;
+    try {
+      const nome = decodeURIComponent(bruto).replace(/\p{Cc}/gu, ' ').trim().slice(0, 80);
+      if (nome) return nome;
+    } catch {
+      // segue para o próximo cabeçalho
+    }
   }
+  return '';
 }
 
 /** Rotas do atendimento (painel da extensão e, na 1.4, a IA). */
