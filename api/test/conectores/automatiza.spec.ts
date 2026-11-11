@@ -182,7 +182,7 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
       peecDescricao_Pagamento: 'Dinheiro na entrega (troco para R$ 50,00)',
       peecPagamento_Realizado: 0,
       peecValor_Parcela_Pagamento: 19.88,
-      peecTroco_Pagamento: 30.12,
+      peecTroco_Pagamento: 50, // "troco para": o que o cliente entrega, não o troco devolvido
       peecTransporte_Metodo: 'Delivery',
       peecObservacoes_Entrega: 'Troco para R$ 50,00. Interfone quebrado',
       Situacao: 'ATIVO',

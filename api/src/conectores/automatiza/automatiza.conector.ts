@@ -281,7 +281,8 @@ async function gravarPedido(tx: TransacaoBanco, config: ConfigPedido, pedido: Pe
     peecQuantidade_Parcelas_Pagamento: 1,
     peecValor_Parcela_Pagamento: total,
     peecPagamento_Realizado: 0,
-    peecTroco_Pagamento: trocoPara ? centavos(trocoPara - total) : 0,
+    // "Troco para": o valor que o cliente vai entregar (confirmado pelo fornecedor do ERP em 2026-11-11). Sem troco, 0.
+    peecTroco_Pagamento: trocoPara,
     peecTransporte_Metodo: PLATAFORMA_DELIVERY,
     peecObservacoes_Entrega: observacoes,
     peecData_Entrega: SEM_DATA,
