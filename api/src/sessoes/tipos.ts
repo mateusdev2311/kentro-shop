@@ -20,6 +20,8 @@ export type Checkout = (
 ) & {
   /** Pedido que vai direto para o sistema da loja (pago ao receber): a forma que o cliente escolheu. */
   pagamento?: PagamentoNaEntrega;
+  /** CPF na nota (cupom fiscal), só números; ausente = o cliente não quis se identificar. */
+  cpf?: string;
 };
 
 export interface Totais {

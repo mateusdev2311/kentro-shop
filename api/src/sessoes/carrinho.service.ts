@@ -11,6 +11,7 @@ import { arredondar, calcularTotais, freteDaRegra, moeda, unidade } from './calc
 import { FinalizarDto, ItemPedidoDto } from './dto';
 import { SessoesService } from './sessoes.service';
 import { ClientesService } from './clientes.service';
+import { cpfValido } from './cpf';
 import { precosVisiveis, sessaoSemPreco } from './sem-preco';
 import { Checkout, Cliente, DadosEntrega, FiltroLink, PedidoNaLoja, SessaoCompleta, SessaoPublica } from './tipos';
 
@@ -342,12 +343,19 @@ export class CarrinhoService {
       }
       checkout.pagamento = { forma: dto.pagamento.forma, ...(trocoPara > totais.total ? { trocoPara } : {}) };
     }
+    // CPF na nota (cupom fiscal): só o que o cliente digitou; em branco, o pedido vai sem identificação.
+    const cpf = pedidoNaLoja?.pagamentoNaEntrega ? String(dto.cpf ?? '').replace(/\D/g, '') : '';
+    if (cpf && !cpfValido(cpf)) throw new ErroApi(400, 'ENTRADA_INVALIDA', 'Confira o CPF ou deixe o campo em branco.');
+    if (cpf) checkout.cpf = cpf;
     // Nome e telefone do checkout valem para o pedido; o resto do pré-cadastro (e-mail, documento) continua.
     const clienteAntes = sessao.cliente as unknown as Cliente;
     const { endereco: _enderecoDoContato, ...semEndereco } = clienteAntes;
     const doCheckout: Cliente =
       checkout.tipo === 'entrega' ? { ...semEndereco, nome: checkout.entrega.nome, telefone: checkout.entrega.telefone } : clienteAntes;
-    const cliente: Cliente = email ? { ...doCheckout, email } : doCheckout;
+    const comEmail: Cliente = email ? { ...doCheckout, email } : doCheckout;
+    // No pedido direto no sistema da loja, o documento é o CPF na nota (o do pré-cadastro da Kentro não vale como pedido de nota).
+    const { documento: _documentoDoContato, ...semDocumento } = comEmail;
+    const cliente: Cliente = pedidoNaLoja?.pagamentoNaEntrega ? (cpf ? { ...semDocumento, documento: cpf } : semDocumento) : comEmail;
     await this.prisma.$transaction(async (tx) => {
       await tx.sessao.update({
         where: { id: sessao.id },

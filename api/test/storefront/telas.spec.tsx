@@ -650,9 +650,19 @@ describe('catálogo do cliente', () => {
     clicar(elemento('button', 'Enviar pedido para a loja'));
     expect(elemento('[role=alert]').textContent!.replace(/ /g, ' ')).toBe('O troco precisa ser para um valor igual ou maior que o total (R$ 100,00).');
     digitar(elemento<HTMLInputElement>('#f-troco'), '1.000');
+
+    // CPF na nota: opcional, com máscara; errado não envia.
+    expect(elemento<HTMLInputElement>('#f-cpf').value).toBe('');
+    digitar(elemento<HTMLInputElement>('#f-cpf'), '12345678900');
+    expect(elemento<HTMLInputElement>('#f-cpf').value).toBe('123.456.789-00');
+    clicar(elemento('button', 'Enviar pedido para a loja'));
+    expect(elemento('[role=alert]').textContent).toBe('Confira o CPF ou deixe o campo em branco.');
+    expect(chamadas('/finalizar')).toHaveLength(0);
+    digitar(elemento<HTMLInputElement>('#f-cpf'), '52998224725');
+
     clicar(elemento('button', 'Enviar pedido para a loja'));
     await ate(() => tem('Pedido nº 107834 recebido pela loja!'));
-    expect(chamadas('/finalizar')[0].corpo).toMatchObject({ tipo: 'entrega', pagamento: { forma: 'dinheiro', trocoPara: 1000 } });
+    expect(chamadas('/finalizar')[0].corpo).toMatchObject({ tipo: 'entrega', pagamento: { forma: 'dinheiro', trocoPara: 1000 }, cpf: '52998224725' });
     expect(chamadas('/finalizar')[0].corpo).not.toHaveProperty('email');
     expect(raiz.textContent!.replace(/ /g, ' ')).toContain('Dinheiro na entrega (troco para R$ 1.000,00)');
     expect(raiz.querySelector('a.pagar')).toBeNull();

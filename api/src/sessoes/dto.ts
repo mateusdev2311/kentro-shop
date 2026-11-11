@@ -167,4 +167,10 @@ export class FinalizarDto {
   @ValidateNested()
   @Type(() => PagamentoDto)
   pagamento?: PagamentoDto;
+
+  /** CPF na nota (opcional), no pedido que vai direto para o sistema da loja. Os dígitos são conferidos no serviço. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  cpf?: string;
 }

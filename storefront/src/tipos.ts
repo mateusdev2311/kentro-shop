@@ -39,7 +39,7 @@ export interface PagamentoNaEntrega {
 export type Checkout = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
   | { tipo: 'retirada'; loja: LojaRetirada; observacoes: string }
-) & { pagamento?: PagamentoNaEntrega };
+) & { pagamento?: PagamentoNaEntrega; cpf?: string };
 
 export interface Totais {
   itens: number;
@@ -194,6 +194,6 @@ export interface PedidoDeItem {
 export type CorpoFinalizar = (
   | { tipo: 'entrega'; entrega: DadosEntrega; observacoes: string }
   | { tipo: 'retirada'; lojaRetiradaId: string; observacoes: string }
-) & { email?: string; pagamento?: PagamentoNaEntrega };
+) & { email?: string; pagamento?: PagamentoNaEntrega; cpf?: string };
 
 export const pedidoAberto = (s: Sessao | null) => !s || s.status === 'link_enviado' || s.status === 'navegando';

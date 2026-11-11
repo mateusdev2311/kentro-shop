@@ -1,4 +1,5 @@
-import { adicionado, brl, caixasParaArea, cep, iniciais, num, primeiroNome, quantidadeSugerida, telefone, unidade } from '../../../storefront/src/formato';
+import { adicionado, brl, caixasParaArea, cep, cpf, cpfValido, iniciais, num, primeiroNome, quantidadeSugerida, telefone, unidade } from '../../../storefront/src/formato';
+import { cpfValido as cpfValidoApi, formatarCpf } from '../../src/sessoes/cpf';
 
 describe('formatos do catálogo', () => {
   it('moeda, número e unidade', () => {
@@ -37,5 +38,22 @@ describe('formatos do catálogo', () => {
     expect(quantidadeSugerida(2, 4)).toBe(1);
     expect(quantidadeSugerida(0, 4)).toBe(1);
     expect(quantidadeSugerida(10, undefined)).toBe(1);
+  });
+});
+
+describe('CPF na nota', () => {
+  it('máscara enquanto digita e dígitos verificadores (catálogo e API iguais)', () => {
+    expect(cpf('529')).toBe('529');
+    expect(cpf('5299822')).toBe('529.982.2');
+    expect(cpf('52998224725999')).toBe('529.982.247-25');
+    for (const valida of [cpfValido, cpfValidoApi]) {
+      expect(valida('529.982.247-25')).toBe(true);
+      expect(valida('52998224725')).toBe(true);
+      expect(valida('529.982.247-24')).toBe(false);
+      expect(valida('111.111.111-11')).toBe(false);
+      expect(valida('1234567890')).toBe(false);
+      expect(valida('')).toBe(false);
+    }
+    expect(formatarCpf('52998224725')).toBe('529.982.247-25');
   });
 });

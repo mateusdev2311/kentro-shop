@@ -1,6 +1,7 @@
 import { RegraFrete } from '../config-loja/config-loja.service';
 import { PagamentoNaEntrega } from '../contratos/modelo';
 import { Checkout, Cliente, Totais } from './tipos';
+import { formatarCpf } from './cpf';
 
 // Funções puras do carrinho: totais, frete pela regra da loja e o texto do resumo (handoff).
 
@@ -119,6 +120,7 @@ function detalhesDoPedido(dados: { checkout: Checkout | null; itens: ItemDoResum
   if (totais.desconto > 0) linhas.push(`Desconto: -${moeda(totais.desconto)}`);
   linhas.push(`Total: ${moeda(totais.total)}`);
   if (checkout?.pagamento) linhas.push(`Pagamento: ${textoDoPagamento(checkout.pagamento, checkout.tipo)}`);
+  if (checkout?.cpf) linhas.push(`CPF na nota: ${formatarCpf(checkout.cpf)}`);
   if (checkout?.observacoes) linhas.push('', `Observações: ${checkout.observacoes}`);
   return linhas.join('\n');
 }

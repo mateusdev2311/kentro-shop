@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Api } from '../api';
 import { ehErroDaApi } from '../api';
 import type { EnderecoCep } from '../cep';
-import { brl, cep as formatarCep, telefone } from '../formato';
+import { brl, cep as formatarCep, cpf as formatarCpf, cpfValido, telefone } from '../formato';
 import { precos } from '../precos';
 import type { Abertura, CorpoFinalizar, CotacaoFrete, DadosEntrega, FormaPagamento, Sessao } from '../tipos';
 
@@ -66,6 +66,8 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
   const [email, setEmail] = useState(sessao.cliente.email ?? '');
   const [forma, setForma] = useState<FormaPagamento | ''>('');
   const [troco, setTroco] = useState('');
+  // CPF na nota (cupom fiscal): opcional e nunca preenchido sozinho, o cliente decide.
+  const [cpf, setCpf] = useState('');
   const aCombinar = abertura.frete.regra === 'a_combinar';
   const [frete, setFrete] = useState<CotacaoFrete | null>(aCombinar ? { titulo: 'Frete a combinar', valor: null, prazo: abertura.frete.prazo } : null);
   const [erro, setErro] = useState('');
@@ -144,11 +146,13 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
     const trocoPara = forma === 'dinheiro' ? lerValor(troco) : 0;
     if (Number.isNaN(trocoPara)) return setErro('Confira o valor do troco (ex.: 50 ou 100,00).');
     if (trocoPara && trocoPara < subtotal + valorFrete) return setErro(`O troco precisa ser para um valor igual ou maior que o total (${brl(subtotal + valorFrete)}).`);
+    const cpfDigitos = naEntrega ? cpf.replace(/\D/g, '') : '';
+    if (cpfDigitos && !cpfValido(cpfDigitos)) return setErro('Confira o CPF ou deixe o campo em branco.');
     const base: CorpoFinalizar = tipo === 'entrega' ? { tipo, entrega: dados, observacoes } : { tipo, lojaRetiradaId: lojaId, observacoes };
     const corpo: CorpoFinalizar = pedeEmail
       ? { ...base, email: email.trim() }
       : naEntrega && forma
-        ? { ...base, pagamento: { forma, ...(trocoPara ? { trocoPara } : {}) } }
+        ? { ...base, pagamento: { forma, ...(trocoPara ? { trocoPara } : {}) }, ...(cpfDigitos ? { cpf: cpfDigitos } : {}) }
         : base;
     setEnviando(true);
     try {
@@ -278,6 +282,20 @@ export function Checkout({ abertura, sessao, subtotal, api, buscarCep, aoEnviar,
                   />
                 </>
               )}
+              <label class="campo" for="f-cpf">
+                CPF na nota (opcional)
+              </label>
+              <input
+                class="entrada"
+                id="f-cpf"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={14}
+                placeholder="000.000.000-00"
+                value={cpf}
+                onInput={(e) => setCpf(formatarCpf(e.currentTarget.value))}
+              />
+              <small class="dica">Para o seu CPF sair no cupom fiscal. Se não quiser, deixe em branco.</small>
             </>
           )}
           {pedeEmail && (

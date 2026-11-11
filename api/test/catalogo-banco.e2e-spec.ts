@@ -189,6 +189,31 @@ describe('catálogo de banco de dados sincronizado pela API (ERP Automatiza)', (
     const abrir = (token: string) => http().get(`/v1/catalogo/${token}/abrir`).set('X-Forwarded-For', cliente());
     const finalizar = (token: string, corpo: object) => http().post(`/v1/catalogo/${token}/finalizar`).set('X-Forwarded-For', cliente()).send({ tipo: 'entrega', entrega: ENTREGA, ...corpo });
 
+    it('CPF na nota: inválido é recusado; o válido vai em peecDocumento_Cliente e no resumo do atendente', async () => {
+      const token = await preparar();
+      const errado = await finalizar(token, { pagamento: { forma: 'pix' }, cpf: '123.456.789-00' });
+      expect(errado.status).toBe(400);
+      expect(errado.body.erro.mensagem).toBe('Confira o CPF ou deixe o campo em branco.');
+      expect(tabelas.pedido_ecommerce).toHaveLength(0);
+
+      const r = await finalizar(token, { pagamento: { forma: 'pix' }, cpf: '529.982.247-25' });
+      expect(r.status).toBe(200);
+      expect(tabelas.pedido_ecommerce[0].peecDocumento_Cliente).toBe('52998224725');
+      const painel = (await http().get('/v1/sessoes/chat/300').set('X-Loja-Chave', loja.chaveAtendimento)).body;
+      expect(painel.resumo).toContain('CPF na nota: 529.982.247-25');
+    });
+
+    it('sem CPF na nota, o pedido vai sem identificação (o documento do pré-cadastro da Kentro não vai para o ERP)', async () => {
+      const token = await preparar();
+      // O contato da Kentro tinha documento: entra no mesmo atendimento.
+      await http().post('/v1/sessoes').set('X-Loja-Chave', loja.chaveAtendimento).send({ chatId: '300', documento: '52998224725' });
+      const r = await finalizar(token, { pagamento: { forma: 'dinheiro' }, cpf: '' });
+      expect(r.status).toBe(200);
+      expect(tabelas.pedido_ecommerce[0].peecDocumento_Cliente).toBe('');
+      const painel = (await http().get('/v1/sessoes/chat/300').set('X-Loja-Chave', loja.chaveAtendimento)).body;
+      expect(painel.resumo).not.toContain('CPF na nota');
+    });
+
     it('o cliente escolhe o pagamento (sem e-mail) e o pedido entra nas tabelas do ERP, na filial do banco', async () => {
       const token = await preparar();
       expect((await abrir(token)).body).toMatchObject({ pedidoNaLoja: true, pagamentoNaEntrega: true });
