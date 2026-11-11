@@ -47,8 +47,12 @@ export function limparFiltro(f: FiltroLink): FiltroLink | null {
   return Object.keys(limpo).length ? limpo : null;
 }
 
+/** Nome que a atividade mostra quando o link vem da URA/automação da Kentro (autor "atendente"). */
+export const ATENDENTE_URA = 'URA da Kentro';
+
 function textoDoLink(autor: 'atendente' | 'ia', atendente: string): string {
   if (autor === 'ia') return 'Link do catálogo gerado pela assistente de IA';
+  if (atendente === ATENDENTE_URA) return 'Link do catálogo gerado pela URA da Kentro';
   return atendente ? `Link do catálogo gerado por ${atendente}` : 'Link do catálogo gerado';
 }
 

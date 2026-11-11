@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from './chave-loja.guard';
 import { RegistrarLojaDto } from './dto';
@@ -48,5 +48,29 @@ export class LojasController {
   @Papel('admin')
   async rotacionarTokenMcp(@Req() req: RequisicaoDaLoja) {
     return { chave: await this.lojas.rotacionar(req.loja.id, 'mcp') };
+  }
+
+  /** A chave só existe como hash: o admin vê se está ativa, gera uma nova (a anterior para) ou desativa. */
+  @Get('loja/chave-automacao')
+  @UseGuards(ChaveLojaGuard)
+  @Papel('admin')
+  async chaveAutomacao(@Req() req: RequisicaoDaLoja) {
+    return { ativa: await this.lojas.temChaveAutomacao(req.loja.id) };
+  }
+
+  @Post('loja/chave-automacao/rotacionar')
+  @HttpCode(200)
+  @UseGuards(ChaveLojaGuard)
+  @Papel('admin')
+  async rotacionarAutomacao(@Req() req: RequisicaoDaLoja) {
+    return { chave: await this.lojas.rotacionar(req.loja.id, 'automacao') };
+  }
+
+  @Delete('loja/chave-automacao')
+  @UseGuards(ChaveLojaGuard)
+  @Papel('admin')
+  async desativarAutomacao(@Req() req: RequisicaoDaLoja) {
+    await this.lojas.desativarChaveAutomacao(req.loja.id);
+    return { ativa: false };
   }
 }

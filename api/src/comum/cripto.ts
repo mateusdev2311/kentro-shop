@@ -17,7 +17,7 @@ export function decifrar(cifrado: Buffer, iv: Buffer, chaveMestra: Buffer): stri
   return Buffer.concat([decifra.update(cifrado.subarray(0, cifrado.length - TAMANHO_TAG)), decifra.final()]).toString('utf8');
 }
 
-const PREFIXOS = { admin: 'ksa_', atendimento: 'ksk_', mcp: 'ksm_' } as const;
+const PREFIXOS = { admin: 'ksa_', atendimento: 'ksk_', mcp: 'ksm_', automacao: 'ksu_' } as const;
 
 export type TipoSegredo = keyof typeof PREFIXOS;
 

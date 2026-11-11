@@ -19,6 +19,8 @@ model Loja {
   chaveAdminHash       String     @unique @map("chave_admin_hash")
   chaveAtendimentoHash String     @unique @map("chave_atendimento_hash")
   tokenMcpHash         String     @unique @map("token_mcp_hash")
+  /// Chave da URA/automação da Kentro: só gera o link do catálogo. Nula = desativada.
+  chaveAutomacaoHash   String?    @unique @map("chave_automacao_hash")
   status               StatusLoja @default(pendente_integracao)
   plano                String     @default("gratis")
   limites              Json       @default("{}")

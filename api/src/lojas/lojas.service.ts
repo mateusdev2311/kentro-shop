@@ -5,10 +5,11 @@ import { PrismaService } from '../comum/prisma.service';
 
 export type Papel = 'admin' | 'atendimento';
 
-const CAMPO_DO_HASH: Record<TipoSegredo, 'chaveAdminHash' | 'chaveAtendimentoHash' | 'tokenMcpHash'> = {
+const CAMPO_DO_HASH: Record<TipoSegredo, 'chaveAdminHash' | 'chaveAtendimentoHash' | 'tokenMcpHash' | 'chaveAutomacaoHash'> = {
   admin: 'chaveAdminHash',
   atendimento: 'chaveAtendimentoHash',
   mcp: 'tokenMcpHash',
+  automacao: 'chaveAutomacaoHash',
 };
 
 @Injectable()
@@ -54,6 +55,20 @@ export class LojasService {
   /** Loja do token MCP (assistente de IA da Kentro). */
   async buscarPorTokenMcp(token: string): Promise<Loja | null> {
     return this.prisma.loja.findFirst({ where: { tokenMcpHash: hashSegredo(token) } });
+  }
+
+  /** Loja da chave de automação (URA da Kentro). Ela não vale nas rotas do painel nem do admin. */
+  async buscarPorChaveAutomacao(chave: string): Promise<Loja | null> {
+    return this.prisma.loja.findFirst({ where: { chaveAutomacaoHash: hashSegredo(chave) } });
+  }
+
+  async temChaveAutomacao(lojaId: string): Promise<boolean> {
+    const loja = await this.prisma.loja.findUnique({ where: { id: lojaId }, select: { chaveAutomacaoHash: true } });
+    return !!loja?.chaveAutomacaoHash;
+  }
+
+  async desativarChaveAutomacao(lojaId: string): Promise<void> {
+    await this.prisma.loja.update({ where: { id: lojaId }, data: { chaveAutomacaoHash: null } });
   }
 
   async rotacionar(lojaId: string, tipo: TipoSegredo): Promise<string> {

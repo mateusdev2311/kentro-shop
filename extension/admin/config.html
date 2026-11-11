@@ -397,6 +397,7 @@
       <button type="button" id="botao-aba-catalogo" data-aba="catalogo"><svg class="ic"><use href="#i-grade"/></svg>Catálogo</button>
       <button type="button" id="botao-aba-ia" data-aba="ia"><svg class="ic"><use href="#i-faisca"/></svg>IA</button>
       <button type="button" id="botao-aba-whatsapp" data-aba="whatsapp"><svg class="ic"><use href="#i-plug"/></svg>WhatsApp</button>
+      <button type="button" id="botao-aba-automacao" data-aba="automacao"><svg class="ic"><use href="#i-chave"/></svg>URA</button>
     </nav>
 
     <section id="aba-integracao" class="cartao">
@@ -706,6 +707,45 @@
           <button type="button" class="principal" id="btn-criar-templates">Criar templates</button>
           <button type="button" id="btn-atualizar-templates">Atualizar situação</button>
         </div>
+      </div>
+    </section>
+
+    <section id="aba-automacao" class="cartao" hidden>
+      <div class="cartao-cabeca">
+        <h2>URA e automações</h2>
+        <p>A URA da Kentro envia o link do catálogo sozinha, sem o atendente: ela pede o link ao Kentro Shop e manda ao cliente. O link é o do atendimento, com o mesmo carrinho que o painel mostra.</p>
+      </div>
+      <p id="auto-situacao" class="resultado"></p>
+      <div class="chaves-lista">
+        <div class="chave">
+          <span class="rotulo"><strong>Endereço da requisição</strong><small>Método POST, dados em JSON</small></span>
+          <code id="auto-url"></code>
+          <button type="button" class="suave" data-copiar="auto-url"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+        </div>
+        <div class="chave">
+          <span class="rotulo"><strong>Corpo (JSON)</strong><small>Variáveis da Kentro</small></span>
+          <code id="auto-corpo">{"chatId": "{{chat_id}}", "nome": "{{chat_client_name}}", "telefone": "{{chat_client_number}}"}</code>
+          <button type="button" class="suave" data-copiar="auto-corpo"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+        </div>
+        <div class="chave" id="auto-bloco-chave" hidden>
+          <span class="rotulo"><strong>Chave de automação</strong><small>Cabeçalho X-Loja-Chave</small></span>
+          <code id="auto-chave"></code>
+          <button type="button" class="suave" data-copiar="auto-chave"><svg class="ic"><use href="#i-copiar"/></svg>Copiar</button>
+        </div>
+      </div>
+      <div id="auto-aviso-chave" class="aviso destaque" hidden>Esta chave aparece só agora. Copie e cole na URA antes de sair desta tela.</div>
+      <h3>Como montar na URA</h3>
+      <ol class="passos">
+        <li><strong>Gere a chave</strong><span>Ela só serve para gerar o link do catálogo: não abre o painel, o admin, os carrinhos nem os pedidos. Gerar de novo derruba a anterior.</span></li>
+        <li><strong>Requisição HTTP</strong><span>Método POST, tipo JSON, o endereço e o corpo acima, o cabeçalho X-Loja-Chave com a chave e o prefixo das variáveis "link".</span></li>
+        <li><strong>Condição</strong><span>Se a variável link_parsedBody.url estiver preenchida, siga para a mensagem; senão, transfira para a fila (a URA desiste em 10 segundos).</span></li>
+        <li><strong>Mensagem</strong><span>Ex.: Acesse nosso catálogo e faça seu pedido: {{link_parsedBody.url}}</span></li>
+      </ol>
+      <p class="ajuda">Chamar de novo no mesmo atendimento devolve o mesmo link. Para abrir numa categoria, some "categoriaId" ao corpo; aí cada chamada gera um link novo, ainda no mesmo carrinho.</p>
+      <p id="resultado-automacao" class="resultado"></p>
+      <div class="acoes">
+        <button type="button" class="principal" id="btn-gerar-chave-automacao"><svg class="ic"><use href="#i-chave"/></svg><span id="auto-rotulo-gerar">Gerar chave de automação</span></button>
+        <button type="button" class="perigo" id="btn-desativar-automacao" hidden>Desativar chave</button>
       </div>
     </section>
 
@@ -1648,7 +1688,7 @@
   }
 
   // ── Abas ────────────────────────────────────────────────────────────────
-  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp'];
+  var ABAS = ['integracao', 'aparencia', 'entrega', 'pedidos', 'catalogo', 'ia', 'whatsapp', 'automacao'];
   var configuracoes = null;
 
   function abrirAba(nome) {
@@ -1657,6 +1697,7 @@
       $('botao-aba-' + a).className = a === nome ? 'ativa' : '';
     });
     if (nome === 'catalogo') carregarCategoriasOcultas();
+    if (nome === 'automacao') lerAutomacao();
     if (nome === 'ia') {
       $('ia-url').textContent = cfg.apiUrl + '/mcp';
       if (configuracoes) $('ia-captura').value = configuracoes.urlCapturaKentro || '';
@@ -2086,6 +2127,70 @@
       }, falhaBanner);
     };
     leitor.readAsDataURL(arquivo);
+  });
+
+  // ── Aba URA: chave de automação ──────────────────────────────────────────
+  // Como o token MCP, a chave só existe como hash na API: gerar uma nova é a única forma de vê-la.
+  var automacaoAtiva = false;
+
+  function mostrarAutomacao(ativa) {
+    automacaoAtiva = !!ativa;
+    $('auto-situacao').textContent = automacaoAtiva
+      ? 'Chave de automação ativa. Para ver a chave de novo, gere outra (a atual deixa de valer).'
+      : 'Nenhuma chave de automação ativa: a URA ainda não consegue gerar o link.';
+    $('btn-desativar-automacao').hidden = !automacaoAtiva;
+    $('auto-rotulo-gerar').textContent = automacaoAtiva ? 'Gerar nova chave' : 'Gerar chave de automação';
+  }
+
+  function lerAutomacao() {
+    $('auto-url').textContent = cfg.apiUrl + '/v1/automacao/link';
+    api('/v1/loja/chave-automacao').then(function (r) { mostrarAutomacao(r && r.ativa); }, function (erro) {
+      $('resultado-automacao').textContent = mensagemDeErro(erro);
+    });
+  }
+
+  function confirmarAutomacao(titulo, mensagem, ok) {
+    return omni.ui.confirm
+      ? Promise.resolve(omni.ui.confirm({ title: titulo, message: mensagem, okLabel: ok, cancelLabel: 'Cancelar' }))
+      : Promise.resolve({ confirmed: true });
+  }
+
+  $('btn-gerar-chave-automacao').addEventListener('click', function () {
+    var botao = this;
+    var pergunta = automacaoAtiva
+      ? confirmarAutomacao('Gerar nova chave', 'A chave atual para de funcionar na hora. As URAs que já geram o link precisam receber a nova chave.', 'Gerar chave')
+      : Promise.resolve({ confirmed: true });
+    pergunta.then(function (r) {
+      if (!r || !r.confirmed) return;
+      botao.disabled = true;
+      $('resultado-automacao').textContent = 'Gerando…';
+      return api('/v1/loja/chave-automacao/rotacionar', { method: 'POST' }).then(function (res) {
+        $('auto-chave').textContent = res.chave;
+        $('auto-bloco-chave').hidden = false;
+        $('auto-aviso-chave').hidden = false;
+        $('resultado-automacao').textContent = '';
+        mostrarAutomacao(true);
+      }, function (erro) {
+        $('resultado-automacao').textContent = mensagemDeErro(erro);
+      }).then(function () { botao.disabled = false; });
+    }, function () { /* diálogo fechado */ });
+  });
+
+  $('btn-desativar-automacao').addEventListener('click', function () {
+    var botao = this;
+    confirmarAutomacao('Desativar chave', 'As URAs param de gerar o link do catálogo até você gerar uma chave nova.', 'Desativar').then(function (r) {
+      if (!r || !r.confirmed) return;
+      botao.disabled = true;
+      return api('/v1/loja/chave-automacao', { method: 'DELETE' }).then(function () {
+        $('auto-chave').textContent = '';
+        $('auto-bloco-chave').hidden = true;
+        $('auto-aviso-chave').hidden = true;
+        $('resultado-automacao').textContent = 'Chave desativada.';
+        mostrarAutomacao(false);
+      }, function (erro) {
+        $('resultado-automacao').textContent = mensagemDeErro(erro);
+      }).then(function () { botao.disabled = false; });
+    }, function () { /* diálogo fechado */ });
   });
 
   // ── Aba WhatsApp oficial ─────────────────────────────────────────────────

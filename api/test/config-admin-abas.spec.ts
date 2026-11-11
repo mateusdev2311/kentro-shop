@@ -322,6 +322,55 @@ describe('abas de configuração do Admin', () => {
     });
   });
 
+  describe('URA: chave de automação', () => {
+    const chamadasDe = (metodo: string, trecho: string) => t.chamadas.filter((c) => c.method === metodo && c.url.endsWith(trecho));
+
+    it('mostra o endereço e o corpo; a primeira chave sai sem confirmação e aparece uma vez', async () => {
+      t = await abrir({
+        'GET /v1/loja/chave-automacao': { status: 200, body: { ativa: false } },
+        'POST /v1/loja/chave-automacao/rotacionar': { status: 200, body: { chave: 'ksu_nova' } },
+      }, { confirmar: false });
+      await t.clicar('botao-aba-automacao');
+      await t.esperar(5);
+      expect(t.visivel('aba-automacao')).toBe(true);
+      expect(t.texto('auto-url')).toBe('https://api.teste/v1/automacao/link');
+      expect(t.texto('auto-corpo')).toContain('"chatId": "{{chat_id}}"');
+      expect(t.texto('auto-situacao')).toContain('Nenhuma chave');
+      expect(t.visivel('btn-desativar-automacao')).toBe(false);
+      expect(t.visivel('auto-bloco-chave')).toBe(false);
+      await t.clicar('btn-gerar-chave-automacao');
+      await t.esperar(5);
+      expect(t.texto('auto-chave')).toBe('ksu_nova');
+      expect(t.visivel('auto-bloco-chave')).toBe(true);
+      expect(t.visivel('btn-desativar-automacao')).toBe(true);
+      expect(t.texto('auto-rotulo-gerar')).toBe('Gerar nova chave');
+    });
+
+    it('com a chave ativa, gerar outra pede confirmação; cancelar não troca', async () => {
+      t = await abrir({ 'GET /v1/loja/chave-automacao': { status: 200, body: { ativa: true } } }, { confirmar: false });
+      await t.clicar('botao-aba-automacao');
+      await t.esperar(5);
+      expect(t.texto('auto-situacao')).toContain('ativa');
+      await t.clicar('btn-gerar-chave-automacao');
+      await t.esperar(5);
+      expect(chamadasDe('POST', '/v1/loja/chave-automacao/rotacionar')).toHaveLength(0);
+    });
+
+    it('desativa a chave', async () => {
+      t = await abrir({
+        'GET /v1/loja/chave-automacao': { status: 200, body: { ativa: true } },
+        'DELETE /v1/loja/chave-automacao': { status: 200, body: { ativa: false } },
+      });
+      await t.clicar('botao-aba-automacao');
+      await t.esperar(5);
+      await t.clicar('btn-desativar-automacao');
+      await t.esperar(5);
+      expect(chamadasDe('DELETE', '/v1/loja/chave-automacao')).toHaveLength(1);
+      expect(t.texto('resultado-automacao')).toBe('Chave desativada.');
+      expect(t.visivel('btn-desativar-automacao')).toBe(false);
+    });
+  });
+
   describe('Aparência: vitrine da página inicial', () => {
     const produto = (id: string, nome: string) => ({ id, nome, sku: `S${id}`, imagens: [] });
     const comVitrine = (ids: string[], titulo?: string) => ({
