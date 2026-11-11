@@ -224,7 +224,17 @@ export class WhatsappMetaService {
     const fotos = await Promise.all(produtos.map((p) => this.meta.baixarFoto(fotoDe(p)!)));
     const ruins = produtos.filter((_, i) => !fotos[i]).map((p) => p.nome);
     if (ruins.length) throw invalido(`A foto destes produtos não abriu ou não é JPG/PNG, e a Meta só aceita esses formatos: ${ruins.join('; ')}.`);
-    return Promise.all(fotos.map((f) => this.meta.enviarMidia(conta.token, conta.telefoneId, f!)));
+    // Uma de cada vez: subir em paralelo dispara o limite da Meta à toa. A etapa vai na mensagem para o diagnóstico.
+    const ids: string[] = [];
+    for (const f of fotos) {
+      try {
+        ids.push(await this.meta.enviarMidia(conta.token, conta.telefoneId, f!));
+      } catch (e) {
+        if (e instanceof ErroMeta) throw new ErroMeta(`Ao subir as fotos: ${e.mensagem}`, e.codigoMeta, e.subcodigoMeta);
+        throw e;
+      }
+    }
+    return ids;
   }
 
   async enviar(lojaId: string, pedido: PedidoDeCarrossel): Promise<{ quantidade: number; mensagemId: string; url: string; sessao: SessaoCompleta }> {

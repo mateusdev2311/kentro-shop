@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ErroApi } from '../comum/erros';
 import { verificarDestino } from '../conectores/nucleo/destino';
 import { tipoDaImagem } from '../integracoes/fotos.service';
@@ -41,6 +42,15 @@ export class ErroMeta extends ErroApi {
 }
 
 const MUITAS_SOLICITACOES = new Set([4, 80008, 613, 130429, 131056]);
+const logger = new Logger('Meta');
+
+/** O que a Meta disse, com o código: vai junto da explicação para dar para diagnosticar sem abrir o servidor. */
+function detalheDaMeta(e: RespostaMeta, codigo?: number, subcodigo?: number): string {
+  const partes = [e.message, e.error_user_msg, e.error_data?.details].map((p) => String(p ?? '').trim()).filter(Boolean);
+  const texto = [...new Set(partes)].join(' — ');
+  const numero = codigo === undefined ? '' : `#${codigo}${subcodigo === undefined ? '' : `/${subcodigo}`}`;
+  return [numero, texto].filter(Boolean).join(' ');
+}
 
 export function erroDaMeta(status: number, corpo: RespostaMeta): ErroMeta {
   const e: RespostaMeta = corpo?.error ?? {};
@@ -51,7 +61,8 @@ export function erroDaMeta(status: number, corpo: RespostaMeta): ErroMeta {
   const com = (texto: string) => new ErroMeta(texto, codigo, subcodigo);
   if (codigo === 190) return com('O token da Meta é inválido ou expirou. Gere outro e salve de novo na aba WhatsApp das Configurações.');
   if (codigo === 10 || (codigo !== undefined && codigo >= 200 && codigo <= 299)) {
-    return com('O token da Meta não tem permissão para esta operação (precisa de whatsapp_business_management e whatsapp_business_messaging).');
+    // O código 10 também cobre recusas que não são do token (ex.: regra do número ou do destinatário): o detalhe diz qual.
+    return com(`A Meta negou esta operação por permissão. Detalhe da Meta: ${detalheDaMeta(e, codigo, subcodigo) || `erro ${status}`}.`);
   }
   if (codigo !== undefined && MUITAS_SOLICITACOES.has(codigo)) return com('A Meta recusou por excesso de envios seguidos. Aguarde um minuto e tente de novo.');
   if (codigo === 132001) return com('O template deste carrossel não existe ou ainda não foi aprovado pela Meta. Confira na aba WhatsApp das Configurações.');
@@ -59,6 +70,11 @@ export function erroDaMeta(status: number, corpo: RespostaMeta): ErroMeta {
   if (codigo === 131026) return com('A Meta não conseguiu entregar: este número pode não ter WhatsApp.');
   if (codigo === 131049) return com('A Meta decidiu não entregar para manter a qualidade (limite de mensagens de marketing por pessoa).');
   return com(`A Meta recusou: ${original}`);
+}
+
+/** Caminho sem a consulta (o debug_token leva o token na URL). */
+function semConsulta(url: string): string {
+  return url.split('?')[0].replace(GRAPH, '');
 }
 
 async function requisitar(url: string, init: RequestInit): Promise<RespostaMeta> {
@@ -69,7 +85,14 @@ async function requisitar(url: string, init: RequestInit): Promise<RespostaMeta>
     throw new ErroApi(502, 'META_INDISPONIVEL', 'A Meta não respondeu. Tente de novo em instantes.');
   }
   const corpo = (await resposta.json().catch(() => ({}))) as RespostaMeta;
-  if (!resposta.ok || corpo?.error) throw erroDaMeta(resposta.status, corpo);
+  if (!resposta.ok || corpo?.error) {
+    const e: RespostaMeta = corpo?.error ?? {};
+    logger.warn(
+      `${init.method ?? 'GET'} ${semConsulta(url)} → ${resposta.status} ` +
+        JSON.stringify({ code: e.code, subcode: e.error_subcode, type: e.type, message: e.message, user: e.error_user_msg, details: e.error_data?.details, trace: e.fbtrace_id }),
+    );
+    throw erroDaMeta(resposta.status, corpo);
+  }
   return corpo;
 }
 

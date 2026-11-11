@@ -281,7 +281,10 @@ describe('carrossel pelo WhatsApp oficial', () => {
   });
 
   it('traduz os erros da Meta e guarda o subcódigo', () => {
-    expect(erroDaMeta(400, { error: { code: 200, message: 'x' } }).mensagem).toContain('não tem permissão');
+    expect(erroDaMeta(400, { error: { code: 10, error_subcode: 2494010, message: '(#10) Application does not have permission for this action', error_data: { details: 'Motivo real' } } }).mensagem).toBe(
+      'A Meta negou esta operação por permissão. Detalhe da Meta: #10/2494010 (#10) Application does not have permission for this action — Motivo real.',
+    );
+    expect(erroDaMeta(403, { error: { code: 200 } }).mensagem).toBe('A Meta negou esta operação por permissão. Detalhe da Meta: #200.');
     expect(erroDaMeta(429, { error: { code: 130429 } }).mensagem).toContain('excesso de envios');
     expect(erroDaMeta(400, { error: { code: 131026 } }).mensagem).toContain('não ter WhatsApp');
     expect(erroDaMeta(400, { error: { code: 1, error_data: { details: 'Motivo real' } } }).mensagem).toBe('A Meta recusou: Motivo real');
