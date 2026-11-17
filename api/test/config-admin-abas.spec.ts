@@ -66,7 +66,7 @@ describe('abas de configuração do Admin', () => {
     await t.clicar('botao-aba-aparencia');
     expect(t.valor('ap-nome')).toBe('Loja X');
     expect(t.valor('ap-cor').toLowerCase()).toBe('#7c3aed');
-    t.preencher('ap-nome', 'Shopping dos Pisos');
+    t.preencher('ap-nome', 'Casa Modelo Revestimentos');
     t.preencher('ap-cor', '#0055aa');
     t.preencher('ap-cor-topo', '#003366');
     escolher(t, 'ap-layout', 'lista');
@@ -78,7 +78,7 @@ describe('abas de configuração do Admin', () => {
     expect(patches(t)).toEqual([
       {
         tema: {
-          nome: 'Shopping dos Pisos',
+          nome: 'Casa Modelo Revestimentos',
           corPrimaria: '#0055aa',
           corTopo: '#003366',
           layout: 'lista',

@@ -3,7 +3,7 @@ import { Conector, CtxConector, FiltroProdutos } from '../nucleo/conector';
 import { CredencialInvalida } from '../nucleo/erros';
 import * as dados from './dados.json';
 
-// Conector com o catálogo de exemplo da demo Shopping dos Pisos (produtos fictícios).
+// Conector com o catálogo de exemplo da demo Casa Modelo Revestimentos (produtos fictícios).
 // Serve para testar o fluxo inteiro (link, catálogo, carrinho, painel) sem credenciais de e-commerce.
 // Traz selo, m² por caixa e compre junto como `regras` de exemplo; as regras gravadas pela loja têm prioridade.
 
@@ -40,7 +40,7 @@ export const conectorDemonstracao: Conector = {
 
   async testarConexao(ctx) {
     exigirCodigo(ctx);
-    return { ok: true, nomeLoja: 'Shopping dos Pisos (exemplo)' };
+    return { ok: true, nomeLoja: 'Casa Modelo Revestimentos (exemplo)' };
   },
 
   async listarCategorias(ctx): Promise<Categoria[]> {
