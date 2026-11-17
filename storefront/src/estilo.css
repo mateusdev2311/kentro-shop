@@ -31,8 +31,11 @@ body {
   margin: 0; font-family: var(--fonte); font-size: 15px; line-height: 1.45;
   color: var(--texto); background: var(--fundo);
   padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  /* clip (e não hidden): nada passa da largura da tela e o topo sticky continua funcionando. */
+  overflow-x: clip;
 }
-body.travado { overflow: hidden; }
+/* Com um painel aberto, a página de trás não rola nem balança: no iPhone só o body não basta. */
+html.travado, body.travado { overflow: hidden; overscroll-behavior: none; }
 [hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -244,9 +247,12 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 
 /* ── Painéis (folha inferior no celular) ──────────────── */
 .painel { position: fixed; inset: 0; z-index: 50; }
-.painel-fundo { position: absolute; inset: 0; background: rgba(20, 18, 16, .5); animation: aparece .2s ease; }
+.painel-fundo { position: absolute; inset: 0; background: rgba(20, 18, 16, .5); animation: aparece .2s ease; touch-action: none; }
+/* dvh: a altura visível de verdade no celular (sem a barra do navegador), para o fim da folha não ficar escondido.
+   overscroll-behavior: ao chegar no fim da folha, o arrasto não passa para a página de trás. */
 .painel-folha {
-  position: absolute; left: 0; right: 0; bottom: 0; max-height: 92vh; overflow-y: auto;
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 92vh; max-height: 92dvh; overflow-x: hidden; overflow-y: auto;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   background: var(--fundo); border-radius: calc(20px * var(--canto)) calc(20px * var(--canto)) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
   animation: sobe .25s ease;
 }
@@ -314,7 +320,8 @@ textarea.entrada { height: auto; min-height: 72px; padding: 10px 12px; resize: v
 .sugestao div.texto { flex: 1; min-width: 0; }
 .sugestao strong { display: block; font-size: 13.5px; }
 .sugestao small { color: var(--texto-suave); font-size: 12px; }
-.sugestao select { margin-top: 4px; height: 32px; font-size: 13px; }
+/* 16px: abaixo disso o iPhone dá zoom ao tocar no campo, e a página passa a deslizar para os lados. */
+.sugestao select { margin-top: 4px; height: 36px; font-size: 16px; }
 .sugestao .botao { height: 38px; padding: 0 12px; font-size: 13.5px; }
 
 /* Carrinho */

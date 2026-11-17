@@ -170,6 +170,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
   const finalizado = !pedidoAberto(carrinho.sessao);
 
   useEffect(() => {
+    document.documentElement.classList.toggle('travado', !!detalhe || !!painel);
     document.body.classList.toggle('travado', !!detalhe || !!painel);
   }, [detalhe, painel]);
 
