@@ -2,12 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 interface CampoConfig { key: string; type: string; required?: boolean; default?: string }
-interface Contribuicao { id: string; type: string; url?: string; visibility?: { userTypes?: number[] } }
+interface Contribuicao { id: string; type: string; url?: string; icon?: string; visibility?: { userTypes?: number[] } }
 interface Manifest {
   manifestVersion: number;
   id: string;
   version: string;
   name: string;
+  icon?: string;
   config: CampoConfig[];
   contributions: Contribuicao[];
 }
@@ -32,6 +33,12 @@ describe.each(['atendimento', 'admin'])('manifest da extensão %s', (ext) => {
       expect(c.url).toBeTruthy();
       expect(existsSync(path.join(DIR, ext, c.url!))).toBe(true);
     }
+  });
+
+  it('declara o ícone de carrinho, na raiz e em cada contribuição, apontando para um arquivo existente', () => {
+    expect(m.icon).toBe('icone.svg');
+    for (const c of m.contributions) expect(c.icon).toBe('icone.svg');
+    expect(existsSync(path.join(DIR, ext, 'icone.svg'))).toBe(true);
   });
 
   it('api_url é obrigatório e vem preenchido com a URL pública', () => {

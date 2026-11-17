@@ -1,10 +1,11 @@
 {
   "manifestVersion": 1,
   "id": "kentro.shop-admin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Kentro Shop — Admin",
   "description": "Configuração do Kentro Shop: integração com o e-commerce, catálogo, entrega, pedidos e IA. Instale só para administradores.",
   "author": { "name": "Kentro Shop" },
+  "icon": "icone.svg",
   "requires": [],
   "config": [
     {
@@ -28,6 +29,7 @@
       "id": "configuracoes",
       "type": "topMenu",
       "title": "Kentro Shop",
+      "icon": "icone.svg",
       "url": "config.html",
       "presentation": { "mode": "fullscreen" },
       "visibility": { "userTypes": [0] }

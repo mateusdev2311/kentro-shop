@@ -29,6 +29,8 @@ const CANAL_PADRAO = PLATAFORMA_DELIVERY;
 const EVENTO_NOVO = 'Confirmado';
 /** Data de entrega "não informada" do modelo do fornecedor. */
 const SEM_DATA = '1900-01-01';
+/** Descrição do item da taxa de entrega (como a mercadoria está cadastrada no ERP). */
+const NOME_ITEM_ENTREGA = 'SERVICO DE ENTREGA';
 /** Proteção de memória: a leitura traz o catálogo vendável inteiro de uma vez. */
 export const MAX_PRODUTOS = 100_000;
 
@@ -134,6 +136,13 @@ export function camposPedido(): CampoCredencial[] {
     },
     { chave: 'pedido_canal', rotulo: 'Pedidos: canal', tipo: 'texto', obrigatorio: false, ajuda: `Vazio = ${CANAL_PADRAO}.` },
     { chave: 'pedido_codigo_parceiro', rotulo: 'Pedidos: número do parceiro', tipo: 'texto', obrigatorio: false, ajuda: 'Codigo_Parceiro_Ecommerce, o número que o fornecedor do ERP passou para a loja. Vazio = 0.' },
+    {
+      chave: 'pedido_item_entrega',
+      rotulo: 'Pedidos: código do serviço de entrega',
+      tipo: 'texto',
+      obrigatorio: false,
+      ajuda: 'Código da mercadoria "SERVICO DE ENTREGA" no ERP. Na entrega, a taxa cobrada no Kentro Shop vai como esse item do pedido. Vazio = a taxa vai só no frete do pedido.',
+    },
   ];
 }
 
@@ -141,6 +150,8 @@ export interface ConfigPedido {
   parceiro: string;
   canal: string;
   codigoParceiro: number;
+  /** Código da mercadoria do serviço de entrega; 0 = a taxa vai só em peecValor_Frete. */
+  itemEntrega: number;
 }
 
 /** Configuração do pedido conferida; null = sem código de parceiro (não grava); texto = o que está errado. */
@@ -148,11 +159,13 @@ export function lerConfigPedido(c: Record<string, string>): ConfigPedido | null 
   const parceiro = (c.pedido_parceiro ?? '').trim();
   const canal = (c.pedido_canal ?? '').trim() || CANAL_PADRAO;
   const numero = (c.pedido_codigo_parceiro ?? '').trim();
+  const itemEntrega = (c.pedido_item_entrega ?? '').trim();
   if (!parceiro) return null;
   if (!/^[A-Za-z0-9_-]{1,35}$/.test(parceiro)) return 'O código de parceiro do ERP só pode ter letras, números, _ e - (até 35).';
   if (!/^[A-Za-z0-9 _.-]{1,100}$/.test(canal)) return 'O canal do pedido só pode ter letras, números, espaço, _, . e - (até 100).';
   if (numero && !/^\d{1,9}$/.test(numero)) return 'O número do parceiro precisa ser um número inteiro.';
-  return { parceiro, canal, codigoParceiro: numero ? Number(numero) : 0 };
+  if (itemEntrega && !/^[1-9]\d{0,8}$/.test(itemEntrega)) return 'O código do serviço de entrega precisa ser o código numérico da mercadoria no ERP.';
+  return { parceiro, canal, codigoParceiro: numero ? Number(numero) : 0, itemEntrega: itemEntrega ? Number(itemEntrega) : 0 };
 }
 
 /** Texto para coluna utf8 (3 bytes) do MySQL: sem emoji, sem quebra de linha, no tamanho da coluna. */
@@ -233,7 +246,18 @@ async function gravarPedido(tx: TransacaoBanco, config: ConfigPedido, pedido: Pe
   );
   if (existente) return criado(existente.Codigo, existente.Situacao);
 
-  const { itens, frete, desconto, total } = conferirPedido(pedido);
+  const conferido = conferirPedido(pedido);
+  const { desconto, total } = conferido;
+  // Entrega com taxa: vai como o item "SERVICO DE ENTREGA" (sem desconto), como a loja lança no balcão. O frete do
+  // cabeçalho fica 0 para valer a conta do fornecedor (total = líquido dos itens + frete) sem cobrar a taxa duas vezes.
+  const comItemEntrega = pedido.entrega.tipo === 'entrega' && config.itemEntrega > 0 && conferido.frete > 0;
+  const itens: ItemConferido[] = comItemEntrega
+    ? [
+        ...conferido.itens,
+        { codigo: config.itemEntrega, nome: NOME_ITEM_ENTREGA, quantidade: 1, preco: conferido.frete, bruto: conferido.frete, desconto: 0, liquido: conferido.frete },
+      ]
+    : conferido.itens;
+  const frete = comItemEntrega ? 0 : conferido.frete;
   const pagamento = pedido.pagamento!;
   const condicoes = await tx.consultar(`SELECT codigo_pagamento, descricao FROM ${VIEW_CONDICOES_PAGAMENTO}`);
   const condicao = condicoes.find((c) => CONDICAO_DA_FORMA[pagamento.forma](chave(texto(c.descricao))));

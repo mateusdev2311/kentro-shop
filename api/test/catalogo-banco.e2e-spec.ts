@@ -79,6 +79,7 @@ describe('catálogo de banco de dados sincronizado pela API (ERP Automatiza)', (
       'pedido_parceiro',
       'pedido_canal',
       'pedido_codigo_parceiro',
+      'pedido_item_entrega',
     ]);
     expect(lista.find((c) => c.id === 'falso')!.sincronizacao).toBeUndefined();
 

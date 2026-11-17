@@ -304,6 +304,40 @@ describe('conector ERP Automatiza: pedido gravado no banco', () => {
     expect(Math.round((liquido + Number(pedido.peecValor_Frete)) * 100) / 100).toBe(pedido.peecValor_Total);
   });
 
+  it('serviço de entrega configurado: a taxa de entrega vai como item (sem desconto) e o frete do cabeçalho fica 0', async () => {
+    const banco = bancoEmMemoria(CREDENCIAIS_BANCO);
+    const credenciais = { ...COM_PEDIDO, pedido_item_entrega: '69379' };
+    await conectorAutomatiza.criarPedido!(comPedido(banco, credenciais), { ...PEDIDO, desconto: { valor: 1, motivo: 'Desconto do atendimento' } });
+    const [pedido] = banco.tabelas[TABELA_PEDIDO];
+    expect(pedido).toMatchObject({ peecValor_Total: 18.88, peecValor_Frete: 0, peecValor_Desconto: 1, peecValor_Parcela_Pagamento: 18.88 });
+    const itens = banco.tabelas[TABELA_ITENS];
+    expect(itens.map((i) => [i.Codigo_Mercadoria, i.itpeDescricao_Mercadoria, i.itpeQuantidade, i.itpeValor, i.itpeTotalProduto, i.itpeTotalDesconto, i.itpeTotalLiquido])).toEqual([
+      [101, 'SABONETE NEUTRO 90G', 2, 3.99, 7.98, 0.54, 7.44],
+      [103, 'DIPIRONA 500MG 10 COMPRIMIDOS', 1, 6.9, 6.9, 0.46, 6.44],
+      [69379, 'SERVICO DE ENTREGA', 1, 5, 5, 0, 5],
+    ]);
+    // A conta do fornecedor continua fechando: líquido dos itens + frete = total.
+    const liquido = itens.reduce((s, i) => s + Number(i.itpeTotalLiquido), 0);
+    expect(Math.round((liquido + Number(pedido.peecValor_Frete)) * 100) / 100).toBe(pedido.peecValor_Total);
+    expect(banco.tabelas[TABELA_PAGAMENTO][0]).toMatchObject({ ipepValor_Total: 18.88 });
+  });
+
+  it('serviço de entrega: sem item na retirada, na entrega grátis e no frete a combinar; código inválido é recusado', async () => {
+    const credenciais = { ...COM_PEDIDO, pedido_item_entrega: '69379' };
+    const casos: Partial<PedidoParaCriar>[] = [
+      { entrega: { tipo: 'retirada', lojaRetiradaId: 'l1' }, frete: undefined },
+      { frete: { titulo: 'Entrega grátis', valor: 0 } },
+      { frete: undefined },
+    ];
+    for (const caso of casos) {
+      const banco = bancoEmMemoria(CREDENCIAIS_BANCO);
+      await conectorAutomatiza.criarPedido!(comPedido(banco, credenciais), { ...PEDIDO, ...caso });
+      expect(banco.tabelas[TABELA_ITENS].map((i) => i.Codigo_Mercadoria)).toEqual([101, 103]);
+      expect(banco.tabelas[TABELA_PEDIDO][0]).toMatchObject({ peecValor_Frete: 0, peecValor_Total: 14.88 });
+    }
+    expect(conectorAutomatiza.validarCredenciais!({ ...COM_PEDIDO, pedido_item_entrega: 'SERVICO' })).toMatch(/serviço de entrega/);
+  });
+
   it('sem o código de parceiro: não cria pedido (vai para o atendente) e não abre o banco', async () => {
     expect(conectorAutomatiza.criaPedido!(CREDENCIAIS_BANCO)).toBe(false);
     expect(conectorAutomatiza.criaPedido!(COM_PEDIDO)).toBe(true);
