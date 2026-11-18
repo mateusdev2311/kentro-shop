@@ -821,6 +821,7 @@
     $('sem-sessao').hidden = true;
     $('com-sessao').hidden = false;
     $('link').value = s.url;
+    mostrarRamoDoLink(s);
 
     var expirado = (s.status === 'link_enviado' || s.status === 'navegando') && !aberta(s);
     var chaveStatus = expirado ? 'expirado' : s.status;
@@ -1251,7 +1252,7 @@
     });
   }
 
-  function gerarLink(botao) {
+  function gerarLink(botao, mensagem) {
     if (!chat) return;
     var id = chat.id;
     botao.disabled = true;
@@ -1260,9 +1261,11 @@
       mostrarAviso(null);
       mostrarSessao(s);
       agendar();
-      return copiar(s.url, 'Link copiado. Cole na conversa para enviar ao cliente.');
+      return copiar(s.url, mensagem || 'Link copiado. Cole na conversa para enviar ao cliente.');
     }, function (e) {
       mostrarAviso(mensagemDeErro(e));
+      // O link não mudou: o seletor volta para o ramo do link atual.
+      if (sessao) mostrarRamoDoLink(sessao);
     }).then(function () { botao.disabled = false; });
   }
 
@@ -1337,10 +1340,27 @@
     if (chat) carregarCategorias();
   }
 
+  /** O seletor mostra o ramo do link aberto no atendimento (sem link, fica o último escolhido). */
+  function mostrarRamoDoLink(s) {
+    if (!demo || !s) return;
+    var ramo = s.nicho || demo.padrao;
+    var sel = $('demo-ramo');
+    if (sel.value === ramo) return;
+    sel.value = ramo;
+    recarregarCatalogoDoMontar();
+  }
+
+  // Trocar de ramo com um link aberto gera o link novo na hora, com carrinho novo (a API encerra o carrinho do
+  // ramo anterior): sem isso, o cliente continuaria no link antigo e o carrinho misturaria os dois ramos.
   $('demo-ramo').addEventListener('change', function () {
+    var nome = this.options[this.selectedIndex].text;
     Promise.resolve(omni.storage.set(RAMO_DEMO, this.value)).catch(function () {});
     recarregarCatalogoDoMontar();
-    toast('Os próximos links mostram: ' + this.options[this.selectedIndex].text + '.');
+    if (chat && sessao && (sessao.nicho || (demo && demo.padrao)) !== this.value) {
+      gerarLink(this, 'Link novo de ' + nome + ' copiado, com carrinho vazio. Cole na conversa para enviar ao cliente.');
+    } else if (!sessao) {
+      toast('Os próximos links mostram: ' + nome + '.');
+    }
   });
 
   // ── Montar link: carrinho pronto e filtro (categoria ou produtos escolhidos) ──

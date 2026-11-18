@@ -59,18 +59,32 @@ export class SessoesController {
   /**
    * Gera (ou reaproveita) o link do atendimento. Com filtro, preços ou carrinho pronto, o link é sempre novo, mas o
    * carrinho continua o mesmo: os itens do carrinho pronto são somados e os links anteriores continuam valendo.
-   * A resposta traz `avisos` quando algum item do carrinho pronto não pôde entrar.
+   * A resposta traz `avisos` quando algum item do carrinho pronto não pôde entrar. Na demonstração, trocar de ramo
+   * é a exceção: começa um carrinho novo.
    */
   @Post()
   async criar(@Req() req: RequisicaoDaLoja, @Body() dto: CriarSessaoDto, @Res({ passthrough: true }) res: Response) {
     const { filtro, restrito, mostrarPrecos, itens, nicho, ...contato } = dto;
     const chatId = dto.chatId.trim();
-    if (nicho && !(await this.integracoes.ramosDaDemonstracao(req.loja.id))) {
-      throw new ErroApi(400, 'SO_NA_DEMONSTRACAO', 'O ramo de loja só vale para a integração de demonstração.');
+    // Demonstração: link de OUTRO ramo começa um carrinho novo (o do ramo anterior é encerrado e o link dele deixa
+    // de valer); senão o carrinho misturaria porcelanato com remédio.
+    let novoCarrinho = false;
+    if (nicho) {
+      const demo = await this.integracoes.ramosDaDemonstracao(req.loja.id);
+      if (!demo) throw new ErroApi(400, 'SO_NA_DEMONSTRACAO', 'O ramo de loja só vale para a integração de demonstração.');
+      const atual = await this.sessoes.porChat(req.loja.id, chatId);
+      novoCarrinho = !!atual && (atual.nicho ?? demo.padrao) !== nicho;
     }
     const montado =
       filtro || itens?.length || restrito !== undefined || mostrarPrecos !== undefined || nicho ? { filtro, restrito, mostrarPrecos, nicho } : null;
-    let { sessao, linkNovo } = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...contato, chatId }, nomeDoAtendente(req), montado);
+    let { sessao, linkNovo } = await this.sessoes.criarOuReaproveitar(
+      req.loja.id,
+      { ...contato, chatId },
+      nomeDoAtendente(req),
+      montado,
+      'atendente',
+      novoCarrinho,
+    );
     let avisos: string[] = [];
     if (itens?.length) ({ sessao, avisos } = await this.carrinho.adicionarPeloAtendente(req.loja.id, sessao.id, itens));
     res.status(linkNovo ? 201 : 200);

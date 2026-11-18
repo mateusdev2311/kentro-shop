@@ -100,18 +100,36 @@ describe('demonstração por ramo de loja', () => {
     expect(produtos.itens.every((p: { sku: string }) => p.sku.startsWith('MER-'))).toBe(true);
   });
 
-  it('gerar o link de outro ramo no mesmo atendimento troca a vitrine e o link anterior continua no ramo dele', async () => {
+  it('outro ramo no mesmo atendimento começa um carrinho novo; o link do ramo anterior deixa de valer', async () => {
     const loja = await demo();
-    const primeiro = token((await link(loja, { nicho: 'petshop' })).body.url);
+    const primeiro = await link(loja, { nicho: 'petshop' });
+    const t1 = token(primeiro.body.url);
+    await http().put(`/v1/catalogo/${t1}/carrinho`).send({ itens: [{ produtoId: 'PET-BOL-BOR', variacaoId: 'PET-BOL-BOR-AZL', quantidade: 1 }] });
+
     const segundo = await link(loja, { nicho: 'mercado' });
     expect(segundo.status).toBe(201);
-    const t2 = token(segundo.body.url);
-    expect(t2).not.toBe(primeiro);
+    expect(segundo.body.id).not.toBe(primeiro.body.id);
+    expect(segundo.body.nicho).toBe('mercado');
+    expect(segundo.body.itens).toEqual([]);
+    expect(segundo.body.cliente.nome).toBe('Ana');
 
     const lista = async (t: string) => (await http().get(`/v1/catalogo/${t}/produtos`)).body.itens.map((p: { sku: string }) => p.sku.slice(0, 3));
-    expect(new Set(await lista(t2))).toEqual(new Set(['MER']));
-    expect(new Set(await lista(primeiro))).toEqual(new Set(['PET']));
-    expect((await http().get(`/v1/catalogo/${primeiro}/abrir`)).body.tema.nome).toBe('Pet Modelo');
+    expect(new Set(await lista(token(segundo.body.url)))).toEqual(new Set(['MER']));
+    const antigo = await http().get(`/v1/catalogo/${t1}/abrir`);
+    expect(antigo.status).toBe(404);
+    expect(antigo.body.erro.codigo).toBe('LINK_INVALIDO');
+  });
+
+  it('outro link do MESMO ramo continua o mesmo carrinho (inclusive do ramo padrão, sem ramo gravado)', async () => {
+    const loja = await demo('farmacia');
+    const semRamo = await link(loja);
+    const t1 = token(semRamo.body.url);
+    await http().put(`/v1/catalogo/${t1}/carrinho`).send({ itens: [{ produtoId: 'FAR-DIP-500', quantidade: 2 }] });
+
+    const mesmo = await link(loja, { nicho: 'farmacia' });
+    expect(mesmo.body.id).toBe(semRamo.body.id);
+    expect(mesmo.body.itens).toEqual([expect.objectContaining({ produtoId: 'FAR-DIP-500', quantidade: 2 })]);
+    expect((await http().get(`/v1/catalogo/${t1}/abrir`)).status).toBe(200);
   });
 
   it('o painel monta o link pelo catálogo do ramo escolhido', async () => {
