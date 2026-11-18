@@ -38,15 +38,25 @@ export class CatalogoService {
     private readonly cache: CacheCatalogo,
   ) {}
 
-  async listarCategorias(lojaId: string): Promise<Categoria[]> {
+  /**
+   * Contexto do conector. `nicho` (link da demonstração de um ramo específico) troca o ramo só nesta leitura e
+   * separa o cache; em outra plataforma, é ignorado.
+   */
+  private async contextoDaLeitura(lojaId: string, nicho?: string | null) {
     const { conector, ctx } = await this.integracoes.contexto(lojaId);
-    return this.cache.obter(lojaId, 'categorias', conector.cacheSegundos, () => conector.listarCategorias(ctx));
+    if (!nicho || conector.id !== 'demonstracao') return { conector, ctx, prefixo: '' };
+    return { conector, ctx: { ...ctx, credenciais: { ...ctx.credenciais, nicho } }, prefixo: `nicho:${nicho}|` };
   }
 
-  async listarProdutos(lojaId: string, filtro: Omit<FiltroProdutos, 'porPagina'>): Promise<Pagina<Produto>> {
-    const { conector, ctx } = await this.integracoes.contexto(lojaId);
+  async listarCategorias(lojaId: string, nicho?: string | null): Promise<Categoria[]> {
+    const { conector, ctx, prefixo } = await this.contextoDaLeitura(lojaId, nicho);
+    return this.cache.obter(lojaId, `${prefixo}categorias`, conector.cacheSegundos, () => conector.listarCategorias(ctx));
+  }
+
+  async listarProdutos(lojaId: string, filtro: Omit<FiltroProdutos, 'porPagina'>, nicho?: string | null): Promise<Pagina<Produto>> {
+    const { conector, ctx, prefixo } = await this.contextoDaLeitura(lojaId, nicho);
     const completo = { ...filtro, porPagina: POR_PAGINA };
-    const pagina = await this.cache.obter(lojaId, `lista|${JSON.stringify(completo)}`, conector.cacheSegundos, () => conector.listarProdutos(ctx, completo));
+    const pagina = await this.cache.obter(lojaId, `${prefixo}lista|${JSON.stringify(completo)}`, conector.cacheSegundos, () => conector.listarProdutos(ctx, completo));
     const regras = await this.regras.porSkus(lojaId, pagina.itens.map((p) => p.sku));
     return {
       ...pagina,

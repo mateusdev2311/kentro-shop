@@ -17,6 +17,7 @@ const UNIDADES: Record<string, [string, string]> = {
   PC: ['peça', 'peças'],
   KG: ['kg', 'kg'],
   LT: ['lata', 'latas'],
+  PCT: ['pacote', 'pacotes'],
   M2: ['m²', 'm²'],
 };
 

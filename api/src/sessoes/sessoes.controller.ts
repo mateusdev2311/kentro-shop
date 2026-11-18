@@ -63,14 +63,24 @@ export class SessoesController {
    */
   @Post()
   async criar(@Req() req: RequisicaoDaLoja, @Body() dto: CriarSessaoDto, @Res({ passthrough: true }) res: Response) {
-    const { filtro, restrito, mostrarPrecos, itens, ...contato } = dto;
+    const { filtro, restrito, mostrarPrecos, itens, nicho, ...contato } = dto;
     const chatId = dto.chatId.trim();
-    const montado = filtro || itens?.length || restrito !== undefined || mostrarPrecos !== undefined ? { filtro, restrito, mostrarPrecos } : null;
+    if (nicho && !(await this.integracoes.ramosDaDemonstracao(req.loja.id))) {
+      throw new ErroApi(400, 'SO_NA_DEMONSTRACAO', 'O ramo de loja só vale para a integração de demonstração.');
+    }
+    const montado =
+      filtro || itens?.length || restrito !== undefined || mostrarPrecos !== undefined || nicho ? { filtro, restrito, mostrarPrecos, nicho } : null;
     let { sessao, linkNovo } = await this.sessoes.criarOuReaproveitar(req.loja.id, { ...contato, chatId }, nomeDoAtendente(req), montado);
     let avisos: string[] = [];
     if (itens?.length) ({ sessao, avisos } = await this.carrinho.adicionarPeloAtendente(req.loja.id, sessao.id, itens));
     res.status(linkNovo ? 201 : 200);
     return { ...sessao, avisos };
+  }
+
+  /** Demonstração: os ramos de loja para o atendente escolher ao gerar o link. Fora da demonstração, ramos vazio. */
+  @Get('demonstracao')
+  async demonstracao(@Req() req: RequisicaoDaLoja) {
+    return (await this.integracoes.ramosDaDemonstracao(req.loja.id)) ?? { padrao: null, ramos: [] };
   }
 
   /** Endereços e pedidos anteriores do contato nesta loja (painel: "pedidos anteriores"). */

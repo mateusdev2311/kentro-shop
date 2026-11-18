@@ -98,3 +98,14 @@ rodarContrato('Demonstração', () => ({
   buscaVazia: 'zzzzzz',
   porPagina: 10,
 }));
+
+rodarContrato('Demonstração — farmácia', () => ({
+  conector: conectorDemonstracao,
+  credenciaisValidas: { codigo: 'demo', nicho: 'farmacia' },
+  credenciaisInvalidas: { codigo: 'outro', nicho: 'farmacia' },
+  idSimples: 'FAR-DIP-500',
+  idComVariacao: 'FAR-PSF-50',
+  idInexistente: 'NAO-EXISTE',
+  buscaVazia: 'zzzzzz',
+  porPagina: 10,
+}));

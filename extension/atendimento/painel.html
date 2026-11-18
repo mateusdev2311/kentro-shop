@@ -112,6 +112,9 @@
     background: var(--ext-color-bg); border: 1px solid var(--ks-linha); border-radius: var(--ks-r-p);
   }
   select { width: auto; max-width: 100%; }
+  .demo label { display: block; margin-bottom: 6px; font-size: .85em; font-weight: 600; }
+  .demo select { width: 100%; }
+  .demo .muted { margin: 6px 0 0; font-size: .8em; }
   input:focus, select:focus { outline: none; border-color: var(--ext-color-primary); box-shadow: 0 0 0 3px var(--ks-suave); }
   /* Caixas de marcar viram chaves liga/desliga */
   input[type=checkbox] {
@@ -301,6 +304,13 @@
   <strong>Atendimento de outra fila</strong>
   <p class="muted">Este catálogo é usado só nas filas da unidade. O atendimento aberto é de outra fila.</p>
 </div>
+
+<!-- Demonstração: o atendente escolhe o ramo de loja do link (só quando a loja usa a integração de demonstração) -->
+<section id="bloco-demo" class="cartao demo" hidden>
+  <label for="demo-ramo">Demonstração · ramo do catálogo</label>
+  <select id="demo-ramo"></select>
+  <p class="muted">O link mostra os produtos de exemplo, com imagens, e a aparência de uma loja fictícia deste ramo.</p>
+</section>
 
 <!-- Ainda não há link para este atendimento -->
 <section id="sem-sessao" class="cartao convite" hidden>
@@ -500,6 +510,8 @@
     return String(u.name || u.nome || u.fullName || u.full_name || u.displayName || u.username || u.email || '').trim();
   }
   var plataforma = null;   // plataforma integrada da loja ("kentro" = catálogo interno da Kentro)
+  var demo = null;         // loja na demonstração: { padrao, ramos } (GET /v1/sessoes/demonstracao)
+  var RAMO_DEMO = 'ramoDemo';
   var chat = null;      // { id, nome, telefone }
   var sessao = null;
   var timer = null;
@@ -729,7 +741,7 @@
   function brl(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   function num(v) { return Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 }); }
   function hora(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
-  var UNIDADES = { CX: ['cx', 'cx'], SC: ['saco', 'sacos'], UN: ['un', 'un'], KIT: ['kit', 'kits'], RL: ['rolo', 'rolos'], PC: ['pç', 'pçs'], KG: ['kg', 'kg'], LT: ['lata', 'latas'] };
+  var UNIDADES = { CX: ['cx', 'cx'], SC: ['saco', 'sacos'], UN: ['un', 'un'], KIT: ['kit', 'kits'], RL: ['rolo', 'rolos'], PC: ['pç', 'pçs'], KG: ['kg', 'kg'], LT: ['lata', 'latas'], PCT: ['pct', 'pcts'] };
   function unidade(s, q) { var n = UNIDADES[String(s).toUpperCase()] || [String(s).toLowerCase(), String(s).toLowerCase()]; return q === 1 ? n[0] : n[1]; }
   function telefone(t) {
     var d = String(t || '').replace(/\D/g, '');
@@ -1287,8 +1299,49 @@
     if (c.email) corpo.email = c.email;
     if (c.documento) corpo.documento = c.documento;
     if (c.endereco && Object.keys(c.endereco).length) corpo.endereco = c.endereco;
+    if (demo) corpo.nicho = ramoDemo();
     return corpo;
   }
+
+  // ── Demonstração: ramo de loja do link ─────────────────────────────────
+  function ramoDemo() { return demo ? $('demo-ramo').value || demo.padrao : ''; }
+
+  function carregarDemonstracao() {
+    if (plataforma !== 'demonstracao') {
+      demo = null;
+      $('bloco-demo').hidden = true;
+      return;
+    }
+    api('/v1/sessoes/demonstracao').then(function (d) {
+      if (!d || !d.ramos || !d.ramos.length) { demo = null; $('bloco-demo').hidden = true; return; }
+      var sel = $('demo-ramo');
+      limpar(sel);
+      d.ramos.forEach(function (r) { sel.appendChild(el('option', { value: r.id, text: r.nome + ' — ' + r.loja })); });
+      return Promise.resolve(omni.storage.get(RAMO_DEMO)).catch(function () { return null; }).then(function (salvo) {
+        demo = d;
+        sel.value = d.ramos.some(function (r) { return r.id === salvo; }) ? salvo : d.padrao;
+        $('bloco-demo').hidden = !chat;
+        // As categorias do "Montar link" podem ter sido lidas antes de saber o ramo.
+        recarregarCatalogoDoMontar();
+      });
+    }, function () { demo = null; $('bloco-demo').hidden = true; });
+  }
+
+  /** O "Montar link" passa a buscar no ramo escolhido: categorias e resultados de novo. */
+  function recarregarCatalogoDoMontar() {
+    var sel = $('montar-categoria');
+    while (sel.options.length > 1) sel.remove(1);
+    categoriasCarregadas = false;
+    limpar($('montar-resultados'));
+    encontrados = {};
+    if (chat) carregarCategorias();
+  }
+
+  $('demo-ramo').addEventListener('change', function () {
+    Promise.resolve(omni.storage.set(RAMO_DEMO, this.value)).catch(function () {});
+    recarregarCatalogoDoMontar();
+    toast('Os próximos links mostram: ' + this.options[this.selectedIndex].text + '.');
+  });
 
   // ── Montar link: carrinho pronto e filtro (categoria ou produtos escolhidos) ──
   var montagem = [];          // [{ produtoId, variacaoId, nome, variacaoNome, quantidade }]
@@ -1338,7 +1391,7 @@
   function carregarCategorias() {
     if (categoriasCarregadas) return;
     categoriasCarregadas = true;
-    api('/v1/loja/catalogo/categorias').then(function (lista) {
+    api('/v1/loja/catalogo/categorias' + (demo ? '?nicho=' + encodeURIComponent(ramoDemo()) : '')).then(function (lista) {
       var sel = $('montar-categoria');
       (lista || []).forEach(function (c) { sel.appendChild(el('option', { value: c.id, text: c.nome })); });
     }, function () { categoriasCarregadas = false; });
@@ -1349,7 +1402,10 @@
     var ul = $('montar-resultados');
     limpar(ul);
     ul.appendChild(el('li', { className: 'muted', text: 'Buscando…' }));
-    api('/v1/loja/catalogo/produtos' + (termo ? '?busca=' + encodeURIComponent(termo) : '')).then(function (pagina) {
+    var consulta = [];
+    if (termo) consulta.push('busca=' + encodeURIComponent(termo));
+    if (demo) consulta.push('nicho=' + encodeURIComponent(ramoDemo()));
+    api('/v1/loja/catalogo/produtos' + (consulta.length ? '?' + consulta.join('&') : '')).then(function (pagina) {
       limpar(ul);
       encontrados = {};
       var itens = (pagina && pagina.itens) || [];
@@ -1683,6 +1739,7 @@
     $('com-sessao').hidden = true;
     $('sem-sessao').hidden = true;
     $('fora-da-fila').hidden = true;
+    $('bloco-demo').hidden = true;
     limparMontagem();
     limparFechar();
     situacaoLidaPara = null;
@@ -1699,6 +1756,7 @@
     }
     var base = c.contact || {};
     chat = { id: id, nome: base.name || '', telefone: String(base.phone || '').replace(/\D/g, '') };
+    $('bloco-demo').hidden = !demo;
     carregarCategorias();
     verificarCarrossel();
     carregarOpcoesPedido();
@@ -1756,6 +1814,7 @@
     var filasMudaram = String(filas) !== String(filasDaLoja);
     plataforma = loja.plataforma || null;
     filasDaLoja = filas;
+    carregarDemonstracao();
     if (plataforma === 'kentro' && lojaConectada && !conferindoKentro) {
       conferindoKentro = true;
       manterCatalogoKentro();

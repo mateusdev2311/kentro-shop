@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { CatalogoService } from '../catalogo/catalogo.service';
-import { ConfigLojaService } from '../config-loja/config-loja.service';
+import { ConfigLojaService, Tema } from '../config-loja/config-loja.service';
+import { nichoDe } from '../conectores/demonstracao/nichos';
 import { FiltroErrosConector } from '../conectores/nucleo/filtro';
 import { NaoEncontrado } from '../conectores/nucleo/erros';
 import { Produto } from '../contratos/modelo';
@@ -17,6 +18,33 @@ import { RequisicaoDoCliente, TokenSessaoGuard } from './token-sessao.guard';
 // O filtro do link é a VITRINE INICIAL (ex.: só as bermudas): o cliente pode sair dele, ver a loja toda e comprar
 // qualquer produto ("Compre também" e "Ver todos os produtos"). O antigo link restrito deixou de travar o catálogo.
 const filtroDoLink = (req: RequisicaoDoCliente) => (req.sessao.filtro as unknown as FiltroLink | null) ?? null;
+/** Demonstração: ramo de loja do link (null = o padrão da loja, sem trocar a aparência). */
+const nichoDoLink = (req: RequisicaoDoCliente) => req.sessao.nicho ?? null;
+
+/**
+ * Link da demonstração de um ramo específico: o catálogo se apresenta como a loja fictícia daquele ramo (nome,
+ * cores, faixa de boas-vindas, banners e vitrine), por cima do tema da loja. Fonte, cantos e layout continuam os dela.
+ */
+function temaDoNicho(tema: Tema, id: string): Tema {
+  const nicho = nichoDe(id);
+  return {
+    ...tema,
+    nome: nicho.loja.nome,
+    corPrimaria: nicho.loja.corPrimaria,
+    corTopo: nicho.loja.corTopo,
+    logoUrl: undefined,
+    destaque: true,
+    tituloDestaque: nicho.loja.tituloDestaque,
+    boasVindas: nicho.loja.boasVindas,
+    banners: nicho.banners.map((b, i) => ({
+      id: `demo-${nicho.id}-${i + 1}`,
+      url: `/demo/banners/${nicho.id}-${i + 1}.svg`,
+      ...(b.categoriaId ? { categoriaId: b.categoriaId } : {}),
+    })),
+    vitrineTitulo: nicho.loja.vitrineTitulo,
+    vitrineProdutos: nicho.loja.vitrineProdutos,
+  };
+}
 const MAX_SUGESTOES = 8;
 
 /** Produto que só está em categorias ocultas fica de fora. */
@@ -59,7 +87,7 @@ export class CatalogoPublicoController {
       filtro: sessao.filtro,
       restrito: false,
       mostrarPrecos,
-      tema: config.tema,
+      tema: sessao.nicho ? temaDoNicho(config.tema, sessao.nicho) : config.tema,
       entrega: config.entrega,
       retirada: { habilitada: config.retirada.habilitada, lojas: config.retirada.habilitada ? config.lojasRetirada : [] },
       frete: mostrarPrecos ? config.frete : { regra: 'a_combinar' },
@@ -72,7 +100,7 @@ export class CatalogoPublicoController {
 
   @Get('categorias')
   async categorias(@Req() req: RequisicaoDoCliente) {
-    const [categorias, config] = await Promise.all([this.catalogo.listarCategorias(req.sessao.lojaId), this.configLoja.obter(req.sessao.lojaId)]);
+    const [categorias, config] = await Promise.all([this.catalogo.listarCategorias(req.sessao.lojaId, nichoDoLink(req)), this.configLoja.obter(req.sessao.lojaId)]);
     const ocultas = new Set(config.categoriasOcultas);
     return categorias.filter((c) => !ocultas.has(c.id));
   }
@@ -106,11 +134,15 @@ export class CatalogoPublicoController {
       return mostrar ? pagina : paginaSemPreco(pagina);
     }
 
-    const lista = await this.catalogo.listarProdutos(lojaId, {
-      busca: [filtro?.busca, termo].filter(Boolean).join(' ') || undefined,
-      categoriaId: filtro?.categoriaId ?? (categoria?.trim().slice(0, 50) || undefined),
-      pagina: numero,
-    });
+    const lista = await this.catalogo.listarProdutos(
+      lojaId,
+      {
+        busca: [filtro?.busca, termo].filter(Boolean).join(' ') || undefined,
+        categoriaId: filtro?.categoriaId ?? (categoria?.trim().slice(0, 50) || undefined),
+        pagina: numero,
+      },
+      nichoDoLink(req),
+    );
     const visiveis = ocultas.size ? { ...lista, itens: lista.itens.filter(visivel) } : lista;
     return mostrar ? visiveis : paginaSemPreco(visiveis);
   }
@@ -128,7 +160,7 @@ export class CatalogoPublicoController {
   async vitrineInicial(@Req() req: RequisicaoDoCliente) {
     const lojaId = req.sessao.lojaId;
     const config = await this.configLoja.obter(lojaId);
-    const ids = config.tema.vitrineProdutos ?? [];
+    const ids = (req.sessao.nicho ? temaDoNicho(config.tema, req.sessao.nicho) : config.tema).vitrineProdutos ?? [];
     if (!ids.length) return [];
     const visivel = visivelNas(new Set(config.categoriasOcultas));
     // Se a leitura falhar, o catálogo abre sem a área em vez de dar erro na página inicial.
@@ -155,7 +187,7 @@ export class CatalogoPublicoController {
     const ids = [...new Set([...(filtro?.produtoIds ?? []), ...noCarrinho])].slice(0, 30);
     if (ids.length) for (const p of (await this.catalogo.obterVarios(lojaId, ids).catch(() => new Map<string, Produto | null>())).values()) if (p) base.set(p.id, p);
     if (filtro?.busca && !filtro.categoriaId) {
-      for (const p of (await this.catalogo.listarProdutos(lojaId, { busca: filtro.busca, pagina: 1 }).catch(() => ({ itens: [] as Produto[] }))).itens) base.set(p.id, p);
+      for (const p of (await this.catalogo.listarProdutos(lojaId, { busca: filtro.busca, pagina: 1 }, nichoDoLink(req)).catch(() => ({ itens: [] as Produto[] }))).itens) base.set(p.id, p);
     }
     const ocultas = new Set(config.categoriasOcultas);
     const contagem = new Map<string, number>();
@@ -178,9 +210,9 @@ export class CatalogoPublicoController {
       if (escolhidos.length >= MAX_SUGESTOES) break;
       // A categoria do próprio link já aparece inteira na vitrine: dela, só as páginas seguintes valem como novidade.
       const pagina = categoriaId === filtro?.categoriaId ? 2 : 1;
-      juntar((await this.catalogo.listarProdutos(lojaId, { categoriaId, pagina }).catch(() => ({ itens: [] as Produto[] }))).itens);
+      juntar((await this.catalogo.listarProdutos(lojaId, { categoriaId, pagina }, nichoDoLink(req)).catch(() => ({ itens: [] as Produto[] }))).itens);
     }
-    if (escolhidos.length < MAX_SUGESTOES) juntar((await this.catalogo.listarProdutos(lojaId, { pagina: 1 }).catch(() => ({ itens: [] as Produto[] }))).itens);
+    if (escolhidos.length < MAX_SUGESTOES) juntar((await this.catalogo.listarProdutos(lojaId, { pagina: 1 }, nichoDoLink(req)).catch(() => ({ itens: [] as Produto[] }))).itens);
 
     const mostrar = precosVisiveis(req.sessao, config.mostrarPrecos);
     return mostrar ? escolhidos : escolhidos.map(produtoSemPreco);

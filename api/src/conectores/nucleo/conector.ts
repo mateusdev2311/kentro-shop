@@ -73,6 +73,8 @@ export interface CtxConector {
   credenciais: Record<string, string>; // já decifradas, só durante a chamada
   http: ClienteHttpConector; // nunca usar fetch direto
   salvarCredenciais(novas: Record<string, string>): Promise<void>; // renovação de token
+  /** Endereço público desta API (sem barra no fim), para o conector montar links servidos por ela (ex.: imagens da demo). */
+  urlPublica?: string;
   /** Só para conectores que leem uma cópia sincronizada em vez da plataforma ao vivo. */
   catalogoLocal?: CatalogoLocal;
   /** Só para conectores de banco de dados: consultas no banco da loja (gravação só em transação, nas tabelas liberadas). */

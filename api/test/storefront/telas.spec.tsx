@@ -297,7 +297,7 @@ describe('catálogo do cliente', () => {
     expect(chamadas('/produtos?busca=tinta')).toHaveLength(1);
   });
 
-  it('adicionar pelo detalhe atualiza o contador e chama o PUT', async () => {
+  it('adicionar pelo detalhe atualiza o contador, chama o PUT e, sem compre junto, volta para a vitrine', async () => {
     await montar();
     clicar(elemento('.produto', 'Tinta Acrílica'));
     expect(elemento('.variacao', 'Preto').hasAttribute('disabled')).toBe(true);
@@ -305,6 +305,7 @@ describe('catálogo do cliente', () => {
     clicar(elemento('button', 'Adicionar'));
     expect(elemento('.contador').textContent).toBe('1');
     expect(tem('1 unidade adicionada ao carrinho')).toBe(true);
+    expect(raiz.querySelector('.painel-folha')).toBeNull();
     await ate(() => chamadas('/carrinho', 'PUT').length === 1);
     expect(chamadas('/carrinho')[0].corpo).toEqual({ itens: [{ produtoId: 'TINTA', variacaoId: 'v1', quantidade: 1 }] });
   });
@@ -318,6 +319,9 @@ describe('catálogo do cliente', () => {
     await ate(() => tem('Compre junto'));
     expect(elemento('.sugestao', 'Argamassa AC3').textContent).toContain('Para 11,52 m²: 3 sacos');
     clicar(elemento('button', 'Adicionar'));
+    // Com compre junto, a folha do produto fica aberta para o cliente levar o que combina.
+    expect(tem('8 caixas adicionadas ao carrinho. Veja o que combina.')).toBe(true);
+    expect(raiz.querySelector('.painel-folha')).not.toBeNull();
     clicar(elemento('button', 'Adicionar Argamassa AC3'));
     await ate(() => chamadas('/carrinho', 'PUT').length === 1);
     expect(chamadas('/carrinho')[0].corpo).toEqual({

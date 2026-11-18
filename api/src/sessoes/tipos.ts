@@ -93,6 +93,8 @@ export interface SessaoCompleta {
   restrito: boolean;
   /** null = segue a loja. */
   mostrarPrecos: boolean | null;
+  /** Demonstração: ramo de loja do link (null = o padrão da loja). */
+  nicho: string | null;
   /** Pedido criado na loja ao finalizar (modo "criar pedido"); null = o atendente fecha a venda. */
   pedido: PedidoNaLoja | null;
   /** Outros links ainda válidos que gravam neste mesmo carrinho (cada um com a sua vitrine). */

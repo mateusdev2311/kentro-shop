@@ -16,6 +16,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IDS_NICHOS } from '../conectores/demonstracao/nichos';
 import { FORMAS_PAGAMENTO, FormaPagamento } from '../contratos/modelo';
 
 /** Endereço vindo do contato da Kentro (pré-cadastro). Tudo opcional: o cliente confere no checkout. */
@@ -86,6 +87,11 @@ export class CriarSessaoDto {
   @IsOptional()
   @IsBoolean()
   mostrarPrecos?: boolean;
+
+  /** Só na demonstração: o ramo de loja do link (farmácia, pet shop...). Ausente = o padrão da loja. */
+  @IsOptional()
+  @IsIn(IDS_NICHOS, { message: 'Ramo da demonstração desconhecido.' })
+  nicho?: string;
 
   /** Carrinho pronto montado pelo atendente. */
   @IsOptional()

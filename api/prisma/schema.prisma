@@ -258,6 +258,8 @@ model Sessao {
   restrito      Boolean      @default(true)
   /// null = segue a loja.
   mostrarPrecos Boolean?     @map("mostrar_precos")
+  /// Demonstração: ramo de loja do link (farmácia, pet shop...). null = o padrão da loja.
+  nicho         String?
   /// Pedido criado na plataforma ao finalizar (modo criar_pedido): { idExterno, numero, url, status }.
   pedido        Json?
   /// Relatórios: quem gerou o primeiro link do atendimento — atendente (painel), ia (assistente) ou ura (automação).
@@ -290,6 +292,7 @@ model LinkSessao {
   filtro        Json?
   restrito      Boolean  @default(true)
   mostrarPrecos Boolean? @map("mostrar_precos")
+  nicho         String?
   criadoEm      DateTime @default(now()) @map("criado_em")
 
   sessao Sessao @relation(fields: [sessaoId], references: [id], onDelete: Cascade)

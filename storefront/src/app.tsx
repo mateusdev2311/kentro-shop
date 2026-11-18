@@ -488,7 +488,7 @@ export function App({ api, buscarCep, documento }: Dependencias) {
             <button type="button" class="fechar" aria-label="Fechar" onClick={() => setDetalhe(null)}>
               ×
             </button>
-            <Detalhe key={detalhe.id} produto={detalhe} api={api} carrinho={carrinho} aviso={mostrarAviso} />
+            <Detalhe key={detalhe.id} produto={detalhe} api={api} carrinho={carrinho} aviso={mostrarAviso} fechar={() => setDetalhe(null)} />
           </section>
         </div>
       )}

@@ -4,6 +4,7 @@ import { ConfigApp, CONFIG_APP } from '../comum/config';
 import { cifrar, decifrar } from '../comum/cripto';
 import { ErroApi } from '../comum/erros';
 import { PrismaService } from '../comum/prisma.service';
+import { NICHOS, nichoDe } from '../conectores/demonstracao/nichos';
 import { ABRIR_BANCO, AbrirBanco } from '../conectores/nucleo/banco';
 import { ChamadaRegistrada, criarClienteHttp } from '../conectores/nucleo/cliente-http';
 import { Conector, CtxConector } from '../conectores/nucleo/conector';
@@ -62,6 +63,9 @@ export class IntegracoesService {
         throw new ErroApi(400, 'ENTRADA_INVALIDA', `O campo ${campo.rotulo} precisa ser texto.`);
       }
       novos[campo.chave] = (bruto ?? '').trim();
+      if (campo.tipo === 'select' && novos[campo.chave] && !campo.opcoes?.some((o) => o.valor === novos[campo.chave])) {
+        throw new ErroApi(400, 'ENTRADA_INVALIDA', `Escolha uma das opções do campo ${campo.rotulo}.`);
+      }
       // A API chama este endereço a partir do servidor: só https público (proteção contra SSRF).
       if (campo.tipo === 'url' && novos[campo.chave] && !enderecoPublicoHttps(novos[campo.chave])) {
         throw new ErroApi(400, 'ENTRADA_INVALIDA', `O campo ${campo.rotulo} precisa começar com https:// e apontar para um endereço público.`);
@@ -136,6 +140,20 @@ export class IntegracoesService {
     return { pagamentoNaEntrega: !!conector.pagamentoNaEntrega };
   }
 
+  /**
+   * Loja na demonstração: os ramos de loja que o atendente pode escolher ao gerar o link e o ramo padrão (o da
+   * integração). null = a loja não usa a demonstração.
+   */
+  async ramosDaDemonstracao(lojaId: string): Promise<{ padrao: string; ramos: { id: string; nome: string; loja: string }[] } | null> {
+    const linha = await this.prisma.integracao.findUnique({ where: { lojaId } });
+    if (linha?.plataforma !== 'demonstracao') return null;
+    const credenciais = this.decifrarCredenciais(linha.credenciaisCifradas, linha.iv);
+    return {
+      padrao: nichoDe(credenciais.nicho).id,
+      ramos: NICHOS.map((n) => ({ id: n.id, nome: n.nome, loja: n.loja.nome })),
+    };
+  }
+
   /** Depois da autorização: o que o conector precisa fazer na plataforma (ex.: registrar webhooks). */
   async aoConectar(lojaId: string): Promise<void> {
     const { conector, ctx } = await this.contexto(lojaId);
@@ -202,6 +220,7 @@ export class IntegracoesService {
     const ctx: CtxConector = {
       lojaId,
       credenciais,
+      urlPublica: this.config.urlPublica,
       http: criarClienteHttp({
         lojaId,
         plataforma: conector.id,

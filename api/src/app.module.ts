@@ -12,6 +12,7 @@ import { ABRIR_BANCO, AbrirBanco, abrirBancoPadrao } from './conectores/nucleo/b
 import { Conector } from './conectores/nucleo/conector';
 import { ABRIR_FTP, AbrirFtp, abrirFtpPadrao } from './conectores/nucleo/ftp';
 import { ExtensaoController } from './arquivos-extensao/extensao.controller';
+import { DemoImagensController } from './conectores/demonstracao/demo-imagens.controller';
 import { IntegracoesModule } from './integracoes/integracoes.module';
 import { OPCOES_SINCRONIZACAO } from './integracoes/sincronizacao.service';
 import { LojasModule } from './lojas/lojas.module';
@@ -62,7 +63,7 @@ export class AppModule {
         PrismaService,
       ],
       exports: [CONFIG_APP, ENVIO_AVISO, ABRIR_BANCO, ABRIR_FTP, CLIENTE_META, OPCOES_SINCRONIZACAO, PrismaService],
-      controllers: [SaudeController, ExtensaoController, CatalogoPaginaController],
+      controllers: [SaudeController, ExtensaoController, CatalogoPaginaController, DemoImagensController],
     };
   }
 }

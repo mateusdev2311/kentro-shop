@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Api } from '../api';
 import type { Carrinho } from '../carrinho';
 import { adicionado, brl, caixasParaArea, num, quantidadeSugerida, unidade } from '../formato';
@@ -11,6 +11,8 @@ interface Props {
   api: Pick<Api, 'produto'>;
   carrinho: Carrinho;
   aviso: (texto: string, erro?: boolean) => void;
+  /** Fecha a folha do produto (volta para a vitrine). */
+  fechar?: () => void;
 }
 
 const MAX = 999;
@@ -21,12 +23,13 @@ interface Sugestao {
   variacao: Variacao | null;
 }
 
-export function Detalhe({ produto, api, carrinho, aviso }: Props) {
+export function Detalhe({ produto, api, carrinho, aviso, fechar }: Props) {
   const [variacao, setVariacao] = useState<Variacao | null>(() => primeiraVariacao(produto));
   const [quantidade, setQuantidade] = useState(1);
   const [area, setArea] = useState('');
   const [perda, setPerda] = useState(true);
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
+  const compreJunto = useRef<HTMLDivElement>(null);
 
   // "Compre junto": até 4 SKUs, carregados ao vivo (preço e estoque atuais).
   useEffect(() => {
@@ -58,10 +61,21 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
     if (caixas > 0) setQuantidade(limitar(caixas));
   }
 
+  /**
+   * Depois de adicionar: com "Compre junto", a folha fica aberta e rola até as sugestões (é a hora de levar o
+   * rejunte com o piso); sem sugestões, volta para a vitrine, onde a barra do carrinho já mostra o total.
+   */
   function adicionar() {
     if (!podeComprar) return;
     carrinho.alterar(produto.id, variacao?.id ?? null, jaNoCarrinho + quantidade);
-    aviso(`${quantidade} ${unidade(produto.unidade, quantidade)} ${adicionado(produto.unidade, quantidade)} ao carrinho`);
+    const texto = `${quantidade} ${unidade(produto.unidade, quantidade)} ${adicionado(produto.unidade, quantidade)} ao carrinho`;
+    if (sugestoes.length && compreJunto.current) {
+      aviso(`${texto}. Veja o que combina.`);
+      compreJunto.current.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    } else {
+      aviso(texto);
+      fechar?.();
+    }
   }
 
   function adicionarSugestao(s: Sugestao) {
@@ -184,7 +198,7 @@ export function Detalhe({ produto, api, carrinho, aviso }: Props) {
       </div>
 
       {sugestoes.length > 0 && (
-        <div class="compre-junto">
+        <div class="compre-junto" ref={compreJunto}>
           <h3>Compre junto</h3>
           <p>O que normalmente vai junto com este produto.</p>
           {sugestoes.map((s, i) => {

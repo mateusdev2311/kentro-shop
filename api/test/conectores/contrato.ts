@@ -40,6 +40,8 @@ function contexto(c: CenarioContrato, credenciais: Record<string, string>, fetch
       registrar: async () => undefined,
     }),
     salvarCredenciais: async () => undefined,
+    // Como em produção: a API sempre informa o próprio endereço (os conectores que servem arquivos por ela usam).
+    urlPublica: 'https://shop.teste',
     ...(c.catalogoLocal ? { catalogoLocal: c.catalogoLocal() } : {}),
     ...(c.banco ? { banco: c.banco(credenciais) } : {}),
   };

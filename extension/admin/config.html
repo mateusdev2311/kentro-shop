@@ -1265,12 +1265,26 @@
     conector.camposDeCredencial.forEach(function (campo) {
       var rotulo = el('label', campo.rotulo + (campo.obrigatorio ? ' *' : ''));
       rotulo.setAttribute('for', 'campo-' + campo.chave);
-      var entrada = document.createElement('input');
+      var entrada;
+      if (campo.tipo === 'select') {
+        entrada = document.createElement('select');
+        (campo.opcoes || []).forEach(function (o) {
+          var opcao = document.createElement('option');
+          opcao.value = o.valor;
+          opcao.textContent = o.rotulo;
+          entrada.appendChild(opcao);
+        });
+        // Sem valor gravado: fica a primeira opção (o padrão do conector).
+        if (valores && valores[campo.chave]) entrada.value = valores[campo.chave];
+        entrada.addEventListener('change', function () { estado.alterado = true; });
+      } else {
+        entrada = document.createElement('input');
+        entrada.type = campo.tipo === 'segredo' ? 'password' : campo.tipo === 'url' ? 'url' : 'text';
+        entrada.autocomplete = 'off';
+        entrada.value = (valores && valores[campo.chave]) || '';
+        entrada.addEventListener('input', function () { estado.alterado = true; });
+      }
       entrada.id = 'campo-' + campo.chave;
-      entrada.type = campo.tipo === 'segredo' ? 'password' : campo.tipo === 'url' ? 'url' : 'text';
-      entrada.autocomplete = 'off';
-      entrada.value = (valores && valores[campo.chave]) || '';
-      entrada.addEventListener('input', function () { estado.alterado = true; });
       alvo.appendChild(rotulo);
       alvo.appendChild(entrada);
       if (campo.ajuda) alvo.appendChild(el('span', campo.ajuda, 'ajuda'));

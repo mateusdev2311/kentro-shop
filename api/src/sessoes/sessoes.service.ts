@@ -13,7 +13,7 @@ const MAX_EVENTOS = 30;
 export const MAX_LINKS = 5;
 
 /** A vitrine de um link: um link anterior do carrinho tem filtro e preços próprios. */
-export type VistaDoLink = Pick<SessaoBanco, 'token' | 'filtro' | 'restrito' | 'mostrarPrecos'>;
+export type VistaDoLink = Pick<SessaoBanco, 'token' | 'filtro' | 'restrito' | 'mostrarPrecos' | 'nicho'>;
 const ABERTOS: StatusSessao[] = ['link_enviado', 'navegando'];
 const MENSAGEM_LINK_INVALIDO = 'Este link não está mais disponível. Peça um novo link no WhatsApp.';
 
@@ -35,6 +35,8 @@ export interface OpcoesDoLink {
   filtro?: FiltroLink;
   restrito?: boolean;
   mostrarPrecos?: boolean;
+  /** Demonstração: ramo de loja do link (validado no controller). */
+  nicho?: string;
 }
 
 /** Filtro sem campos vazios; nada sobrando = sem filtro. */
@@ -138,6 +140,7 @@ export class SessoesService {
         ...(filtro ? { filtro: filtro as unknown as Prisma.InputJsonValue } : {}),
         restrito: montado?.restrito ?? true,
         mostrarPrecos: montado?.mostrarPrecos ?? null,
+        nicho: montado?.nicho ?? null,
         ...origemDoLink(autor, atendente),
         eventos: { create: { tipo: 'link', texto: textoDoLink(autor, atendente), autor } },
       },
@@ -157,6 +160,7 @@ export class SessoesService {
           ...(aberta.filtro ? { filtro: aberta.filtro as Prisma.InputJsonValue } : {}),
           restrito: aberta.restrito,
           mostrarPrecos: aberta.mostrarPrecos,
+          nicho: aberta.nicho,
         },
       });
       const antigos = await tx.linkSessao.findMany({ where: { sessaoId: aberta.id }, orderBy: { criadoEm: 'desc' }, skip: MAX_LINKS - 1, select: { id: true } });
@@ -168,6 +172,7 @@ export class SessoesService {
           filtro: filtro ? (filtro as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
           restrito: montado.restrito ?? true,
           mostrarPrecos: montado.mostrarPrecos ?? null,
+          nicho: montado.nicho ?? null,
           cliente: cliente as unknown as Prisma.InputJsonValue,
         },
       });
@@ -177,14 +182,14 @@ export class SessoesService {
 
   /**
    * Sessão pelo token do link (o atual ou um anterior do mesmo carrinho). Um link anterior traz a vitrine DELE:
-   * token, filtro, restrito e mostrarPrecos. Inexistente, expirada ou de loja bloqueada → LINK_INVALIDO.
+   * token, filtro, restrito, mostrarPrecos e nicho. Inexistente, expirada ou de loja bloqueada → LINK_INVALIDO.
    */
   async porToken(token: string): Promise<SessaoBanco> {
     const incluir = { loja: { select: { status: true } } } as const;
     let sessao = await this.prisma.sessao.findUnique({ where: { token }, include: incluir });
     if (!sessao) {
       const link = await this.prisma.linkSessao.findUnique({ where: { token }, include: { sessao: { include: incluir } } });
-      if (link) sessao = { ...link.sessao, token: link.token, filtro: link.filtro, restrito: link.restrito, mostrarPrecos: link.mostrarPrecos };
+      if (link) sessao = { ...link.sessao, token: link.token, filtro: link.filtro, restrito: link.restrito, mostrarPrecos: link.mostrarPrecos, nicho: link.nicho };
     }
     if (!sessao || sessao.loja.status === 'bloqueada') throw linkInvalido();
     const encerrada = sessao.status === 'finalizado' || sessao.status === 'pedido_criado';
@@ -230,7 +235,7 @@ export class SessoesService {
         links: { orderBy: { criadoEm: 'desc' } },
       },
     });
-    const s = vista ? { ...lida, token: vista.token, filtro: vista.filtro, restrito: vista.restrito, mostrarPrecos: vista.mostrarPrecos } : lida;
+    const s = vista ? { ...lida, token: vista.token, filtro: vista.filtro, restrito: vista.restrito, mostrarPrecos: vista.mostrarPrecos, nicho: vista.nicho } : lida;
     const itens: ItemPublico[] = s.itens.map((i) => {
       const precoUnitario = Number(i.precoUnitario);
       return {
@@ -270,6 +275,7 @@ export class SessoesService {
       filtro: (s.filtro as unknown as FiltroLink | null) ?? null,
       restrito: s.restrito,
       mostrarPrecos: s.mostrarPrecos,
+      nicho: s.nicho,
       pedido,
       // Os outros links que gravam neste mesmo carrinho (sem o atual), do mais novo para o mais antigo.
       linksAnteriores: [{ token: lida.token, filtro: lida.filtro, restrito: lida.restrito }, ...lida.links]

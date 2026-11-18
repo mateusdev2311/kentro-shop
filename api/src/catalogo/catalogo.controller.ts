@@ -3,7 +3,11 @@ import { MAX_VITRINE_INICIAL } from '../config-loja/config-loja.service';
 import { FiltroErrosConector } from '../conectores/nucleo/filtro';
 import { Produto } from '../contratos/modelo';
 import { ChaveLojaGuard, Papel, RequisicaoDaLoja } from '../lojas/chave-loja.guard';
+import { existeNicho } from '../conectores/demonstracao/nichos';
 import { CatalogoService } from './catalogo.service';
+
+/** Ramo da demonstração vindo da URL: só um dos conhecidos (qualquer outro valor é ignorado). */
+const nichoDaConsulta = (nicho?: string) => (existeNicho(nicho) ? nicho!.trim() : null);
 
 /** Catálogo da loja para as extensões (prévia na aba Integração e painel do atendente). */
 @Controller('v1/loja/catalogo')
@@ -13,9 +17,10 @@ import { CatalogoService } from './catalogo.service';
 export class CatalogoController {
   constructor(private readonly catalogo: CatalogoService) {}
 
+  /** `nicho`: só na demonstração, o ramo de loja escolhido no painel (ignorado nas outras plataformas). */
   @Get('categorias')
-  categorias(@Req() req: RequisicaoDaLoja) {
-    return this.catalogo.listarCategorias(req.loja.id);
+  categorias(@Req() req: RequisicaoDaLoja, @Query('nicho') nicho?: string) {
+    return this.catalogo.listarCategorias(req.loja.id, nichoDaConsulta(nicho));
   }
 
   @Get('produtos')
@@ -24,13 +29,18 @@ export class CatalogoController {
     @Query('busca') busca?: string,
     @Query('categoria') categoria?: string,
     @Query('pagina') pagina?: string,
+    @Query('nicho') nicho?: string,
   ) {
     const numero = Math.max(1, Math.min(Number.parseInt(pagina ?? '1', 10) || 1, 500));
-    return this.catalogo.listarProdutos(req.loja.id, {
-      busca: busca?.trim().slice(0, 100) || undefined,
-      categoriaId: categoria?.trim().slice(0, 50) || undefined,
-      pagina: numero,
-    });
+    return this.catalogo.listarProdutos(
+      req.loja.id,
+      {
+        busca: busca?.trim().slice(0, 100) || undefined,
+        categoriaId: categoria?.trim().slice(0, 50) || undefined,
+        pagina: numero,
+      },
+      nichoDaConsulta(nicho),
+    );
   }
 
   /** Os produtos escolhidos para a vitrine inicial, de uma vez (a tela do admin precisa dos nomes). Inexistente fica de fora. */
